@@ -1,4 +1,4 @@
-name: Build ELORA Dashboard APK
+name: Build Pinky APK
 
 on:
   workflow_dispatch:
@@ -6,361 +6,103 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Find Pinky ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found."
+            exit 1
+          fi
+
+          echo "Found ZIP: $ZIP_FILE"
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+
+      - name: Extract project
+        shell: bash
+        run: |
+          set -e
+
+          rm -rf android_project
+          mkdir android_project
+
+          unzip -q "$ZIP_FILE" -d android_project
+
+          echo "Extracted files:"
+          find android_project -maxdepth 3 -type f | head -100
+
+      - name: Detect Android project root
+        shell: bash
+        run: |
+          set -e
+
+          ROOT=$(find android_project -type f \( \
+            -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \
+          \) -print -quit | xargs -r dirname)
+
+          if [ -z "$ROOT" ]; then
+            echo "ERROR: Android Studio project root was not found."
+            exit 1
+          fi
+
+          echo "Android project root: $ROOT"
+          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+          cache: gradle
 
-      - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Prepare Android SDK
+      - name: Make Gradle executable
+        working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -euo pipefail
-
-          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-
-          if [ -z "${ANDROID_HOME:-}" ]; then
-            echo "ANDROID_HOME is not configured."
-            exit 1
-          fi
-
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
-            -type f \
-            -name sdkmanager \
-            2>/dev/null | head -n 1 || true)"
-
-          if [ -z "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "$ANDROID_HOME" \
-              -type f \
-              -name sdkmanager \
-              2>/dev/null | head -n 1 || true)"
-          fi
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found."
-            exit 1
-          fi
-
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-
-          if [ ! -x "$APKSIGNER" ]; then
-            APKSIGNER="$(find "$ANDROID_HOME/build-tools" \
-              -type f \
-              -name apksigner \
-              -perm -111 \
-              | sort -V \
-              | tail -n 1 || true)"
-          fi
-
-          if [ -z "$APKSIGNER" ] || [ ! -x "$APKSIGNER" ]; then
-            echo "ERROR: apksigner not found."
-            exit 1
-          fi
-
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
-
-          "$APKSIGNER" --version
-
-      - name: Prepare ELORA project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -rf "$RUNNER_TEMP/elora_project"
-          mkdir -p "$RUNNER_TEMP/elora_project"
-
-          if [ -f "app/build.gradle" ] && [ -f "settings.gradle" ]; then
-
-            PROJECT_DIR="$GITHUB_WORKSPACE"
-
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
           else
-
-            ZIP_FILE="$(find "$GITHUB_WORKSPACE" \
-              -type f \
-              -name 'Elora_Dashboard*.zip' \
-              -print \
-              | sort \
-              | head -n 1 || true)"
-
-            if [ -z "$ZIP_FILE" ]; then
-              echo "ERROR: Elora Dashboard ZIP not found."
-              exit 1
-            fi
-
-            echo "Using:"
-            echo "$ZIP_FILE"
-
-            unzip -q "$ZIP_FILE" -d "$RUNNER_TEMP/elora_project"
-
-            PROJECT_DIR="$(find "$RUNNER_TEMP/elora_project" \
-              -type f \
-              -name settings.gradle \
-              -printf '%h\n' \
-              | head -n 1 || true)"
-
-            if [ -z "$PROJECT_DIR" ]; then
-              echo "ERROR: settings.gradle not found."
-              exit 1
-            fi
+            echo "ERROR: gradlew was not found."
+            exit 1
           fi
 
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-          test -f "$PROJECT_DIR/settings.gradle"
-          test -f "$PROJECT_DIR/build.gradle"
-          test -f "$PROJECT_DIR/app/build.gradle"
-
-      - name: Verify application configuration
+      - name: Build Debug APK
+        working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -euo pipefail
+          ./gradlew clean assembleDebug --stacktrace
 
-          cd "$PROJECT_DIR"
-
-          grep -n "applicationId" app/build.gradle || true
-          grep -n "versionCode" app/build.gradle || true
-          grep -n "versionName" app/build.gradle || true
-
-          grep -Eq \
-            "applicationId[[:space:]]*(=|[[:space:]])[[:space:]]*['\"]com\.elora\.dashboard['\"]" \
-            app/build.gradle
-
-          grep -Eq \
-            "versionCode[[:space:]]*(=|[[:space:]])[[:space:]]*19" \
-            app/build.gradle
-
-          grep -Eq \
-            "versionName[[:space:]]*(=|[[:space:]])[[:space:]]*['\"]1\.9\.13['\"]" \
-            app/build.gradle
-
-          echo "Application configuration OK."
-
-      - name: Check signing secrets
-        shell: bash
-        env:
-          KEYSTORE_B64: ${{ secrets.ELORA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ELORA_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ELORA_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ELORA_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          [ -n "$KEYSTORE_B64" ] || {
-            echo "Missing ELORA_KEYSTORE_BASE64"
-            exit 1
-          }
-
-          [ -n "$KEYSTORE_PASSWORD" ] || {
-            echo "Missing ELORA_KEYSTORE_PASSWORD"
-            exit 1
-          }
-
-          [ -n "$KEY_ALIAS" ] || {
-            echo "Missing ELORA_KEY_ALIAS"
-            exit 1
-          }
-
-          [ -n "$KEY_PASSWORD" ] || {
-            echo "Missing ELORA_KEY_PASSWORD"
-            exit 1
-          }
-
-          echo "Signing secrets are present."
-
-      - name: Build release APK
+      - name: Find APK
+        working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
 
-          cd "$PROJECT_DIR"
+          APK=$(find app/build/outputs/apk -type f -name "*.apk" | head -n 1)
 
-          gradle clean assembleRelease \
-            --no-daemon \
-            --stacktrace
-
-          UNSIGNED_APK="$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk"
-
-          if [ ! -f "$UNSIGNED_APK" ]; then
+          if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated."
-            find "$PROJECT_DIR/app/build/outputs" -type f -print || true
             exit 1
           fi
 
-          echo "UNSIGNED_APK=$UNSIGNED_APK" >> "$GITHUB_ENV"
-
-      - name: Prepare release keystore
-        shell: bash
-        env:
-          KEYSTORE_B64: ${{ secrets.ELORA_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ELORA_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ELORA_KEY_ALIAS }}
-        run: |
-          set -euo pipefail
-
-          KEYSTORE_FILE="$RUNNER_TEMP/elora-release.keystore"
-
-          CLEAN_B64="$(
-            printf '%s' "$KEYSTORE_B64" |
-            tr -d '[:space:]'
-          )"
-
-          printf '%s' "$CLEAN_B64" |
-            base64 --decode > "$KEYSTORE_FILE"
-
-          [ -s "$KEYSTORE_FILE" ] || {
-            echo "Keystore is empty."
-            exit 1
-          }
-
-          KEYSTORE_TYPE=""
-
-          if keytool \
-            -list \
-            -v \
-            -keystore "$KEYSTORE_FILE" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -storetype PKCS12 \
-            >/dev/null 2>&1
-          then
-            KEYSTORE_TYPE="PKCS12"
-
-          elif keytool \
-            -list \
-            -v \
-            -keystore "$KEYSTORE_FILE" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -storetype JKS \
-            >/dev/null 2>&1
-          then
-            KEYSTORE_TYPE="JKS"
-
-          else
-            echo "Invalid keystore or incorrect password."
-            exit 1
-          fi
-
-          keytool \
-            -list \
-            -v \
-            -keystore "$KEYSTORE_FILE" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -storetype "$KEYSTORE_TYPE" \
-            -alias "$KEY_ALIAS" \
-            >/dev/null
-
-          echo "KEYSTORE_FILE=$KEYSTORE_FILE" >> "$GITHUB_ENV"
-          echo "ELORA_KEYSTORE_TYPE=$KEYSTORE_TYPE" >> "$GITHUB_ENV"
-
-          echo "Keystore verified."
-
-      - name: Verify signing certificate
-        shell: bash
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.ELORA_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ELORA_KEY_ALIAS }}
-        run: |
-          set -euo pipefail
-
-          keytool \
-            -list \
-            -v \
-            -keystore "$KEYSTORE_FILE" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -storetype "$ELORA_KEYSTORE_TYPE" \
-            -alias "$KEY_ALIAS" \
-            | grep -E \
-              "Owner:|SHA256:|Entry type:" \
-              || true
-
-      - name: Sign APK
-        shell: bash
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.ELORA_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ELORA_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ELORA_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          SIGNED_APK="$PROJECT_DIR/app/build/outputs/apk/release/Elora-Dashboard-v1.9.13.apk"
-
-          rm -f "$SIGNED_APK"
-
-          "$APKSIGNER" sign \
-            --ks "$KEYSTORE_FILE" \
-            --ks-type "$ELORA_KEYSTORE_TYPE" \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KEYSTORE_PASSWORD" \
-            --key-pass "pass:$KEY_PASSWORD" \
-            --out "$SIGNED_APK" \
-            "$UNSIGNED_APK"
-
-          test -f "$SIGNED_APK"
-
-          echo "SIGNED_APK=$SIGNED_APK" >> "$GITHUB_ENV"
-
-          ls -lh "$SIGNED_APK"
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          "$APKSIGNER" verify \
-            --verbose \
-            "$SIGNED_APK"
-
-          echo "APK signature verified."
+          echo "APK generated: $APK"
+          cp "$APK" "$GITHUB_WORKSPACE/Pinky-Dashboard-debug.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Elora-Dashboard-v1.9.13
-          path: ${{ env.SIGNED_APK }}
+          name: Pinky-Dashboard-APK
+          path: Pinky-Dashboard-debug.apk
           if-no-files-found: error
-          retention-days: 30
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.9.13
-          name: Elora Dashboard v1.9.13
-          body: |
-            Elora Dashboard v1.9.13
-
-            - إصلاح صلاحيات الـOwner.
-            - إصلاح أزرار لوحة التحكم.
-            - إصلاح آخر الطلبات.
-            - إصلاح تفاصيل الطلب.
-            - إظهار بيانات العميل.
-            - إظهار تفاصيل المنتجات.
-            - إظهار سعر الجملة حسب الصلاحية.
-            - إصلاح حساب التكلفة والربح.
-            - الحفاظ على جميع التعديلات السابقة.
-          files: ${{ env.SIGNED_APK }}
-          overwrite_files: true
-          fail_on_unmatched_files: true
