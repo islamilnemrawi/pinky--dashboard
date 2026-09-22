@@ -1,127 +1,125 @@
-name: Build Pinky Dashboard
+name: Build Pinky Dashboard APK
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - master
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build Pinky Dashboard APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
+    env:
+      JAVA_VERSION: "17"
+      GRADLE_VERSION: "9.3.1"
+      PROJECT_ROOT: dash
+
     steps:
+
+      # =========================================================
+      # 1) Checkout repository
+      # =========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find Pinky ZIP
+
+      # =========================================================
+      # 2) Find Pinky Android project
+      # =========================================================
+      - name: Detect project root
         shell: bash
         run: |
           set -euo pipefail
 
-          ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*.zip' \
-            ! -path './.git/*' \
-            -printf '%s %p\n' \
-            | sort -nr \
-            | head -n 1 \
-            | cut -d' ' -f2-)"
+          echo "Repository contents:"
+          find . -maxdepth 3 -type f | sort | head -300
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No Pinky ZIP file found."
-            exit 1
+          if [ -f "dash/settings.gradle.kts" ]; then
+            echo "PROJECT_ROOT=dash" >> "$GITHUB_ENV"
+            echo "Detected Android project at: dash"
+          elif [ -f "settings.gradle.kts" ]; then
+            echo "PROJECT_ROOT=." >> "$GITHUB_ENV"
+            echo "Detected Android project at repository root"
+          else
+            FOUND_ROOT="$(find . -name settings.gradle.kts -not -path './.git/*' -print -quit || true)"
+
+            if [ -z "$FOUND_ROOT" ]; then
+              echo "ERROR: settings.gradle.kts was not found."
+              exit 1
+            fi
+
+            FOUND_ROOT="${FOUND_ROOT%/settings.gradle.kts}"
+            FOUND_ROOT="${FOUND_ROOT#./}"
+
+            echo "PROJECT_ROOT=$FOUND_ROOT" >> "$GITHUB_ENV"
+            echo "Detected Android project at: $FOUND_ROOT"
           fi
 
-          echo "Using ZIP: $ZIP_FILE"
-          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
-      - name: Extract Pinky project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -rf "$GITHUB_WORKSPACE/_pinky_project"
-          mkdir -p "$GITHUB_WORKSPACE/_pinky_project"
-
-          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/_pinky_project"
-
-      - name: Locate Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PROJECT_ROOT="$(find "$GITHUB_WORKSPACE/_pinky_project" \
-            -type f \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) \
-            -printf '%h\n' \
-            | head -n 1)"
-
-          if [ -z "$PROJECT_ROOT" ]; then
-            echo "ERROR: Android project root not found."
-            exit 1
-          fi
-
-          if [ ! -d "$PROJECT_ROOT/app" ]; then
-            echo "ERROR: app module not found."
-            exit 1
-          fi
-
-          echo "Project root:"
-          echo "$PROJECT_ROOT"
-
-          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
-
+      # =========================================================
+      # 3) Setup Java
+      # =========================================================
       - name: Setup Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
 
-      - name: Setup Gradle 9.3.1
+
+      # =========================================================
+      # 4) Setup Gradle
+      # =========================================================
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
 
-      - name: Verify Gradle project
+
+      # =========================================================
+      # 5) Check Android project
+      # =========================================================
+      - name: Check Android project
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== Project ====="
+          echo "Android project root:"
           pwd
 
-          echo "===== Files ====="
+          echo ""
+          echo "Project files:"
           ls -la
 
-          echo "===== App ====="
-          ls -la app
+          echo ""
+          echo "Gradle directory:"
+          ls -la gradle || true
 
-          echo "===== Gradle ====="
+          echo ""
+          echo "Gradle version:"
           gradle --version
 
-      - name: Create debug keystore
-        working-directory: ${{ env.PROJECT_ROOT }}
-        shell: bash
-        run: |
-          set -euo pipefail
 
-          if [ ! -f "debug.keystore" ]; then
-            keytool -genkeypair \
-              -v \
-              -keystore debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
+      # =========================================================
+      # 6) Prepare environment
+      #
+      # SUPABASE_URL + SUPABASE_ANON_KEY are required.
+      #
+      # GEMINI_API_KEY and OWNER_PASSWORD are optional.
+      # If they are not supplied, safe non-empty fallback values
+      # are written so the Secrets Gradle Plugin does not generate
+      # invalid Java such as:
+      #
+      # public static final String GEMINI_API_KEY = ;
+      #
+      # =========================================================
       - name: Prepare environment
         working-directory: ${{ env.PROJECT_ROOT }}
         env:
@@ -134,71 +132,174 @@ jobs:
           set -euo pipefail
 
           if [ -z "${SUPABASE_URL:-}" ]; then
-            echo "ERROR: SUPABASE_URL secret is missing."
+            echo "ERROR: SUPABASE_URL GitHub Secret is missing."
+            echo "Add SUPABASE_URL in:"
+            echo "Settings -> Secrets and variables -> Actions"
             exit 1
           fi
 
           if [ -z "${SUPABASE_ANON_KEY:-}" ]; then
-            echo "ERROR: SUPABASE_ANON_KEY secret is missing."
+            echo "ERROR: SUPABASE_ANON_KEY GitHub Secret is missing."
+            echo "Add SUPABASE_ANON_KEY in:"
+            echo "Settings -> Secrets and variables -> Actions"
             exit 1
+          fi
+
+          # Gemini is optional for the build.
+          # DISABLED prevents an empty BuildConfig value.
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            GEMINI_VALUE="DISABLED"
+          else
+            GEMINI_VALUE="${GEMINI_API_KEY}"
+          fi
+
+          # Owner password is optional for the build.
+          # DISABLED prevents an empty BuildConfig value.
+          if [ -z "${OWNER_PASSWORD:-}" ]; then
+            OWNER_VALUE="DISABLED"
+          else
+            OWNER_VALUE="${OWNER_PASSWORD}"
           fi
 
           cat > .env <<EOF
           SUPABASE_URL=${SUPABASE_URL}
           SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-          GEMINI_API_KEY=${GEMINI_API_KEY:-}
-          OWNER_PASSWORD=${OWNER_PASSWORD:-}
+          GEMINI_API_KEY=${GEMINI_VALUE}
+          OWNER_PASSWORD=${OWNER_VALUE}
           EOF
 
-          echo "Environment prepared."
+          echo "Environment file prepared successfully."
 
-      - name: Check Google Services
+          echo ""
+          echo "Configured:"
+          echo "SUPABASE_URL: YES"
+          echo "SUPABASE_ANON_KEY: YES"
+
+          if [ "$GEMINI_VALUE" = "DISABLED" ]; then
+            echo "GEMINI_API_KEY: DISABLED"
+          else
+            echo "GEMINI_API_KEY: CONFIGURED"
+          fi
+
+          if [ "$OWNER_VALUE" = "DISABLED" ]; then
+            echo "OWNER_PASSWORD: DISABLED"
+          else
+            echo "OWNER_PASSWORD: CONFIGURED"
+          fi
+
+
+      # =========================================================
+      # 7) Create local debug keystore
+      # =========================================================
+      - name: Prepare debug keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.android"
+
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool \
+              -genkeypair \
+              -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          echo "Debug keystore ready."
+
+
+      # =========================================================
+      # 8) Clean previous build
+      # =========================================================
+      - name: Clean project
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          if [ -f "app/google-services.json" ]; then
-            echo "google-services.json found."
-          else
-            echo "google-services.json not found."
-            echo "Continuing because Google Services is configured to warn."
-          fi
+          set -euo pipefail
 
+          gradle clean --no-daemon --stacktrace
+
+
+      # =========================================================
+      # 9) Build Debug APK
+      # =========================================================
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
           set -euo pipefail
 
-          gradle clean assembleDebug \
+          gradle assembleDebug \
+            --no-daemon \
             --stacktrace \
-            --no-daemon
+            --info
 
-      - name: Find APK
+
+      # =========================================================
+      # 10) Find generated APK
+      # =========================================================
+      - name: Locate APK
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
           set -euo pipefail
 
-          APK="$(find app/build/outputs/apk/debug \
+          echo "Searching for APK files..."
+
+          find . \
             -type f \
-            -name '*.apk' \
+            -name "*.apk" \
+            -print
+
+          APK="$(find . \
+            -type f \
+            -path "*/build/outputs/apk/debug/*.apk" \
             -print \
-            | head -n 1)"
+            -quit)"
 
           if [ -z "$APK" ]; then
-            echo "ERROR: APK was not generated."
+            echo "ERROR: Debug APK was not generated."
             exit 1
           fi
 
-          echo "APK generated:"
+          echo "APK found:"
           echo "$APK"
 
-          cp "$APK" "$GITHUB_WORKSPACE/Pinky-Dashboard.apk"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
 
+          cp "$APK" \
+            "$GITHUB_WORKSPACE/artifacts/Pinky-Dashboard-debug.apk"
+
+          echo "APK copied to artifacts."
+
+
+      # =========================================================
+      # 11) Upload APK
+      # =========================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pinky-Dashboard-APK
-          path: Pinky-Dashboard.apk
+          name: Pinky-Dashboard-debug
+          path: artifacts/Pinky-Dashboard-debug.apk
           if-no-files-found: error
-          retention-days: 14
+
+
+      # =========================================================
+      # 12) Upload build reports if build fails
+      # =========================================================
+      - name: Upload build reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pinky-build-reports
+          path: |
+            ${{ env.PROJECT_ROOT }}/app/build/reports/
+            ${{ env.PROJECT_ROOT }}/app/build/outputs/logs/
+          if-no-files-found: ignore
