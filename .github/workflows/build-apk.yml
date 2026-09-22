@@ -1,4 +1,4 @@
-name: Build Pinky APK
+name: Build Pinky Dashboard APK
 
 on:
   workflow_dispatch:
@@ -6,103 +6,143 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find Pinky ZIP
+      - name: Find project ZIP
+        id: find_zip
         shell: bash
         run: |
           set -e
 
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" \
+            ! -path "./.git/*" \
+            | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No ZIP file found."
+            echo "ERROR: No Android project ZIP was found."
             exit 1
           fi
 
-          echo "Found ZIP: $ZIP_FILE"
-          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "ZIP found: $ZIP_FILE"
+          echo "zip_file=$ZIP_FILE" >> "$GITHUB_OUTPUT"
 
-      - name: Extract project
+      - name: Extract Android project
         shell: bash
         run: |
           set -e
 
-          rm -rf android_project
-          mkdir android_project
+          rm -rf "$GITHUB_WORKSPACE/pinky_project"
+          mkdir -p "$GITHUB_WORKSPACE/pinky_project"
 
-          unzip -q "$ZIP_FILE" -d android_project
+          unzip -q "${{ steps.find_zip.outputs.zip_file }}" \
+            -d "$GITHUB_WORKSPACE/pinky_project"
 
-          echo "Extracted files:"
-          find android_project -maxdepth 3 -type f | head -100
+          echo "Project extracted successfully."
 
       - name: Detect Android project root
+        id: detect_project
         shell: bash
         run: |
           set -e
 
-          ROOT=$(find android_project -type f \( \
-            -name "settings.gradle" \
-            -o -name "settings.gradle.kts" \
-          \) -print -quit | xargs -r dirname)
+          PROJECT_ROOT=$(find "$GITHUB_WORKSPACE/pinky_project" \
+            -type f \
+            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
+            -print -quit)
 
-          if [ -z "$ROOT" ]; then
-            echo "ERROR: Android Studio project root was not found."
+          if [ -z "$PROJECT_ROOT" ]; then
+            echo "ERROR: settings.gradle or settings.gradle.kts was not found."
+            echo "The ZIP does not contain a valid Android Studio project."
             exit 1
           fi
 
-          echo "Android project root: $ROOT"
-          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          PROJECT_ROOT=$(dirname "$PROJECT_ROOT")
 
-      - name: Set up Java
+          echo "Android project root:"
+          echo "$PROJECT_ROOT"
+
+          echo "project_root=$PROJECT_ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
           cache: gradle
 
-      - name: Make Gradle executable
-        working-directory: ${{ env.PROJECT_ROOT }}
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Show Gradle version
+        working-directory: ${{ steps.detect_project.outputs.project_root }}
         shell: bash
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
-          else
-            echo "ERROR: gradlew was not found."
-            exit 1
-          fi
+          gradle --version
 
-      - name: Build Debug APK
-        working-directory: ${{ env.PROJECT_ROOT }}
-        shell: bash
-        run: |
-          ./gradlew clean assembleDebug --stacktrace
-
-      - name: Find APK
-        working-directory: ${{ env.PROJECT_ROOT }}
+      - name: Verify Android project
+        working-directory: ${{ steps.detect_project.outputs.project_root }}
         shell: bash
         run: |
           set -e
 
-          APK=$(find app/build/outputs/apk -type f -name "*.apk" | head -n 1)
+          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
+            echo "ERROR: Gradle settings file is missing."
+            exit 1
+          fi
 
-          if [ -z "$APK" ]; then
+          if [ ! -d "app" ]; then
+            echo "ERROR: app module was not found."
+            exit 1
+          fi
+
+          echo "Android project verification passed."
+
+      - name: Build Debug APK
+        working-directory: ${{ steps.detect_project.outputs.project_root }}
+        shell: bash
+        run: |
+          set -e
+
+          gradle clean assembleDebug --stacktrace --no-daemon
+
+      - name: Locate generated APK
+        id: apk
+        working-directory: ${{ steps.detect_project.outputs.project_root }}
+        shell: bash
+        run: |
+          set -e
+
+          APK_FILE=$(find . \
+            -type f \
+            -path "*/build/outputs/apk/*.apk" \
+            | head -n 1)
+
+          if [ -z "$APK_FILE" ]; then
             echo "ERROR: APK was not generated."
             exit 1
           fi
 
-          echo "APK generated: $APK"
-          cp "$APK" "$GITHUB_WORKSPACE/Pinky-Dashboard-debug.apk"
+          echo "APK generated:"
+          echo "$APK_FILE"
 
-      - name: Upload APK
+          cp "$APK_FILE" "$GITHUB_WORKSPACE/Pinky-Dashboard.apk"
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pinky-Dashboard-APK
-          path: Pinky-Dashboard-debug.apk
+          path: Pinky-Dashboard.apk
           if-no-files-found: error
+          retention-days: 14
