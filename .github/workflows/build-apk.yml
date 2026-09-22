@@ -18,91 +18,78 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find Pinky ZIP
+      - name: Find Pinky project ZIP
         id: find_zip
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           ZIP_FILE=$(find . \
             -maxdepth 2 \
             -type f \
-            -iname "*.zip" \
-            ! -path "./.git/*" \
+            -iname '*.zip' \
+            ! -path './.git/*' \
+            ! -path './_android_project/*' \
             | head -n 1)
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No ZIP file found."
+          if [ -z "${ZIP_FILE}" ]; then
+            echo "ERROR: No Pinky project ZIP was found."
             exit 1
           fi
 
-          echo "Found ZIP: $ZIP_FILE"
-          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "Using ZIP: ${ZIP_FILE}"
+          echo "ZIP_FILE=${ZIP_FILE}" >> "$GITHUB_ENV"
 
       - name: Extract Pinky project
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          rm -rf "$GITHUB_WORKSPACE/pinky_project"
-          mkdir -p "$GITHUB_WORKSPACE/pinky_project"
+          rm -rf "${GITHUB_WORKSPACE}/_android_project"
+          mkdir -p "${GITHUB_WORKSPACE}/_android_project"
 
-          unzip -q "$ZIP_FILE" \
-            -d "$GITHUB_WORKSPACE/pinky_project"
+          unzip -q "${ZIP_FILE}" \
+            -d "${GITHUB_WORKSPACE}/_android_project"
 
       - name: Detect Android project root
-        id: detect_project
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/pinky_project" \
+          SETTINGS_FILE=$(find "${GITHUB_WORKSPACE}/_android_project" \
             -type f \
-            \( \
-              -name "settings.gradle" \
-              -o \
-              -name "settings.gradle.kts" \
-            \) \
+            \( -name 'settings.gradle' -o -name 'settings.gradle.kts' \) \
             -print -quit)
 
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: Android Studio project was not found."
+          if [ -z "${SETTINGS_FILE}" ]; then
+            echo "ERROR: settings.gradle(.kts) was not found."
             exit 1
           fi
 
-          PROJECT_ROOT=$(dirname "$SETTINGS_FILE")
+          PROJECT_ROOT=$(dirname "${SETTINGS_FILE}")
 
-          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+          echo "PROJECT_ROOT=${PROJECT_ROOT}" >> "$GITHUB_ENV"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
           cache: gradle
 
       - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "9.3.1"
-          cache-provider: basic
+          gradle-version: '9.3.1'
 
       - name: Verify Android project
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          if [ ! -f "settings.gradle" ] && \
-             [ ! -f "settings.gradle.kts" ]; then
-            echo "ERROR: Gradle settings file missing."
-            exit 1
-          fi
-
-          if [ ! -d "app" ]; then
-            echo "ERROR: app module missing."
-            exit 1
-          fi
+          test -f settings.gradle.kts -o -f settings.gradle
+          test -d app
 
           echo "Android project verified."
 
@@ -110,9 +97,9 @@ jobs:
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          if [ ! -f "debug.keystore" ]; then
+          if [ ! -f debug.keystore ]; then
             keytool -genkeypair \
               -v \
               -keystore debug.keystore \
@@ -122,43 +109,42 @@ jobs:
               -validity 10000 \
               -storepass android \
               -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
+              -dname 'CN=Android Debug,O=Android,C=US'
           fi
 
-          echo "Debug keystore ready."
-
-      - name: Prepare environment
+      - name: Prepare build environment
         working-directory: ${{ env.PROJECT_ROOT }}
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OWNER_PASSWORD: ${{ secrets.OWNER_PASSWORD }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           cat > .env <<EOF
-          SUPABASE_URL=${SUPABASE_URL:-placeholder}
-          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-placeholder}
-          GEMINI_API_KEY=${GEMINI_API_KEY:-placeholder}
+          SUPABASE_URL=${SUPABASE_URL:-}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+          GEMINI_API_KEY=${GEMINI_API_KEY:-}
+          OWNER_PASSWORD=${OWNER_PASSWORD:-}
           EOF
 
       - name: Check Google Services
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          if [ -f "app/google-services.json" ]; then
+          if [ -f app/google-services.json ]; then
             echo "google-services.json found."
           else
-            echo "google-services.json not found."
-            echo "Continuing because the project allows missing Google Services."
+            echo "google-services.json not found; continuing."
           fi
 
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           gradle clean assembleDebug \
             --stacktrace \
@@ -168,23 +154,24 @@ jobs:
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
           APK=$(find app/build/outputs/apk \
             -type f \
-            -name "*.apk" \
-            | head -n 1)
+            -name '*.apk' \
+            -print -quit)
 
-          if [ -z "$APK" ]; then
+          if [ -z "${APK}" ]; then
             echo "ERROR: APK was not generated."
             exit 1
           fi
 
-          echo "APK: $APK"
+          cp "${APK}" \
+            "${GITHUB_WORKSPACE}/Pinky-Dashboard.apk"
 
-          cp "$APK" "$GITHUB_WORKSPACE/Pinky-Dashboard.apk"
+          echo "APK generated: ${APK}"
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pinky-Dashboard-APK
