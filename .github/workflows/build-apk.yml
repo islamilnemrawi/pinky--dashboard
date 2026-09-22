@@ -15,46 +15,40 @@ jobs:
     name: Build Pinky Dashboard APK
     runs-on: ubuntu-latest
 
-    env:
-      JAVA_VERSION: "17"
-      GRADLE_VERSION: "9.3.1"
-
     steps:
 
-      # =========================================================
-      # 1) Checkout repository
-      # =========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
 
-      # =========================================================
-      # 2) Find Pinky ZIP
-      # =========================================================
       - name: Find Pinky ZIP
         shell: bash
         run: |
           set -euo pipefail
 
           echo "Repository files:"
-          find . -maxdepth 2 -type f -print | sort
+          ls -lah
 
-          ZIP_FILE="$(find . -maxdepth 2 -type f -name '*.zip' -print -quit)"
+          ZIP_FILE=""
+
+          for file in *.zip; do
+            if [ -f "$file" ]; then
+              ZIP_FILE="./$file"
+              break
+            fi
+          done
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Pinky Dashboard ZIP file was not found."
+            echo "ERROR: No ZIP file found in repository."
             exit 1
           fi
 
-          echo "Found ZIP:"
+          echo "Found Pinky ZIP:"
           echo "$ZIP_FILE"
 
           echo "PINKY_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
 
 
-      # =========================================================
-      # 3) Extract Pinky Dashboard
-      # =========================================================
       - name: Extract Pinky Dashboard
         shell: bash
         run: |
@@ -71,94 +65,82 @@ jobs:
             -d "$GITHUB_WORKSPACE/pinky_project"
 
           echo ""
-          echo "Extracted project structure:"
-          find "$GITHUB_WORKSPACE/pinky_project" \
-            -maxdepth 4 \
-            -type f \
-            \
-              -name "settings.gradle" \
-              -o \
-              -name "settings.gradle.kts" \
-              -o \
-              -name "build.gradle" \
-              -o \
-              -name "build.gradle.kts" \
-            \
-            -print | sort
+          echo "ZIP extracted successfully."
+
+          echo ""
+          echo "Top level:"
+          ls -lah "$GITHUB_WORKSPACE/pinky_project"
 
 
-      # =========================================================
-      # 4) Detect Android project root
-      # =========================================================
-      - name: Detect Android project root
+      - name: Detect Android project
         shell: bash
         run: |
           set -euo pipefail
 
           PROJECT_ROOT=""
 
-          SETTINGS_FILE="$(
-            find "$GITHUB_WORKSPACE/pinky_project" \
-              -type f \
-              \
-                -name "settings.gradle" \
-                -o \
-                -name "settings.gradle.kts" \
-              \
-              -not -path "*/build/*" \
-              -print \
-              -quit
-          )"
+          echo "Searching for settings.gradle.kts..."
+
+          SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/pinky_project" \
+            -name "settings.gradle.kts" \
+            -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle or settings.gradle.kts was not found after extracting ZIP."
+            echo "settings.gradle.kts not found."
+            echo "Searching for settings.gradle..."
+
+            SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/pinky_project" \
+              -name "settings.gradle" \
+              -print -quit)
+          fi
+
+          if [ -z "$SETTINGS_FILE" ]; then
             echo ""
-            echo "Extracted files:"
+            echo "ERROR: Android Gradle settings file was not found."
+            echo ""
+            echo "Files inside extracted ZIP:"
             find "$GITHUB_WORKSPACE/pinky_project" \
-              -maxdepth 5 \
+              -maxdepth 6 \
               -type f \
-              -print | sort | head -500
+              -print | head -500
+
             exit 1
           fi
 
-          PROJECT_ROOT="$(dirname "$SETTINGS_FILE")"
+          PROJECT_ROOT=$(dirname "$SETTINGS_FILE")
 
-          echo "Android project detected:"
+          echo ""
+          echo "========================================"
+          echo "Android project found"
+          echo "========================================"
           echo "$PROJECT_ROOT"
 
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
 
-      # =========================================================
-      # 5) Show project
-      # =========================================================
-      - name: Verify Android project
+      - name: Show Android project
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "========================================"
-          echo "Pinky Android Project"
-          echo "========================================"
-
-          echo "PROJECT_ROOT:"
+          echo "Project root:"
           echo "$PROJECT_ROOT"
 
           echo ""
           echo "Project files:"
-          ls -la "$PROJECT_ROOT"
+          ls -lah "$PROJECT_ROOT"
 
           echo ""
-          echo "Gradle files:"
-          find "$PROJECT_ROOT/gradle" \
-            -maxdepth 3 \
-            -type f \
-            -print 2>/dev/null || true
+          echo "Checking app module..."
+
+          if [ ! -d "$PROJECT_ROOT/app" ]; then
+            echo "ERROR: app module was not found."
+            exit 1
+          fi
+
+          echo "app module found."
 
 
-      # =========================================================
-      # 6) Setup Java 17
-      # =========================================================
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -167,18 +149,12 @@ jobs:
           cache: gradle
 
 
-      # =========================================================
-      # 7) Setup Gradle
-      # =========================================================
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.3.1"
 
 
-      # =========================================================
-      # 8) Prepare environment
-      # =========================================================
       - name: Prepare environment
         working-directory: ${{ env.PROJECT_ROOT }}
         env:
@@ -191,37 +167,33 @@ jobs:
           set -euo pipefail
 
           if [ -z "${SUPABASE_URL:-}" ]; then
-            echo "ERROR: SUPABASE_URL GitHub Secret is missing."
-            echo "Go to:"
-            echo "Settings -> Secrets and variables -> Actions"
+            echo "ERROR: SUPABASE_URL secret is missing."
             exit 1
           fi
 
           if [ -z "${SUPABASE_ANON_KEY:-}" ]; then
-            echo "ERROR: SUPABASE_ANON_KEY GitHub Secret is missing."
-            echo "Go to:"
-            echo "Settings -> Secrets and variables -> Actions"
+            echo "ERROR: SUPABASE_ANON_KEY secret is missing."
             exit 1
           fi
 
           if [ -z "${GEMINI_API_KEY:-}" ]; then
             GEMINI_VALUE="DISABLED"
           else
-            GEMINI_VALUE="${GEMINI_API_KEY}"
+            GEMINI_VALUE="$GEMINI_API_KEY"
           fi
 
           if [ -z "${OWNER_PASSWORD:-}" ]; then
             OWNER_VALUE="DISABLED"
           else
-            OWNER_VALUE="${OWNER_PASSWORD}"
+            OWNER_VALUE="$OWNER_PASSWORD"
           fi
 
-          cat > .env <<EOF
-          SUPABASE_URL=${SUPABASE_URL}
-          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-          GEMINI_API_KEY=${GEMINI_VALUE}
-          OWNER_PASSWORD=${OWNER_VALUE}
-          EOF
+          printf '%s\n' \
+            "SUPABASE_URL=$SUPABASE_URL" \
+            "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" \
+            "GEMINI_API_KEY=$GEMINI_VALUE" \
+            "OWNER_PASSWORD=$OWNER_VALUE" \
+            > .env
 
           echo "Environment prepared successfully."
 
@@ -238,9 +210,6 @@ jobs:
           fi
 
 
-      # =========================================================
-      # 9) Prepare debug keystore
-      # =========================================================
       - name: Prepare debug keystore
         shell: bash
         run: |
@@ -249,7 +218,6 @@ jobs:
           mkdir -p "$HOME/.android"
 
           if [ ! -f "$HOME/.android/debug.keystore" ]; then
-
             keytool \
               -genkeypair \
               -v \
@@ -261,15 +229,11 @@ jobs:
               -keysize 2048 \
               -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
-
           fi
 
           echo "Debug keystore ready."
 
 
-      # =========================================================
-      # 10) Check Gradle
-      # =========================================================
       - name: Check Gradle
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
@@ -279,9 +243,6 @@ jobs:
           gradle --version
 
 
-      # =========================================================
-      # 11) Clean project
-      # =========================================================
       - name: Clean project
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
@@ -293,11 +254,65 @@ jobs:
             --stacktrace
 
 
-      # =========================================================
-      # 12) Build APK
-      # =========================================================
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
           set -euo pipefail
+
+          gradle assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            --info
+
+
+      - name: Locate APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_FILE=$(find "$PROJECT_ROOT" \
+            -path "*/build/outputs/apk/debug/*.apk" \
+            -print -quit)
+
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: APK was not generated."
+
+            echo ""
+            echo "APK search:"
+            find "$PROJECT_ROOT" \
+              -name "*.apk" \
+              -print
+
+            exit 1
+          fi
+
+          echo ""
+          echo "APK found:"
+          echo "$APK_FILE"
+
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+
+          cp "$APK_FILE" \
+            "$GITHUB_WORKSPACE/artifacts/Pinky-Dashboard-debug.apk"
+
+          echo "APK copied successfully."
+
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pinky-Dashboard-debug
+          path: artifacts/Pinky-Dashboard-debug.apk
+          if-no-files-found: error
+
+
+      - name: Upload build reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pinky-build-reports
+          path: |
+            ${{ env.PROJECT_ROOT }}/app/build/reports/
+            ${{ env.PROJECT_ROOT }}/app/build/outputs/logs/
+          if-no-files-found: ignore
