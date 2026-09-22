@@ -50,8 +50,6 @@ jobs:
           unzip -q "$ZIP_FILE" \
             -d "$GITHUB_WORKSPACE/pinky_project"
 
-          echo "ZIP extracted successfully."
-
       - name: Detect Android project root
         id: detect_project
         shell: bash
@@ -68,14 +66,11 @@ jobs:
             -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: Android Studio settings.gradle file was not found."
+            echo "ERROR: Android Studio project was not found."
             exit 1
           fi
 
           PROJECT_ROOT=$(dirname "$SETTINGS_FILE")
-
-          echo "Android project root:"
-          echo "$PROJECT_ROOT"
 
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
@@ -98,11 +93,18 @@ jobs:
         run: |
           set -e
 
-          test -f settings.gradle.kts -o -f settings.gradle
-          test -d app
-          test -f app/build.gradle.kts -o -f app/build.gradle
+          if [ ! -f "settings.gradle" ] && \
+             [ ! -f "settings.gradle.kts" ]; then
+            echo "ERROR: Gradle settings file missing."
+            exit 1
+          fi
 
-          echo "Android project verified successfully."
+          if [ ! -d "app" ]; then
+            echo "ERROR: app module missing."
+            exit 1
+          fi
+
+          echo "Android project verified."
 
       - name: Create debug keystore
         working-directory: ${{ env.PROJECT_ROOT }}
@@ -123,7 +125,7 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          echo "Debug keystore is ready."
+          echo "Debug keystore ready."
 
       - name: Prepare environment
         working-directory: ${{ env.PROJECT_ROOT }}
@@ -141,9 +143,7 @@ jobs:
           GEMINI_API_KEY=${GEMINI_API_KEY:-placeholder}
           EOF
 
-          echo ".env prepared inside Android project."
-
-      - name: Check Google Services configuration
+      - name: Check Google Services
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
@@ -151,8 +151,7 @@ jobs:
             echo "google-services.json found."
           else
             echo "google-services.json not found."
-            echo "The project is configured to WARN instead of fail."
-            echo "Continuing..."
+            echo "Continuing because the project allows missing Google Services."
           fi
 
       - name: Build Debug APK
@@ -165,8 +164,7 @@ jobs:
             --stacktrace \
             --no-daemon
 
-      - name: Find generated APK
-        id: find_apk
+      - name: Locate APK
         working-directory: ${{ env.PROJECT_ROOT }}
         shell: bash
         run: |
@@ -182,18 +180,14 @@ jobs:
             exit 1
           fi
 
-          echo "APK generated:"
-          echo "$APK"
+          echo "APK: $APK"
 
           cp "$APK" "$GITHUB_WORKSPACE/Pinky-Dashboard.apk"
-
-          echo "APK_PATH=$GITHUB_WORKSPACE/Pinky-Dashboard.apk" \
-            >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Pinky-Dashboard-APK
-          path: ${{ steps.find_apk.outputs.APK_PATH }}
+          path: Pinky-Dashboard.apk
           if-no-files-found: error
           retention-days: 14
