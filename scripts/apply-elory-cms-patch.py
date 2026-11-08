@@ -804,13 +804,17 @@ if 'import kotlinx.coroutines.flow.first' not in repo_text:
         'package com.pinky.dashboard.data.repository\n\nimport kotlinx.coroutines.flow.first\n',
         1
     )
-if 'private val productDao = database.productDao()' not in repo_text:
-    repo_text = repo_text.replace(
-        '    private val orderDao = database.orderDao()\n',
-        '    private val orderDao = database.orderDao()\n'
-        '    private val productDao = database.productDao()\n',
-        1
-    )
+order_class_index = repo_text.index('class OrderRepositoryImpl(')
+order_dao_line = '    private val orderDao = database.orderDao()\n'
+order_dao_index = repo_text.find(order_dao_line, order_class_index)
+if order_dao_index < 0:
+    raise SystemExit('OrderRepositoryImpl orderDao anchor not found')
+next_class_index = repo_text.find('class ', order_class_index + 1)
+if next_class_index < 0:
+    next_class_index = len(repo_text)
+if 'private val productDao = database.productDao()' not in repo_text[order_class_index:next_class_index]:
+    insert_at = order_dao_index + len(order_dao_line)
+    repo_text = repo_text[:insert_at] + '    private val productDao = database.productDao()\n' + repo_text[insert_at:]
 repo_text = repo_text.replace(
     'return orderDao.getAllOrdersFlow().map { entities ->',
     'return combine(orderDao.getAllOrdersFlow(), productDao.getAllProductsFlow()) { entities, products ->\n'
@@ -832,9 +836,14 @@ repo_text = repo_text.replace(
     1
 )
 repo_text = repo_text.replace(
+    'productName = itemEntity.productName,',
+    'productName = itemEntity.productName.ifBlank { product?.name.orEmpty() },',
+    2
+)
+repo_text = repo_text.replace(
     'imageUrl = itemEntity.imageUrl',
-    'imageUrl = itemEntity.imageUrl,\n'
-    '                        productCode = product?.internalCode.orEmpty(),\n'
+    'imageUrl = itemEntity.imageUrl.ifBlank { product?.imageUrl.orEmpty() },\\n'
+    '                        productCode = product?.internalCode.orEmpty(),\\n'
     '                        wholesalePrice = product?.wholesalePrice',
     2
 )
@@ -878,28 +887,30 @@ dialog_text = dialog_text.replace(
     '    canViewInternalCode: Boolean = false\n) {',
     1
 )
-dialog_text = dialog_text.replace(
-    '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {',
-    '                                if (!item.imageUrl.isNullOrBlank()) {\n'
-    '                                    AsyncImage(\n'
-    '                                        model = item.imageUrl,\n'
-    '                                        contentDescription = item.productName,\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\n'
-    '                                        contentScale = ContentScale.Crop\n'
-    '                                    )\n'
-    '                                } else {\n'
-    '                                    Box(\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\n'
-    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\n'
-    '                                        contentAlignment = Alignment.Center\n'
-    '                                    ) {\n'
-    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\n'
-    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\n'
-    '                                    }\n'
-    '                                }\n'
-    '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {',
-    1
+image_block = (
+    '                                if (!item.imageUrl.isNullOrBlank()) {\\n'
+    '                                    AsyncImage(\\n'
+    '                                        model = item.imageUrl,\\n'
+    '                                        contentDescription = item.productName,\\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\\n'
+    '                                        contentScale = ContentScale.Crop\\n'
+    '                                    )\\n'
+    '                                } else {\\n'
+    '                                    Box(\\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\\n'
+    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\\n'
+    '                                        contentAlignment = Alignment.Center\\n'
+    '                                    ) {\\n'
+    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\\n'
+    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\\n'
+    '                                    }\\n'
+    '                                }\\n'
 )
+dialog_text = dialog_text.replace(image_block, '', 1)
+items_start = dialog_text.index('items(order.items, key = { it.id })')
+column_marker = '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {'
+column_index = dialog_text.index(column_marker, items_start)
+dialog_text = dialog_text[:column_index] + image_block + dialog_text[column_index:]
 dialog_text = dialog_text.replace(
     '                                    Text(item.productName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n',
     '                                    Text(item.productName.ifBlank { "منتج غير معروف" }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n'
@@ -972,6 +983,27 @@ if old_local not in repo_text:
     raise SystemExit('Governorate local-cache anchor not found')
 repo_text = repo_text.replace(old_local, new_local, 1)
 repo_path.write_text(repo_text, encoding='utf-8')
+
+
+patch_source(
+    'app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt',
+    '    @Query("SELECT * FROM order_items WHERE orderId = :orderId")\\n'
+    '    suspend fun getOrderItems(orderId: String): List<OrderItemEntity>\\n',
+    '    @Query("SELECT * FROM order_items WHERE orderId = :orderId")\\n'
+    '    suspend fun getOrderItems(orderId: String): List<OrderItemEntity>\\n\\n'
+    '    @Query("DELETE FROM order_items WHERE orderId = :orderId")\\n'
+    '    suspend fun deleteOrderItems(orderId: String)\\n',
+    'replace stale cached order items'
+)
+patch_source(
+    repo_file,
+    '                orderDao.insertOrders(orderEntities)\\n\\n'
+    '                val itemEntities = orders.flatMap { dto ->',
+    '                orderDao.insertOrders(orderEntities)\\n'
+    '                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }\\n\\n'
+    '                val itemEntities = orders.flatMap { dto ->',
+    'replace stale cached order items on successful remote sync'
+)
 
 # Prevent invalid/empty prices from silently falling back to unrelated default values.
 shipping_screen = 'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt'
