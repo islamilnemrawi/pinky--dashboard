@@ -586,6 +586,24 @@ block = block.replace(old, 'IconButton(enabled = canReorder && index < sections.
 s = s[:start] + block + s[end:]
 pe.write_text(s, encoding='utf-8')
 
+pe = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+s = pe.read_text(encoding='utf-8')
+old = '''                    Switch(checked = section.isVisible, onCheckedChange = { visible ->
+                        onUpdate(config.copy(sections = sections.map { if(it.id==section.id) it.copy(isVisible=visible) else it }))
+                    })'''
+new = '''                    Switch(checked = section.isVisible, onCheckedChange = { visible ->
+                        val updatedCustomSections = if (section.id.startsWith("custom_")) {
+                            val customId = section.id.removePrefix("custom_")
+                            config.customSections.map { if (it.id == customId) it.copy(isVisible = visible) else it }
+                        } else config.customSections
+                        onUpdate(config.copy(
+                            sections = sections.map { if (it.id == section.id) it.copy(isVisible = visible) else it },
+                            customSections = updatedCustomSections
+                        ))
+                    })'''
+assert s.count(old) == 1
+pe.write_text(s.replace(old,new,1), encoding='utf-8')
+
 mockup_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/PhoneMockupView.kt')
 mockup_file.write_text(r'''
 package com.pinky.dashboard.ui.screens.website
