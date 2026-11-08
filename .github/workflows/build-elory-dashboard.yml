@@ -136,9 +136,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 - <<'PYFIX'
+          import os
           from pathlib import Path
 
-          root = Path("$PROJECT_DIR")
+          root = Path(os.environ["PROJECT_DIR"])
           gradle_file = root / "app/build.gradle.kts"
           source = gradle_file.read_text()
 
