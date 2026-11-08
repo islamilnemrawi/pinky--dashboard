@@ -744,24 +744,40 @@ if not mockup_file.is_file() or 'fun PhoneMockupView(' not in mockup_file.read_t
 
 print(f'PhoneMockupView generated: {mockup_file} (package {screen_package})')
 
-# Focused diagnostics: inspect real app adapters before changing order/shipping behavior.
-diagnostic_terms = (
-    'data class Order', 'data class OrderItem', 'admin_list_orders',
-    'admin_save_shipping_governorate', 'admin_apply_shipping_governorate_price',
-    'wholesalePrice', 'wholesale_price', 'productCode', 'productImage'
-)
+# Focused source diagnostics for order rendering, shipping writes, and owner permissions.
 for source_file in root.rglob('*.kt'):
     if any(part in ('.gradle', 'build') for part in source_file.parts):
         continue
+    relative = str(source_file.relative_to(root))
+    lower_path = relative.lower()
     try:
         lines = source_file.read_text(encoding='utf-8').splitlines()
     except Exception:
         continue
-    matches = [(i + 1, line.strip()) for i, line in enumerate(lines)
-               if any(term in line for term in diagnostic_terms)]
-    if matches:
-        print(f'SOURCE_DIAGNOSTIC {source_file.relative_to(root)}')
-        for line_no, line in matches[:18]:
-            print(f'  {line_no}: {line[:240]}')
+    if any(token in lower_path for token in ('order', 'shipping', 'auth', 'staff', 'permission')):
+        print(f'SOURCE_FILE {relative} ({len(lines)} lines)')
+    if source_file.name == 'Order.kt' or ('order' in lower_path and any(token in lower_path for token in ('screen', 'dialog', 'detail', 'repository'))):
+        print(f'SOURCE_EXCERPT_BEGIN {relative}')
+        for line_no, line in enumerate(lines[:240], 1):
+            print(f'  {line_no}: {line[:260]}')
+        print(f'SOURCE_EXCERPT_END {relative}')
+    if source_file.name in ('RepositoriesImpl.kt', 'SupabaseClient.kt', 'AuthModels.kt') or 'shipping' in lower_path:
+        matches = [i for i, line in enumerate(lines)
+                   if any(term in line.lower() for term in (
+                       'admin_list_orders', 'admin_save_shipping', 'admin_apply_shipping',
+                       'from("orders")', "from('orders')", 'orderitem', 'wholesale',
+                       'product_id', 'productid', 'permissions', 'isowner', 'role ==',
+                       'shipping_governorates', 'shipping_centers'
+                   ))]
+        if matches:
+            print(f'SOURCE_MATCHES_BEGIN {relative}')
+            emitted = set()
+            for idx in matches[:35]:
+                lo, hi = max(0, idx - 5), min(len(lines), idx + 7)
+                for n in range(lo, hi):
+                    if n not in emitted:
+                        print(f'  {n+1}: {lines[n][:260]}')
+                        emitted.add(n)
+            print(f'SOURCE_MATCHES_END {relative}')
 
 print('Android CMS patches applied.')
