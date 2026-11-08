@@ -918,15 +918,15 @@ repo_text = repo_text.replace(
 )
 repo_text = repo_text.replace(
     'imageUrl = item.imageUrl ?: ""',
-    'imageUrl = item.productImage?.takeIf { it.isNotBlank() } ?: item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image?.takeIf { it.isNotBlank() } ?: product?.imageUrl,\\n'
-    '                            productCode = item.productCode?.takeIf { it.isNotBlank() } ?: item.code?.takeIf { it.isNotBlank() } ?: product?.internalCode.orEmpty(),\\n'
+    'imageUrl = item.productImage?.takeIf { it.isNotBlank() } ?: item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image?.takeIf { it.isNotBlank() } ?: product?.imageUrl,\n'
+    '                            productCode = item.productCode?.takeIf { it.isNotBlank() } ?: item.code?.takeIf { it.isNotBlank() } ?: product?.internalCode.orEmpty(),\n'
     '                            wholesalePrice = item.wholesalePrice ?: product?.wholesalePrice',
     1
 )
 repo_text = repo_text.replace(
-    '                    dto.items?.map { item ->\\n                        OrderItemEntity(',
-    '                    dto.items?.map { item ->\\n'
-    '                        val product = productDao.getProductById(item.productId ?: "")\\n'
+    '                    dto.items?.map { item ->\n                        OrderItemEntity(',
+    '                    dto.items?.map { item ->\n'
+    '                        val product = productDao.getProductById(item.productId ?: "")\n'
     '                        OrderItemEntity(',
     1
 )
