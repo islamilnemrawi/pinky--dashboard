@@ -190,8 +190,20 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          gradle --no-daemon --stacktrace --max-workers=2 \
-            -p "$PROJECT_DIR" :app:assembleDebug
+          # Retry transient repository/network failures (for example HTTP 502/504).
+          for attempt in 1 2 3; do
+            echo "Android build attempt $attempt/3"
+            if gradle --no-daemon --no-configuration-cache --stacktrace --max-workers=2 \
+              -p "$PROJECT_DIR" :app:assembleDebug; then
+              exit 0
+            fi
+            if [[ "$attempt" -lt 3 ]]; then
+              echo "Build attempt $attempt failed; waiting before retry..."
+              sleep $((attempt * 20))
+            fi
+          done
+          echo "Android build failed after 3 attempts."
+          exit 1
 
       - name: Verify APK
         shell: bash
