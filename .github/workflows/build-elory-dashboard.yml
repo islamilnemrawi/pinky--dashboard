@@ -6,6 +6,7 @@ on:
     paths:
       - 'Elory_Dashboard_Build_Ready.zip'
       - '.github/workflows/build-elory-dashboard.yml'
+      - 'scripts/**'
 
 permissions:
   contents: read
