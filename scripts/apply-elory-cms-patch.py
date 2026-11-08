@@ -769,8 +769,8 @@ entities_path = root / entities_file
 entities_text = entities_path.read_text(encoding='utf-8')
 if 'import androidx.room.ColumnInfo' not in entities_text:
     entities_text = entities_text.replace(
-        'import androidx.room.Entity\\n',
-        'import androidx.room.ColumnInfo\\nimport androidx.room.Entity\\n',
+        'import androidx.room.Entity\n',
+        'import androidx.room.ColumnInfo\nimport androidx.room.Entity\n',
         1
     )
 old_entity_end = """    val imageUrl: String?
@@ -789,8 +789,8 @@ database_path = root / database_file
 database_text = database_path.read_text(encoding='utf-8')
 if 'import androidx.room.migration.Migration' not in database_text:
     database_text = database_text.replace(
-        'import androidx.room.RoomDatabase\\n',
-        'import androidx.room.RoomDatabase\\nimport androidx.room.migration.Migration\\n',
+        'import androidx.room.RoomDatabase\n',
+        'import androidx.room.RoomDatabase\nimport androidx.room.migration.Migration\n',
         1
     )
 database_text = database_text.replace('    version = 3,', '    version = 4,', 1)
@@ -810,7 +810,7 @@ if old_instance not in database_text:
 database_text = database_text.replace(old_instance, new_instance, 1)
 database_text = database_text.replace(
     '                .fallbackToDestructiveMigration()',
-    '                .addMigrations(MIGRATION_3_4)\\n                .fallbackToDestructiveMigration()',
+    '                .addMigrations(MIGRATION_3_4)\n                .fallbackToDestructiveMigration()',
     1
 )
 database_path.write_text(database_text, encoding='utf-8')
