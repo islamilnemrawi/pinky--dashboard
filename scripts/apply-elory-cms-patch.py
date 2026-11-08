@@ -842,7 +842,7 @@ repo_text = repo_text.replace(
 )
 repo_text = repo_text.replace(
     'imageUrl = itemEntity.imageUrl',
-    'imageUrl = itemEntity.imageUrl.ifBlank { product?.imageUrl.orEmpty() },\n'
+    'imageUrl = itemEntity.imageUrl?.takeIf { it.isNotBlank() } ?: product?.imageUrl.orEmpty(),\n'
     '                        productCode = product?.internalCode.orEmpty(),\n'
     '                        wholesalePrice = product?.wholesalePrice',
     2
