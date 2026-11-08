@@ -532,4 +532,17 @@ cat_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/categor
 cat_source=cat_file.read_text(encoding='utf-8')
 assert cat_source.count('val bucket = "pinky-products"')==1
 cat_file.write_text(cat_source.replace('val bucket = "pinky-products"','val bucket = "product-images"',1),encoding='utf-8')
+# Use the same secured, compressed image uploader for custom content sections.
+pe = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+s = pe.read_text(encoding='utf-8')
+old = '''                    OutlinedTextField(local.imageUrl, { local=local.copy(imageUrl=it) }, label={ Text("رابط الصورة (اختياري)") }, modifier=Modifier.fillMaxWidth())'''
+new = '''                    ImageUploadSelector(
+                        imageUrl = local.imageUrl,
+                        onUrlChanged = { local = local.copy(imageUrl = it) },
+                        bucket = "product-images",
+                        placeholderText = "رفع صورة القسم"
+                    )'''
+assert s.count(old) == 1
+pe.write_text(s.replace(old,new,1), encoding='utf-8')
+
 print('Android CMS patches applied.')
