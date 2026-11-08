@@ -190,31 +190,60 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          MIRROR_BASE="https://maven.wso2.org/nexus/content/repositories/central"
+          ARTIFACT_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.jar"
+          echo "Checking the exact Kotlin compiler artifact on the mirror..."
+          curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 5 \
+            --connect-timeout 20 --max-time 180 \
+            "$MIRROR_BASE/$ARTIFACT_PATH" \
+            --output "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
+          test -s "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
+          ls -lh "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
+
           cat > "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" <<'GRADLE'
-          def installKotlinCompilerMirror = { repositories ->
-              repositories.exclusiveContent {
-                  forRepository {
-                      maven {
-                          name = "KotlinCompilerEmbeddableMirror"
-                          url = uri("https://maven.wso2.org/nexus/content/repositories/central/")
-                      }
-                  }
-                  filter {
+          def installKotlinCompilerMirror = { repositoryHandler, label ->
+              def existing = repositoryHandler.findByName("EloryKotlinCompilerMirror")
+              if (existing != null) {
+                  repositoryHandler.remove(existing)
+              }
+
+              def mirror = repositoryHandler.maven {
+                  name = "EloryKotlinCompilerMirror"
+                  url = uri("https://maven.wso2.org/nexus/content/repositories/central/")
+                  content {
                       includeModule("org.jetbrains.kotlin", "kotlin-compiler-embeddable")
                   }
               }
+
+              repositoryHandler.remove(mirror)
+              repositoryHandler.addFirst(mirror)
+              println("[Elory build] Kotlin compiler mirror installed first in " + label)
           }
+
+          def preferSettingsRepositories = false
+
           gradle.settingsEvaluated { settings ->
-              installKotlinCompilerMirror(settings.dependencyResolutionManagement.repositories)
-              def repositoryMode = settings.dependencyResolutionManagement.repositoriesMode.get().toString()
-              if (repositoryMode.endsWith("PREFER_PROJECT")) {
-                  gradle.beforeProject { project ->
-                      installKotlinCompilerMirror(project.repositories)
-                  }
+              def repositoriesMode = settings.dependencyResolutionManagement.repositoriesMode.get().toString()
+              preferSettingsRepositories = repositoriesMode.endsWith("PREFER_SETTINGS") ||
+                                           repositoriesMode.endsWith("FAIL_ON_PROJECT_REPOS")
+
+              installKotlinCompilerMirror(
+                  settings.dependencyResolutionManagement.repositories,
+                  "dependencyResolutionManagement"
+              )
+              println("[Elory build] dependency repositories mode: " + repositoriesMode)
+          }
+
+          gradle.beforeProject { project ->
+              if (!preferSettingsRepositories) {
+                  installKotlinCompilerMirror(project.repositories, project.path + " project repositories")
               }
+              installKotlinCompilerMirror(project.buildscript.repositories, project.path + " buildscript repositories")
           }
           GRADLE
-          echo 'Configured the verified Maven mirror for kotlin-compiler-embeddable only.'
+          echo 'Kotlin compiler mirror and artifact preflight completed.'
+          
       - name: Build Debug APK
         shell: bash
         run: |
