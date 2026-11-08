@@ -985,25 +985,31 @@ repo_text = repo_text.replace(old_local, new_local, 1)
 repo_path.write_text(repo_text, encoding='utf-8')
 
 
-patch_source(
-    'app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt',
-    '    @Query("SELECT * FROM order_items WHERE orderId = :orderId")\\n'
-    '    suspend fun getOrderItems(orderId: String): List<OrderItemEntity>\\n',
-    '    @Query("SELECT * FROM order_items WHERE orderId = :orderId")\\n'
-    '    suspend fun getOrderItems(orderId: String): List<OrderItemEntity>\\n\\n'
-    '    @Query("DELETE FROM order_items WHERE orderId = :orderId")\\n'
-    '    suspend fun deleteOrderItems(orderId: String)\\n',
-    'replace stale cached order items'
-)
-patch_source(
-    repo_file,
-    '                orderDao.insertOrders(orderEntities)\\n\\n'
-    '                val itemEntities = orders.flatMap { dto ->',
-    '                orderDao.insertOrders(orderEntities)\\n'
-    '                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }\\n\\n'
-    '                val itemEntities = orders.flatMap { dto ->',
-    'replace stale cached order items on successful remote sync'
-)
+dao_path = root / 'app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt'
+dao_text = dao_path.read_text(encoding='utf-8')
+if 'suspend fun deleteOrderItems(orderId: String)' not in dao_text:
+    dao_needle = 'suspend fun getOrderItems(orderId: String): List<OrderItemEntity>'
+    dao_index = dao_text.find(dao_needle)
+    if dao_index < 0:
+        raise SystemExit('OrderDao getOrderItems method not found')
+    dao_end = dao_index + len(dao_needle)
+    dao_text = dao_text[:dao_end] + (
+        '\\n\\n    @Query("DELETE FROM order_items WHERE orderId = :orderId")'
+        '\\n    suspend fun deleteOrderItems(orderId: String)'
+    ) + dao_text[dao_end:]
+    dao_path.write_text(dao_text, encoding='utf-8')
+
+repo_text = repo_path.read_text(encoding='utf-8')
+sync_insert_anchor = 'orderDao.insertOrders(orderEntities)'
+sync_insert_index = repo_text.find(sync_insert_anchor, repo_text.index('override suspend fun syncOrders()'))
+if sync_insert_index < 0:
+    raise SystemExit('Order sync insert anchor not found')
+after_insert = sync_insert_index + len(sync_insert_anchor)
+if 'deleteOrderItems(dto.id)' not in repo_text:
+    repo_text = repo_text[:after_insert] + (
+        '\\n                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }'
+    ) + repo_text[after_insert:]
+repo_path.write_text(repo_text, encoding='utf-8')
 
 # Prevent invalid/empty prices from silently falling back to unrelated default values.
 shipping_screen = 'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt'
