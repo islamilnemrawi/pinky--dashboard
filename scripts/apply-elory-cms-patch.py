@@ -780,4 +780,26 @@ for source_file in root.rglob('*.kt'):
                         emitted.add(n)
             print(f'SOURCE_MATCHES_END {relative}')
 
+
+# Detailed snippets for the known order JSON schema mismatch and shipping editor path.
+for relative, ranges in {
+    'app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt': [(1, 125)],
+    'app/src/main/java/com/pinky/dashboard/domain/model/Order.kt': [(40, 90)],
+    'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (425, 455)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt': [(1, 180), (300, 520), (520, 703)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt': [(180, 420)],
+    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(470, 570), (1390, 1455)],
+    'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt': [(1, 100)]
+}.items():
+    target = root / relative
+    if not target.exists():
+        continue
+    lines = target.read_text(encoding='utf-8').splitlines()
+    print(f'DETAILED_SOURCE_BEGIN {relative}')
+    for lo, hi in ranges:
+        print(f'  RANGE {lo}-{hi}')
+        for line_no in range(lo, min(hi, len(lines)) + 1):
+            print(f'  {line_no}: {lines[line_no-1][:240]}')
+    print(f'DETAILED_SOURCE_END {relative}')
+
 print('Android CMS patches applied.')
