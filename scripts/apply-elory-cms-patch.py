@@ -842,8 +842,8 @@ repo_text = repo_text.replace(
 )
 repo_text = repo_text.replace(
     'imageUrl = itemEntity.imageUrl',
-    'imageUrl = itemEntity.imageUrl.ifBlank { product?.imageUrl.orEmpty() },\\n'
-    '                        productCode = product?.internalCode.orEmpty(),\\n'
+    'imageUrl = itemEntity.imageUrl.ifBlank { product?.imageUrl.orEmpty() },\n'
+    '                        productCode = product?.internalCode.orEmpty(),\n'
     '                        wholesalePrice = product?.wholesalePrice',
     2
 )
@@ -888,23 +888,23 @@ dialog_text = dialog_text.replace(
     1
 )
 image_block = (
-    '                                if (!item.imageUrl.isNullOrBlank()) {\\n'
-    '                                    AsyncImage(\\n'
-    '                                        model = item.imageUrl,\\n'
-    '                                        contentDescription = item.productName,\\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\\n'
-    '                                        contentScale = ContentScale.Crop\\n'
-    '                                    )\\n'
-    '                                } else {\\n'
-    '                                    Box(\\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\\n'
-    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\\n'
-    '                                        contentAlignment = Alignment.Center\\n'
-    '                                    ) {\\n'
-    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\\n'
-    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\\n'
-    '                                    }\\n'
-    '                                }\\n'
+    '                                if (!item.imageUrl.isNullOrBlank()) {\n'
+    '                                    AsyncImage(\n'
+    '                                        model = item.imageUrl,\n'
+    '                                        contentDescription = item.productName,\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\n'
+    '                                        contentScale = ContentScale.Crop\n'
+    '                                    )\n'
+    '                                } else {\n'
+    '                                    Box(\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\n'
+    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\n'
+    '                                        contentAlignment = Alignment.Center\n'
+    '                                    ) {\n'
+    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\n'
+    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\n'
+    '                                    }\n'
+    '                                }\n'
 )
 dialog_text = dialog_text.replace(image_block, '', 1)
 items_start = dialog_text.index('items(order.items, key = { it.id })')
@@ -994,8 +994,8 @@ if 'suspend fun deleteOrderItems(orderId: String)' not in dao_text:
         raise SystemExit('OrderDao getOrderItems method not found')
     dao_end = dao_index + len(dao_needle)
     dao_text = dao_text[:dao_end] + (
-        '\\n\\n    @Query("DELETE FROM order_items WHERE orderId = :orderId")'
-        '\\n    suspend fun deleteOrderItems(orderId: String)'
+        '\n\n    @Query("DELETE FROM order_items WHERE orderId = :orderId")'
+        '\n    suspend fun deleteOrderItems(orderId: String)'
     ) + dao_text[dao_end:]
     dao_path.write_text(dao_text, encoding='utf-8')
 
@@ -1007,7 +1007,7 @@ if sync_insert_index < 0:
 after_insert = sync_insert_index + len(sync_insert_anchor)
 if 'deleteOrderItems(dto.id)' not in repo_text:
     repo_text = repo_text[:after_insert] + (
-        '\\n                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }'
+        '\n                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }'
     ) + repo_text[after_insert:]
 repo_path.write_text(repo_text, encoding='utf-8')
 
