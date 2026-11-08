@@ -116,6 +116,15 @@ jobs:
               -dname 'CN=Android Debug,O=Android,C=US'
           fi
 
+      - name: Inspect Gemini BuildConfig configuration
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo '--- Gradle references to Gemini ---'
+          grep -n -i -C 5 'GEMINI_API_KEY\|geminiApiKey' "$PROJECT_DIR/app/build.gradle.kts" || true
+          echo '--- Environment template ---'
+          sed -n '1,100p' "$PROJECT_DIR/.env.example"
+
       - name: Verify previously reported Kotlin fix
         shell: bash
         run: |
