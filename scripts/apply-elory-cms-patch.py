@@ -586,4 +586,127 @@ block = block.replace(old, 'IconButton(enabled = canReorder && index < sections.
 s = s[:start] + block + s[end:]
 pe.write_text(s, encoding='utf-8')
 
+mockup_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/PhoneMockupView.kt')
+mockup_file.write_text(r'''
+package com.pinky.dashboard.ui.screens.website
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.pinky.dashboard.domain.model.Category
+import com.pinky.dashboard.domain.model.Offer
+import com.pinky.dashboard.domain.model.WebsiteConfig
+
+private fun previewColor(value: String, fallback: Color): Color = try {
+    Color(android.graphics.Color.parseColor(value))
+} catch (_: Exception) { fallback }
+
+@Composable
+fun PhoneMockupView(
+    config: WebsiteConfig,
+    categories: List<Category>,
+    banners: List<Offer>
+) {
+    val hero = config.heroSlides.firstOrNull { it.isActive }
+    val headerBg = remember(config.headerBgColor) { previewColor(config.headerBgColor, Color.White) }
+    val iconColor = remember(config.headerIconsColor) { previewColor(config.headerIconsColor, Color(0xFFC96F92)) }
+    val announcementBg = remember(config.announcementBgColor) { previewColor(config.announcementBgColor, Color(0xFF381528)) }
+    val announcementText = remember(config.announcementTextColor) { previewColor(config.announcementTextColor, Color.White) }
+
+    Card(
+        modifier = Modifier.widthIn(max = 380.dp).fillMaxHeight(0.95f),
+        shape = RoundedCornerShape(34.dp),
+        border = androidx.compose.foundation.BorderStroke(4.dp, Color(0xFF282328)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.fillMaxSize().padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.width(68.dp).height(5.dp).clip(CircleShape).background(Color.Gray.copy(alpha = .35f)))
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                if (config.showAnnouncementBar) {
+                    Box(Modifier.fillMaxWidth().background(announcementBg).padding(7.dp), contentAlignment = Alignment.Center) {
+                        Text(config.announcementMsg1, color = announcementText, fontSize = 10.sp, textAlign = TextAlign.Center)
+                    }
+                }
+                Row(Modifier.fillMaxWidth().background(headerBg).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    if (config.headerLogoUrl.isNotBlank()) {
+                        AsyncImage(config.headerLogoUrl, null, Modifier.height(30.dp).widthIn(max = 100.dp), contentScale = ContentScale.Fit)
+                    } else Text(config.storeName, color = iconColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("⌕   ♡   🛍", color = iconColor, fontSize = 14.sp)
+                }
+                if (config.showHeroBanner && hero != null) {
+                    Column(Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF0F5))) {
+                        if (hero.imageUrl.isNotBlank()) AsyncImage(hero.imageUrl, null, Modifier.fillMaxWidth().height(135.dp), contentScale = ContentScale.Crop)
+                        Column(Modifier.padding(12.dp)) {
+                            Text(hero.smallText, color = Color(0xFF9D5574), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(hero.title, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF381528))
+                            if (hero.arabicTitle.isNotBlank()) Text(hero.arabicTitle, fontWeight = FontWeight.Bold, color = Color(0xFF381528))
+                            Text(hero.description, fontSize = 10.sp, color = Color.DarkGray)
+                            Spacer(Modifier.height(6.dp))
+                            Text(hero.buttonText, color = Color(0xFFC96F92), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
+                if (config.categoriesIsVisible) {
+                    Column(Modifier.fillMaxWidth().padding(top = 14.dp)) {
+                        Text(config.categoriesTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(config.categoriesSubtitle, color = Color.Gray, fontSize = 9.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+                            items(categories.filter { it.isActive }) { category ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(58.dp)) {
+                                    if (category.imageUrl.isNotBlank()) AsyncImage(category.imageUrl, null, Modifier.size(48.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                                    else Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFF8E8EF)), contentAlignment = Alignment.Center) { Icon(Icons.Filled.Category, null, tint = iconColor) }
+                                    Text(category.name, fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 2)
+                                }
+                            }
+                        }
+                    }
+                }
+                Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    Text(config.productsSectionTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(config.productsSectionSubtitle, color = Color.Gray, fontSize = 9.sp)
+                    if (banners.isNotEmpty()) Text("${banners.size} عروض متاحة", color = iconColor, fontSize = 10.sp)
+                }
+                if (config.primeIsVisible) {
+                    Column(Modifier.fillMaxWidth().padding(top = 14.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF381528)).padding(12.dp)) {
+                        Text(config.primeName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(config.primeDescription, color = Color.White.copy(alpha = .8f), fontSize = 10.sp)
+                    }
+                }
+                config.customSections.filter { it.isVisible }.sortedBy { it.sortOrder }.forEach { section ->
+                    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(12.dp)).background(previewColor(section.backgroundColor, Color(0xFFFFF0F5))).padding(12.dp)) {
+                        if (section.imageUrl.isNotBlank()) AsyncImage(section.imageUrl, null, Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                        Text(section.title, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(section.text, fontSize = 10.sp)
+                        if (section.buttonText.isNotBlank()) Text(section.buttonText, color = iconColor, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
+                }
+            }
+            Text("معاينة تقريبية للموقع على الهاتف", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+''', encoding='utf-8')
+
 print('Android CMS patches applied.')
