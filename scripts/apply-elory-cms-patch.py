@@ -887,25 +887,24 @@ dialog_text = dialog_text.replace(
     '    canViewInternalCode: Boolean = false\n) {',
     1
 )
-image_block = (
-    '                                if (!item.imageUrl.isNullOrBlank()) {\n'
-    '                                    AsyncImage(\n'
-    '                                        model = item.imageUrl,\n'
-    '                                        contentDescription = item.productName,\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\n'
-    '                                        contentScale = ContentScale.Crop\n'
-    '                                    )\n'
-    '                                } else {\n'
-    '                                    Box(\n'
-    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\n'
-    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\n'
-    '                                        contentAlignment = Alignment.Center\n'
-    '                                    ) {\n'
-    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\n'
-    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\n'
-    '                                    }\n'
-    '                                }\n'
-)
+image_block = """                                if (!item.imageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = item.imageUrl,
+                                        contentDescription = item.productName,
+                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+"""
 dialog_text = dialog_text.replace(image_block, '', 1)
 items_start = dialog_text.index('items(order.items, key = { it.id })')
 column_marker = '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {'
@@ -993,10 +992,11 @@ if 'suspend fun deleteOrderItems(orderId: String)' not in dao_text:
     if dao_index < 0:
         raise SystemExit('OrderDao getOrderItems method not found')
     dao_end = dao_index + len(dao_needle)
-    dao_text = dao_text[:dao_end] + (
-        '\n\n    @Query("DELETE FROM order_items WHERE orderId = :orderId")'
-        '\n    suspend fun deleteOrderItems(orderId: String)'
-    ) + dao_text[dao_end:]
+    dao_text = dao_text[:dao_end] + """
+    
+    @Query("DELETE FROM order_items WHERE orderId = :orderId")
+    suspend fun deleteOrderItems(orderId: String)
+""" + dao_text[dao_end:]
     dao_path.write_text(dao_text, encoding='utf-8')
 
 repo_text = repo_path.read_text(encoding='utf-8')
@@ -1006,9 +1006,9 @@ if sync_insert_index < 0:
     raise SystemExit('Order sync insert anchor not found')
 after_insert = sync_insert_index + len(sync_insert_anchor)
 if 'deleteOrderItems(dto.id)' not in repo_text:
-    repo_text = repo_text[:after_insert] + (
-        '\n                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }'
-    ) + repo_text[after_insert:]
+    repo_text = repo_text[:after_insert] + """
+                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }
+""" + repo_text[after_insert:]
 repo_path.write_text(repo_text, encoding='utf-8')
 
 # Prevent invalid/empty prices from silently falling back to unrelated default values.
