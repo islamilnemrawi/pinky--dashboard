@@ -825,7 +825,9 @@ patch_source(
     '    @Json(name = "price") val price: Double? = null,\n'
     '    @Json(name = "image") val image: String? = null,\n'
     '    @Json(name = "code") val code: String? = null,\n'
-    '    @Json(name = "wholesale_price") val wholesalePrice: Double? = null\n)',
+    '    @Json(name = "wholesale_price") val wholesalePrice: Double? = null,\n'
+    '    @Json(name = "product_code") val productCode: String? = null,\n'
+    '    @Json(name = "product_image") val productImage: String? = null\n)',
     'storefront order item JSON aliases'
 )
 patch_source(
@@ -895,13 +897,13 @@ repo_text = repo_text.replace(
 repo_text = repo_text.replace(
     'imageUrl = itemEntity.imageUrl',
     'imageUrl = itemEntity.imageUrl?.takeIf { it.isNotBlank() } ?: product?.imageUrl.orEmpty(),\n'
-    '                        productCode = product?.internalCode.orEmpty(),\n'
-    '                        wholesalePrice = product?.wholesalePrice',
+    '                        productCode = itemEntity.productCode.ifBlank { product?.internalCode.orEmpty() },\n'
+    '                        wholesalePrice = itemEntity.wholesalePrice ?: product?.wholesalePrice',
     2
 )
 repo_text = repo_text.replace(
     'productName = item.productName ?: "",',
-    'productName = item.productName?.takeIf { it.isNotBlank() } ?: item.name.orEmpty(),',
+    'productName = item.productName?.takeIf { it.isNotBlank() } ?: item.name?.takeIf { it.isNotBlank() } ?: product?.name.orEmpty(),',
     1
 )
 repo_text = repo_text.replace(
@@ -916,7 +918,16 @@ repo_text = repo_text.replace(
 )
 repo_text = repo_text.replace(
     'imageUrl = item.imageUrl ?: ""',
-    'imageUrl = item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image.orEmpty()',
+    'imageUrl = item.productImage?.takeIf { it.isNotBlank() } ?: item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image?.takeIf { it.isNotBlank() } ?: product?.imageUrl,\\n'
+    '                            productCode = item.productCode?.takeIf { it.isNotBlank() } ?: item.code?.takeIf { it.isNotBlank() } ?: product?.internalCode.orEmpty(),\\n'
+    '                            wholesalePrice = item.wholesalePrice ?: product?.wholesalePrice',
+    1
+)
+repo_text = repo_text.replace(
+    '                    dto.items?.map { item ->\\n                        OrderItemEntity(',
+    '                    dto.items?.map { item ->\\n'
+    '                        val product = productDao.getProductById(item.productId ?: "")\\n'
+    '                        OrderItemEntity(',
     1
 )
 repo_path.write_text(repo_text, encoding='utf-8')
