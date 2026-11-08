@@ -53,6 +53,14 @@ replace(Path('app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomiz
     @Json(name = "description") val description: String = "",
     @Json(name = "buttonText") val buttonText: String = "تسوقي الآن",''')
 replace(Path('app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt'),
+'''data class HeroConfig(
+    @Json(name = "slides") val slides: List<HeroSlideConfig> = emptyList()
+)''',
+'''data class HeroConfig(
+    @Json(name = "slides") val slides: List<HeroSlideConfig> = emptyList(),
+    @Json(name = "isVisible") val isVisible: Boolean = true
+)''')
+replace(Path('app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt'),
 '''    @Json(name = "backgroundColor") val backgroundColor: String = "#121212",
     @Json(name = "textColor") val textColor: String = "#FFFFFF",''',
 '''    // Empty means: preserve the storefront's own theme defaults.
@@ -117,7 +125,8 @@ new='''                    navigation = config.navigationItems,
                         SiteSectionConfig(it.id, it.title, it.isVisible, it.sortOrder)
                     },
                     hero = HeroConfig(
-                        slides = config.heroSlides.sortedBy { it.sortOrder }
+                        slides = config.heroSlides.sortedBy { it.sortOrder },
+                        isVisible = config.showHeroBanner
                     ),
                     customSections = config.customSections.sortedBy { it.sortOrder },
                     categories = CategoriesConfig('''
@@ -544,5 +553,37 @@ new = '''                    ImageUploadSelector(
                     )'''
 assert s.count(old) == 1
 pe.write_text(s.replace(old,new,1), encoding='utf-8')
+
+# Persist the hero's visibility toggle and reflect it when loading the CMS config.
+pv = root / Path('app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt')
+s = pv.read_text(encoding='utf-8')
+old = "showHeroBanner = customizations.showHeroBanner,"
+assert s.count(old) == 1
+s = s.replace(old, "showHeroBanner = cfgObj?.hero?.isVisible ?: customizations.showHeroBanner,", 1)
+pv.write_text(s, encoding='utf-8')
+
+remote_file = root / Path('app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt')
+remote_source = remote_file.read_text(encoding='utf-8')
+old = '''    val showHeroBanner: Boolean
+        get() = config?.hero?.slides?.any { it.isActive } ?: true'''
+new = '''    val showHeroBanner: Boolean
+        get() = config?.hero?.isVisible ?: (config?.hero?.slides?.any { it.isActive } ?: true)'''
+assert remote_source.count(old) == 1
+remote_file.write_text(remote_source.replace(old,new,1), encoding='utf-8')
+
+# Announcement and footer are outside the home content container, so do not offer non-functional reorder controls.
+pe = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+s = pe.read_text(encoding='utf-8')
+start = s.index('fun SectionsLayoutForm(')
+end = s.index('\n@Composable\nfun CategoriesLayoutForm', start)
+block = s[start:end]
+old = 'IconButton(enabled = index > 0, onClick = {'
+assert block.count(old) == 1
+block = block.replace(old, 'val canReorder = section.id !in setOf(\"sec_announcement\", \"sec_footer\")\n                    IconButton(enabled = canReorder && index > 0, onClick = {', 1)
+old = 'IconButton(enabled = index < sections.lastIndex, onClick = {'
+assert block.count(old) == 1
+block = block.replace(old, 'IconButton(enabled = canReorder && index < sections.lastIndex, onClick = {', 1)
+s = s[:start] + block + s[end:]
+pe.write_text(s, encoding='utf-8')
 
 print('Android CMS patches applied.')
