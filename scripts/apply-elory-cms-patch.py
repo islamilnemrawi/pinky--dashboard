@@ -607,7 +607,7 @@ pe.write_text(s.replace(old,new,1), encoding='utf-8')
 
 screen_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
 screen_text = screen_file.read_text(encoding='utf-8')
-screen_package_match = re.search(r'^\\s*package\\s+([^\\s]+)', screen_text, re.MULTILINE)
+screen_package_match = re.search(r'^\s*package\s+([^\s]+)', screen_text, re.MULTILINE)
 if not screen_package_match:
     raise SystemExit(f'Could not determine Kotlin package from {screen_file}')
 screen_package = screen_package_match.group(1)
