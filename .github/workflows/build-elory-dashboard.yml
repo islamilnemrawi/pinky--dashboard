@@ -186,6 +186,35 @@ jobs:
           fi
           echo 'Previously reported getProducts() parameters are present.'
 
+      - name: Configure Kotlin compiler mirror
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" <<'GRADLE'
+          def installKotlinCompilerMirror = { repositories ->
+              repositories.exclusiveContent {
+                  forRepository {
+                      maven {
+                          name = "KotlinCompilerEmbeddableMirror"
+                          url = uri("https://maven.wso2.org/nexus/content/repositories/central/")
+                      }
+                  }
+                  filter {
+                      includeModule("org.jetbrains.kotlin", "kotlin-compiler-embeddable")
+                  }
+              }
+          }
+          gradle.settingsEvaluated { settings ->
+              installKotlinCompilerMirror(settings.dependencyResolutionManagement.repositories)
+              def repositoryMode = settings.dependencyResolutionManagement.repositoriesMode.get().toString()
+              if (repositoryMode.endsWith("PREFER_PROJECT")) {
+                  gradle.beforeProject { project ->
+                      installKotlinCompilerMirror(project.repositories)
+                  }
+              }
+          }
+          GRADLE
+          echo 'Configured the verified Maven mirror for kotlin-compiler-embeddable only.'
       - name: Build Debug APK
         shell: bash
         run: |
@@ -193,7 +222,7 @@ jobs:
           # Retry transient repository/network failures (for example HTTP 502/504).
           for attempt in 1 2 3; do
             echo "Android build attempt $attempt/3"
-            if gradle --no-daemon --no-configuration-cache --stacktrace --max-workers=2 \
+            if gradle --no-daemon --no-configuration-cache --init-script "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" --stacktrace --max-workers=2 \
               -p "$PROJECT_DIR" :app:assembleDebug; then
               exit 0
             fi
