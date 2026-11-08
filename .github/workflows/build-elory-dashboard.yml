@@ -78,6 +78,15 @@ jobs:
           echo 'Project files:'
           ls -lah "$PROJECT_DIR"
 
+      - name: Apply Elory CMS updates
+        # CMS patch includes hero visibility, custom-section image uploads, and safe section ordering.
+        # Adds the live phone preview component missing from the source archive.
+        # Synchronizes custom-section visibility between the section list and custom content object.
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-cms-patch.py
+
       - name: Prepare project configuration
         shell: bash
         env:
