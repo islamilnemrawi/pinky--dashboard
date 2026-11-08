@@ -190,18 +190,57 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          MIRROR_BASE="https://maven.wso2.org/nexus/content/repositories/central"
-          ARTIFACT_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.jar"
-          echo "Checking the exact Kotlin compiler artifact on the mirror..."
-          curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 5 \
-            --connect-timeout 20 --max-time 180 \
-            "$MIRROR_BASE/$ARTIFACT_PATH" \
-            --output "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
-          test -s "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
-          ls -lh "$RUNNER_TEMP/kotlin-compiler-embeddable-2.2.10.jar"
+          POM_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.pom"
+          JAR_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.jar"
+          SELECTED_MIRROR=""
+
+          # Test metadata AND the 54 MB compiler JAR. A mirror that serves only one
+          # of them is not accepted.
+          CANDIDATES=(
+            "Google Americas|https://maven-central.storage-download.googleapis.com/maven2"
+            "Google Europe|https://maven-central-eu.storage-download.googleapis.com/maven2"
+            "Google Asia Pacific|https://maven-central-asia.storage-download.googleapis.com/maven2"
+            "Aliyun Central|https://maven.aliyun.com/repository/central"
+            "WSO2 Central|https://maven.wso2.org/nexus/content/repositories/central"
+          )
+
+          for candidate in "${CANDIDATES[@]}"; do
+            LABEL="${candidate%%|*}"
+            BASE="${candidate#*|}"
+            echo "Preflighting $LABEL ($BASE)"
+            rm -f "$RUNNER_TEMP/kotlin-compiler-preflight.pom" "$RUNNER_TEMP/kotlin-compiler-preflight.jar"
+
+            if curl --fail --location --silent --show-error \
+                 --retry 1 --retry-all-errors --connect-timeout 15 --max-time 90 \
+                 "$BASE/$POM_PATH" --output "$RUNNER_TEMP/kotlin-compiler-preflight.pom" \
+               && curl --fail --location --silent --show-error \
+                 --retry 2 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 240 \
+                 "$BASE/$JAR_PATH" --output "$RUNNER_TEMP/kotlin-compiler-preflight.jar" \
+               && [[ -s "$RUNNER_TEMP/kotlin-compiler-preflight.pom" ]] \
+               && [[ "$(stat -c %s "$RUNNER_TEMP/kotlin-compiler-preflight.jar")" -gt 1000000 ]]; then
+              SELECTED_MIRROR="$BASE"
+              echo "Verified both POM and compiler JAR on $LABEL."
+              ls -lh "$RUNNER_TEMP/kotlin-compiler-preflight.pom" "$RUNNER_TEMP/kotlin-compiler-preflight.jar"
+              break
+            fi
+
+            echo "$LABEL did not pass both artifact checks; trying the next mirror."
+          done
+
+          if [[ -z "$SELECTED_MIRROR" ]]; then
+            echo "No tested Maven mirror could serve both Kotlin compiler files."
+            exit 1
+          fi
+
+          echo "KOTLIN_COMPILER_MIRROR=$SELECTED_MIRROR" >> "$GITHUB_ENV"
+          echo "Selected Kotlin compiler mirror: $SELECTED_MIRROR"
 
           cat > "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" <<'GRADLE'
+          def mirrorBase = System.getenv("KOTLIN_COMPILER_MIRROR")
+          if (mirrorBase == null || mirrorBase.trim().isEmpty()) {
+              throw new GradleException("KOTLIN_COMPILER_MIRROR was not exported by the preflight step.")
+          }
+
           def installKotlinCompilerMirror = { repositoryHandler, label ->
               def existing = repositoryHandler.findByName("EloryKotlinCompilerMirror")
               if (existing != null) {
@@ -210,7 +249,7 @@ jobs:
 
               def mirror = repositoryHandler.maven {
                   name = "EloryKotlinCompilerMirror"
-                  url = uri("https://maven.wso2.org/nexus/content/repositories/central/")
+                  url = uri(mirrorBase)
                   content {
                       includeModule("org.jetbrains.kotlin", "kotlin-compiler-embeddable")
                   }
@@ -218,7 +257,7 @@ jobs:
 
               repositoryHandler.remove(mirror)
               repositoryHandler.addFirst(mirror)
-              println("[Elory build] Kotlin compiler mirror installed first in " + label)
+              println("[Elory build] Verified Kotlin compiler mirror installed first in " + label + ": " + mirrorBase)
           }
 
           def preferSettingsRepositories = false
@@ -242,8 +281,8 @@ jobs:
               installKotlinCompilerMirror(project.buildscript.repositories, project.path + " buildscript repositories")
           }
           GRADLE
-          echo 'Kotlin compiler mirror and artifact preflight completed.'
-          
+          echo 'Verified Kotlin compiler metadata and JAR; Gradle mirror init script prepared.'
+
       - name: Build Debug APK
         shell: bash
         run: |
