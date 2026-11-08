@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "dash/**"
-      - ".github/workflows/build-elory-dashboard.yml"
+      - '**'
+      - '.github/workflows/build-elory-dashboard.yml'
 
 permissions:
   contents: read
@@ -28,32 +28,45 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      # v4 avoids requesting Google's retired "tools" SDK package.
+      # Install only platform-tools here. Android Gradle Plugin downloads
+      # the exact compile SDK/build-tools required by compileSdk 36.1.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools"
-
-      - name: Install Android SDK packages required by this project
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          sdkmanager "platforms;android-36.1" "build-tools;36.0.0"
+          packages: platform-tools
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "9.3.1"
+          gradle-version: '9.3.1'
+
+      - name: Detect project location
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -f 'dash/settings.gradle.kts' && -f 'dash/app/build.gradle.kts' ]]; then
+            PROJECT_DIR='dash'
+          elif [[ -f 'settings.gradle.kts' && -f 'app/build.gradle.kts' ]]; then
+            PROJECT_DIR='.'
+          else
+            echo 'Could not find the Android project in the repository root or ./dash.'
+            echo 'Expected settings.gradle.kts and app/build.gradle.kts.'
+            echo 'Repository files:'
+            ls -la
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project directory: $PROJECT_DIR"
 
       - name: Validate and prepare project
-        working-directory: dash
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -Eeuo pipefail
+          cd "$PROJECT_DIR"
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
           test -f .env.example
@@ -63,61 +76,76 @@ jobs:
           import os
           from pathlib import Path
 
-          env_file = Path(".env")
+          env_file = Path('.env')
           lines = env_file.read_text().splitlines()
-          api_key = os.environ.get("GEMINI_API_KEY", "")
-          lines = [line for line in lines if not line.startswith("GEMINI_API_KEY=")]
-          lines.append("GEMINI_API_KEY=" + api_key)
-          env_file.write_text("\n".join(lines) + "\n")
+          api_key = os.environ.get('GEMINI_API_KEY', '')
+          lines = [line for line in lines if not line.startswith('GEMINI_API_KEY=')]
+          lines.append('GEMINI_API_KEY=' + api_key)
+          env_file.write_text('\n'.join(lines) + '\n')
           PYENV
 
-          if [ ! -f debug.keystore ]; then
-            keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          if [[ ! -f debug.keystore ]]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname 'CN=Android Debug,O=Android,C=US'
           fi
 
-      - name: Apply compatibility fix for the previously reported Kotlin call
-        working-directory: dash
+      - name: Apply previously identified Kotlin compile fix
         shell: bash
         run: |
           set -Eeuo pipefail
+          cd "$PROJECT_DIR"
           python3 - <<'PYFIX'
           from pathlib import Path
 
-          file = Path("app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt")
+          file = Path('app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt')
+          if not file.is_file():
+              raise SystemExit(f'Expected source file not found: {file}')
+
           source = file.read_text()
-          old = "SupabaseClient.service.getProducts()"
-          new = """SupabaseClient.service.getProducts(
+          old = 'SupabaseClient.service.getProducts()'
+          new = '''SupabaseClient.service.getProducts(
                       select = "*",
                       order = "id.asc",
                       range = "0-999",
                       rangeUnit = "items"
-                  )"""
+                  )'''
 
           if old in source:
               file.write_text(source.replace(old, new, 1))
-              print("Applied the known getProducts() compile fix.")
+              print('Applied the known getProducts() compile fix.')
           elif 'rangeUnit = "items"' in source:
-              print("The catalog call is already fixed.")
+              print('The getProducts() call already appears to be fixed.')
           else:
-              raise SystemExit("Could not identify the catalog call; stopping rather than changing unrelated code.")
+              raise SystemExit('Could not identify the expected getProducts() call; stopping safely.')
           PYFIX
 
       - name: Build Debug APK
-        working-directory: dash
-        run: gradle --no-daemon --stacktrace --max-workers=2 :app:assembleDebug
-
-      - name: Verify APK
         shell: bash
         run: |
           set -Eeuo pipefail
-          APK="dash/app/build/outputs/apk/debug/app-debug.apk"
+          gradle --no-daemon --stacktrace --max-workers=2 \
+            -p "$PROJECT_DIR" :app:assembleDebug
+
+      - name: Verify and stage APK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          ls -lh "$APK"
+          cp "$APK" "$RUNNER_TEMP/app-debug.apk"
+          ls -lh "$RUNNER_TEMP/app-debug.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Elory-Dashboard-APK
-          path: dash/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ runner.temp }}/app-debug.apk
           if-no-files-found: error
           retention-days: 30
