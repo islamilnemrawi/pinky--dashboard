@@ -744,6 +744,301 @@ if not mockup_file.is_file() or 'fun PhoneMockupView(' not in mockup_file.read_t
 
 print(f'PhoneMockupView generated: {mockup_file} (package {screen_package})')
 
+
+# Repair the website order JSON adapter and hydrate internal product data for owner/staff.
+def patch_source(relative_path, old, new, label):
+    source_path = root / relative_path
+    if not source_path.is_file():
+        raise SystemExit(f'Missing source file for {label}: {relative_path}')
+    source_text = source_path.read_text(encoding='utf-8')
+    if old not in source_text:
+        raise SystemExit(f'Expected source anchor not found for {label}: {relative_path}')
+    source_path.write_text(source_text.replace(old, new, 1), encoding='utf-8')
+
+order_model = 'app/src/main/java/com/pinky/dashboard/domain/model/Order.kt'
+patch_source(
+    order_model,
+    '    val imageUrl: String? = null\n)',
+    '    val imageUrl: String? = null,\n    val productCode: String = "",\n    val wholesalePrice: Double? = null\n)',
+    'order item internal fields'
+)
+
+supabase_client = 'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt'
+patch_source(
+    supabase_client,
+    '    @Json(name = "image_url") val imageUrl: String? = null\n)',
+    '    @Json(name = "image_url") val imageUrl: String? = null,\n'
+    '    // The storefront JSONB item schema uses name/price/image/code.\n'
+    '    @Json(name = "name") val name: String? = null,\n'
+    '    @Json(name = "price") val price: Double? = null,\n'
+    '    @Json(name = "image") val image: String? = null,\n'
+    '    @Json(name = "code") val code: String? = null,\n'
+    '    @Json(name = "wholesale_price") val wholesalePrice: Double? = null\n)',
+    'storefront order item JSON aliases'
+)
+patch_source(
+    supabase_client,
+    '    @POST("rest/v1/shipping_governorates")\n'
+    '    suspend fun upsertGovernorate(\n'
+    '        @Body gov: SupabaseGovernorateDto,\n'
+    '        @Header("Prefer") prefer: String = "resolution=merge-duplicates"\n'
+    '    ): Response<Unit>\n',
+    '    @POST("rest/v1/shipping_governorates")\n'
+    '    suspend fun upsertGovernorate(\n'
+    '        @Body gov: SupabaseGovernorateDto,\n'
+    '        @Header("Prefer") prefer: String = "resolution=merge-duplicates"\n'
+    '    ): Response<Unit>\n\n'
+    '    @POST("rest/v1/rpc/admin_save_shipping_governorate")\n'
+    '    suspend fun saveShippingGovernorate(\n'
+    '        @Body params: Map<String, Any>\n'
+    '    ): Response<Map<String, Any>>\n',
+    'transactional governorate save RPC'
+)
+
+repo_file = 'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt'
+repo_path = root / repo_file
+repo_text = repo_path.read_text(encoding='utf-8')
+if 'import kotlinx.coroutines.flow.first' not in repo_text:
+    repo_text = repo_text.replace(
+        'package com.pinky.dashboard.data.repository\n',
+        'package com.pinky.dashboard.data.repository\n\nimport kotlinx.coroutines.flow.first\n',
+        1
+    )
+if 'private val productDao = database.productDao()' not in repo_text:
+    repo_text = repo_text.replace(
+        '    private val orderDao = database.orderDao()\n',
+        '    private val orderDao = database.orderDao()\n'
+        '    private val productDao = database.productDao()\n',
+        1
+    )
+repo_text = repo_text.replace(
+    'return orderDao.getAllOrdersFlow().map { entities ->',
+    'return combine(orderDao.getAllOrdersFlow(), productDao.getAllProductsFlow()) { entities, products ->\n'
+    '            val productsById = products.associateBy { it.id }',
+    1
+)
+repo_text = repo_text.replace(
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n                    OrderItem(',
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n'
+    '                    val product = productsById[itemEntity.productId]\n'
+    '                    OrderItem(',
+    1
+)
+repo_text = repo_text.replace(
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n            OrderItem(',
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n'
+    '            val product = productDao.getProductById(itemEntity.productId)\n'
+    '            OrderItem(',
+    1
+)
+repo_text = repo_text.replace(
+    'imageUrl = itemEntity.imageUrl',
+    'imageUrl = itemEntity.imageUrl,\n'
+    '                        productCode = product?.internalCode.orEmpty(),\n'
+    '                        wholesalePrice = product?.wholesalePrice',
+    2
+)
+repo_text = repo_text.replace(
+    'productName = item.productName ?: "",',
+    'productName = item.productName?.takeIf { it.isNotBlank() } ?: item.name.orEmpty(),',
+    1
+)
+repo_text = repo_text.replace(
+    'unitPrice = item.unitPrice ?: 0.0,',
+    'unitPrice = item.unitPrice ?: item.price ?: 0.0,',
+    1
+)
+repo_text = repo_text.replace(
+    'lineTotal = item.lineTotal ?: 0.0,',
+    'lineTotal = item.lineTotal ?: ((item.unitPrice ?: item.price ?: 0.0) * (item.quantity ?: 1)),',
+    1
+)
+repo_text = repo_text.replace(
+    'imageUrl = item.imageUrl ?: ""',
+    'imageUrl = item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image.orEmpty()',
+    1
+)
+repo_path.write_text(repo_text, encoding='utf-8')
+
+order_dialog = 'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt'
+dialog_path = root / order_dialog
+dialog_text = dialog_path.read_text(encoding='utf-8')
+if 'import coil.compose.AsyncImage' not in dialog_text:
+    dialog_text = dialog_text.replace(
+        'import androidx.compose.ui.graphics.Color\n',
+        'import androidx.compose.ui.graphics.Color\n'
+        'import androidx.compose.ui.layout.ContentScale\n'
+        'import coil.compose.AsyncImage\n',
+        1
+    )
+dialog_text = dialog_text.replace(
+    '    onStatusChange: (OrderStatus) -> Unit\n) {',
+    '    onStatusChange: (OrderStatus) -> Unit,\n'
+    '    canViewWholesale: Boolean = false,\n'
+    '    canViewInternalCode: Boolean = false\n) {',
+    1
+)
+dialog_text = dialog_text.replace(
+    '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {',
+    '                                if (!item.imageUrl.isNullOrBlank()) {\n'
+    '                                    AsyncImage(\n'
+    '                                        model = item.imageUrl,\n'
+    '                                        contentDescription = item.productName,\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),\n'
+    '                                        contentScale = ContentScale.Crop\n'
+    '                                    )\n'
+    '                                } else {\n'
+    '                                    Box(\n'
+    '                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))\n'
+    '                                            .background(MaterialTheme.colorScheme.surfaceVariant),\n'
+    '                                        contentAlignment = Alignment.Center\n'
+    '                                    ) {\n'
+    '                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",\n'
+    '                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)\n'
+    '                                    }\n'
+    '                                }\n'
+    '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {',
+    1
+)
+dialog_text = dialog_text.replace(
+    '                                    Text(item.productName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n',
+    '                                    Text(item.productName.ifBlank { "منتج غير معروف" }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n'
+    '                                    if (canViewInternalCode && item.productCode.isNotBlank()) {\n'
+    '                                        Text("كود المنتج: ${item.productCode}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)\n'
+    '                                    }\n'
+    '                                    if (canViewWholesale && item.wholesalePrice != null) {\n'
+    '                                        Text("سعر الجملة: ${Formatters.formatCurrencyEgp(item.wholesalePrice)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)\n'
+    '                                    }\n',
+    1
+)
+dialog_path.write_text(dialog_text, encoding='utf-8')
+
+pinky_app = 'app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt'
+patch_source(
+    pinky_app,
+    '                    order = order,\n'
+    '                    onDismiss = { viewModel.selectOrder(null) },',
+    '                    order = order,\n'
+    '                    canViewWholesale = currentUser?.canViewWholesale == true,\n'
+    '                    canViewInternalCode = currentUser?.canViewInternalCode == true,\n'
+    '                    onDismiss = { viewModel.selectOrder(null) },',
+    'order dialog permission wiring'
+)
+
+# Governorate price saves now use the transactional RPC which also updates existing centers.
+repo_text = repo_path.read_text(encoding='utf-8')
+old_save = (
+    'val response = SupabaseClient.service.upsertGovernorate(\n'
+    '                SupabaseGovernorateDto(\n'
+    '                    governorate = gov.name,\n'
+    '                    price = gov.deliveryPrice,\n'
+    '                    centersEnabled = true,\n'
+    '                    active = gov.isActive\n'
+    '                )\n'
+    '            )'
+)
+new_save = (
+    'val response = SupabaseClient.service.saveShippingGovernorate(\n'
+    '                mapOf(\n'
+    '                    "p_governorate" to gov.name,\n'
+    '                    "p_price" to gov.deliveryPrice,\n'
+    '                    "p_active" to gov.isActive,\n'
+    '                    "p_centers_enabled" to true\n'
+    '                )\n'
+    '            )'
+)
+if old_save not in repo_text:
+    raise SystemExit('Governorate save source anchor not found')
+repo_text = repo_text.replace(old_save, new_save, 1)
+old_local = (
+    '            shippingDao.insertGovernorate(\n'
+    '                ShippingGovernorateEntity(gov.id, gov.name, gov.deliveryPrice, gov.estimatedDays, gov.isActive)\n'
+    '            )\n'
+    '            Result.success(gov)'
+)
+new_local = (
+    '            shippingDao.insertGovernorate(\n'
+    '                ShippingGovernorateEntity(gov.id, gov.name, gov.deliveryPrice, gov.estimatedDays, gov.isActive)\n'
+    '            )\n'
+    '            val updatedCenterCount = (response.body()?.get("updated_centers") as? Number)?.toInt() ?: 0\n'
+    '            if (updatedCenterCount > 0) {\n'
+    '                shippingDao.getAllCentersFlow().first()\n'
+    '                    .filter { it.governorateId == gov.name }\n'
+    '                    .forEach { center -> shippingDao.insertCenter(center.copy(deliveryPrice = gov.deliveryPrice)) }\n'
+    '            }\n'
+    '            Result.success(gov)'
+)
+if old_local not in repo_text:
+    raise SystemExit('Governorate local-cache anchor not found')
+repo_text = repo_text.replace(old_local, new_local, 1)
+repo_path.write_text(repo_text, encoding='utf-8')
+
+# Prevent invalid/empty prices from silently falling back to unrelated default values.
+shipping_screen = 'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt'
+shipping_path = root / shipping_screen
+shipping_text = shipping_path.read_text(encoding='utf-8')
+shipping_text = shipping_text.replace(
+    '    var isActive by remember { mutableStateOf(gov.isActive) }\n',
+    '    var isActive by remember { mutableStateOf(gov.isActive) }\n'
+    '    var validationError by remember { mutableStateOf<String?>(null) }\n',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = daysText,',
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n'
+    '                validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = daysText,',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                            val price = priceText.toDoubleOrNull() ?: 60.0\n'
+    '                            onSave(gov.copy(name = name, deliveryPrice = price, estimatedDays = daysText, isActive = isActive))',
+    '                            val price = priceText.trim().toDoubleOrNull()\n'
+    '                            if (name.isBlank() || price == null || price < 0.0) {\n'
+    '                                validationError = "أدخل اسم المحافظة وسعر شحن صحيحًا (صفر أو أكثر)."\n'
+    '                            } else {\n'
+    '                                validationError = null\n'
+    '                                onSave(gov.copy(name = name.trim(), deliveryPrice = price, estimatedDays = daysText, isActive = isActive))\n'
+    '                            }',
+    1
+)
+shipping_text = shipping_text.replace(
+    '    var isActive by remember { mutableStateOf(center.isActive) }\n',
+    '    var isActive by remember { mutableStateOf(center.isActive) }\n'
+    '    var validationError by remember { mutableStateOf<String?>(null) }\n',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = contact,',
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n'
+    '                validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = contact,',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                            val price = priceText.toDoubleOrNull() ?: center.deliveryPrice\n'
+    '                            onSave(center.copy(name = name, deliveryPrice = price, contactNumber = contact.ifBlank { null }, isActive = isActive))',
+    '                            val price = priceText.trim().toDoubleOrNull()\n'
+    '                            if (name.isBlank() || price == null || price < 0.0) {\n'
+    '                                validationError = "أدخل اسم المركز وسعر توصيل صحيحًا (صفر أو أكثر)."\n'
+    '                            } else {\n'
+    '                                validationError = null\n'
+    '                                onSave(center.copy(name = name.trim(), deliveryPrice = price, contactNumber = contact.ifBlank { null }, isActive = isActive))\n'
+    '                            }',
+    1
+)
+shipping_path.write_text(shipping_text, encoding='utf-8')
+
 # Focused source diagnostics for order rendering, shipping writes, and owner permissions.
 for source_file in root.rglob('*.kt'):
     if any(part in ('.gradle', 'build') for part in source_file.parts):
