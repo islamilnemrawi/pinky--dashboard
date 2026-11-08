@@ -789,10 +789,12 @@ for relative, ranges in {
     'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt': [(1, 180), (300, 520), (520, 703)],
     'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt': [(1, 60), (180, 260), (410, 520)],
     'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrdersScreen.kt': [(1, 60), (100, 260)],
-    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(45, 225), (470, 570), (1390, 1455)],
+    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(45, 225), (890, 970), (1390, 1455)],
     'app/src/main/java/com/pinky/dashboard/core/sync/OrderSyncManager.kt': [(1, 90)],
     'app/src/main/java/com/pinky/dashboard/domain/model/AuthModels.kt': [(1, 80)],
     'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (340, 455)],
+    'app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt': [(1, 80), (405, 435)],
+    'app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt': [(180, 240), (1145, 1185)],
     'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt': [(1, 70)]
 }.items():
     target = root / relative
