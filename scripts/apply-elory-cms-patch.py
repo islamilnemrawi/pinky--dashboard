@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 root = Path(os.environ["PROJECT_DIR"])
 
@@ -604,8 +605,14 @@ new = '''                    Switch(checked = section.isVisible, onCheckedChange
 assert s.count(old) == 1
 pe.write_text(s.replace(old,new,1), encoding='utf-8')
 
+screen_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+screen_text = screen_file.read_text(encoding='utf-8')
+screen_package_match = re.search(r'^\\s*package\\s+([^\\s]+)', screen_text, re.MULTILINE)
+if not screen_package_match:
+    raise SystemExit(f'Could not determine Kotlin package from {screen_file}')
+screen_package = screen_package_match.group(1)
 mockup_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/PhoneMockupView.kt')
-mockup_file.write_text(r'''
+mockup_source = r'''
 package com.pinky.dashboard.ui.screens.website
 
 import androidx.compose.foundation.background
@@ -725,6 +732,36 @@ fun PhoneMockupView(
     }
 }
 
-''', encoding='utf-8')
+'''
+mockup_source = mockup_source.replace(
+    'package com.pinky.dashboard.ui.screens.website',
+    f'package {screen_package}',
+    1
+)
+mockup_file.write_text(mockup_source, encoding='utf-8')
+if not mockup_file.is_file() or 'fun PhoneMockupView(' not in mockup_file.read_text(encoding='utf-8'):
+    raise SystemExit('PhoneMockupView source was not generated correctly')
+
+print(f'PhoneMockupView generated: {mockup_file} (package {screen_package})')
+
+# Focused diagnostics: inspect real app adapters before changing order/shipping behavior.
+diagnostic_terms = (
+    'data class Order', 'data class OrderItem', 'admin_list_orders',
+    'admin_save_shipping_governorate', 'admin_apply_shipping_governorate_price',
+    'wholesalePrice', 'wholesale_price', 'productCode', 'productImage'
+)
+for source_file in root.rglob('*.kt'):
+    if any(part in ('.gradle', 'build') for part in source_file.parts):
+        continue
+    try:
+        lines = source_file.read_text(encoding='utf-8').splitlines()
+    except Exception:
+        continue
+    matches = [(i + 1, line.strip()) for i, line in enumerate(lines)
+               if any(term in line for term in diagnostic_terms)]
+    if matches:
+        print(f'SOURCE_DIAGNOSTIC {source_file.relative_to(root)}')
+        for line_no, line in matches[:18]:
+            print(f'  {line_no}: {line[:240]}')
 
 print('Android CMS patches applied.')
