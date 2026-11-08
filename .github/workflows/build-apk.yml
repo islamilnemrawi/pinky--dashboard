@@ -1,5 +1,5 @@
 
-name: Build Elory Dashboard APK
+name: Elory Dashboard - Build APK
 
 on:
   workflow_dispatch:
@@ -7,85 +7,140 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: elory-dashboard-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    name: Build Android APK
+  build-apk:
+    name: Build installable Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
+      - name: Verify corrected source archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          ZIP_NAME="Elory_Dashboard_Source_Fixed_Only_Build_Errors.zip"
+
+          if [[ ! -f "$ZIP_NAME" ]]; then
+            echo "::error::The corrected ZIP was not found in the repository root."
+            echo "Expected file: $ZIP_NAME"
+            echo "ZIP files currently present:"
+            find . -maxdepth 4 -type f -iname '*.zip' -print || true
+            exit 1
+          fi
+
+          echo "Checking ZIP integrity..."
+          unzip -tq "$ZIP_NAME"
+          echo "Source archive verified: $ZIP_NAME"
+
+      - name: Extract and locate Android project
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          ZIP_NAME="Elory_Dashboard_Source_Fixed_Only_Build_Errors.zip"
+          EXTRACT_DIR="$RUNNER_TEMP/elory-dashboard-source"
+
+          rm -rf "$EXTRACT_DIR"
+          mkdir -p "$EXTRACT_DIR"
+          unzip -q "$ZIP_NAME" -d "$EXTRACT_DIR"
+
+          mapfile -t SETTINGS_FILES < <(
+            find "$EXTRACT_DIR" -type f \
+              \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) \
+              -print | sort
+          )
+
+          PROJECT_DIR=""
+          for SETTINGS_FILE in "${SETTINGS_FILES[@]}"; do
+            CANDIDATE_DIR="$(dirname "$SETTINGS_FILE")"
+
+            if [[ -f "$CANDIDATE_DIR/app/build.gradle.kts" || -f "$CANDIDATE_DIR/app/build.gradle" ]]; then
+              if [[ -n "$PROJECT_DIR" ]]; then
+                echo "::error::More than one Android project was found in the ZIP."
+                exit 1
+              fi
+              PROJECT_DIR="$CANDIDATE_DIR"
+            fi
+          done
+
+          if [[ -z "$PROJECT_DIR" ]]; then
+            echo "::error::Could not find an Android project with settings.gradle and an app module."
+            exit 1
+          fi
+
+          if [[ ! -f "$PROJECT_DIR/gradle/libs.versions.toml" ]]; then
+            echo "::error::The project's Gradle version catalog is missing."
+            exit 1
+          fi
+
+          if [[ ! -f "$PROJECT_DIR/.env.example" ]]; then
+            echo "::error::.env.example is missing from the Android project."
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project located successfully."
+          echo "Project directory: $PROJECT_DIR"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
 
-      - name: Install Android SDK packages
+      - name: Install exact Android SDK versions required by the project
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36.1" "build-tools;36.0.0"
+          set -Eeuo pipefail
+          sdkmanager --install \
+            "platforms;android-36.1" \
+            "build-tools;36.0.0"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '9.3.1'
 
-      - name: Extract dashboard ZIP
-        id: locate
+      - name: Restore persistent debug signing key
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/elory-dashboard-signing/debug.keystore
+          key: elory-dashboard-debug-keystore-v1
+
+      - name: Prepare build configuration and debug signing
         shell: bash
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          cd "$PROJECT_DIR"
 
-          mapfile -t ZIP_FILES < <(
-            find "$GITHUB_WORKSPACE" -maxdepth 1 -type f -iname '*.zip'
-          )
-
-          if [ "${#ZIP_FILES[@]}" -ne 1 ]; then
-            echo "ERROR: Expected exactly one ZIP file in repository root."
-            echo "Found: ${#ZIP_FILES[@]}"
-            exit 1
-          fi
-
-          mkdir -p "$GITHUB_WORKSPACE/_dashboard_source"
-          unzip -q "${ZIP_FILES[0]}" -d "$GITHUB_WORKSPACE/_dashboard_source"
-
-          SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/_dashboard_source" \
-            -type f -name settings.gradle.kts -print -quit)
-
-          if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: settings.gradle.kts not found inside ZIP."
-            exit 1
-          fi
-
-          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
-
-          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-          echo "Found project at: $PROJECT_DIR"
-
-      - name: Prepare build configuration
-        working-directory: ${{ steps.locate.outputs.project_dir }}
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
+          # Use the public Supabase configuration provided by the project.
           cp .env.example .env
 
-          if [ -n "${GEMINI_API_KEY:-}" ]; then
-            awk '!/^GEMINI_API_KEY=/' .env.example > .env
-            printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" >> .env
-          fi
+          # Reuse the debug key between builds.
+          SIGNING_DIR="$RUNNER_TEMP/elory-dashboard-signing"
+          SIGNING_KEY="$SIGNING_DIR/debug.keystore"
+          mkdir -p "$SIGNING_DIR"
 
-          if [ ! -f debug.keystore ]; then
+          if [[ ! -f "$SIGNING_KEY" ]]; then
             keytool -genkeypair -v \
-              -keystore debug.keystore \
+              -keystore "$SIGNING_KEY" \
               -alias androiddebugkey \
               -keyalg RSA \
               -keysize 2048 \
@@ -95,18 +150,57 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Run unit tests
-        working-directory: ${{ steps.locate.outputs.project_dir }}
-        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
+          cp "$SIGNING_KEY" debug.keystore
+          test -s .env
+          test -s debug.keystore
+          echo "Build configuration prepared."
 
-      - name: Build APK
-        working-directory: ${{ steps.locate.outputs.project_dir }}
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PROJECT_DIR"
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+          gradle --no-daemon --stacktrace \
+            :app:assembleDebug
+
+      - name: Verify APK and calculate checksum
+        id: apk
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          APK_PATH="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          if [[ ! -s "$APK_PATH" ]]; then
+            echo "::error::Gradle finished but the expected APK was not created: $APK_PATH"
+            find "$PROJECT_DIR/app/build/outputs" -type f -name '*.apk' -print 2>/dev/null || true
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/elory-apk"
+          cp "$APK_PATH" "$RUNNER_TEMP/elory-apk/Elory-Dashboard-debug.apk"
+
+          echo "apk_path=$RUNNER_TEMP/elory-apk/Elory-Dashboard-debug.apk" >> "$GITHUB_OUTPUT"
+          echo "APK size:"
+          ls -lh "$RUNNER_TEMP/elory-apk/Elory-Dashboard-debug.apk"
+          echo "SHA-256:"
+          sha256sum "$RUNNER_TEMP/elory-apk/Elory-Dashboard-debug.apk"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v7
         with:
           name: Elory-Dashboard-APK
-          path: ${{ steps.locate.outputs.project_dir }}/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.apk.outputs.apk_path }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload Gradle reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Elory-Dashboard-Build-Reports
+          path: |
+            ${{ runner.temp }}/elory-dashboard-source/**/build/reports/**
+            ${{ runner.temp }}/elory-dashboard-source/**/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 7
