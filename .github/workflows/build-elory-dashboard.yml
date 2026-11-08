@@ -137,43 +137,35 @@ jobs:
           set -Eeuo pipefail
           python3 - <<'PYFIX'
           from pathlib import Path
-          import re
 
           root = Path("$PROJECT_DIR")
           gradle_file = root / "app/build.gradle.kts"
           source = gradle_file.read_text()
 
-          # The Secrets plugin cannot turn an absent Gemini key into a valid
-          # Java String constant. Exclude that property and define a safe default.
-          source = re.sub(
-              r'^\\s*GEMINI_API_KEY=.*\\n',
-              '',
-              source,
-              flags=re.MULTILINE,
-          )
-          source = source.replace(
-              '    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"',
-              '    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"\\n'
-              '    buildConfigField("String", "GEMINI_API_KEY", "\\\\"\\\\"")',
-          )
-          source = source.replace(
-              '  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")',
-              '  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")\\n'
-              '  ignoreList.add("GEMINI_API_KEY")',
-          )
-
+          # The Secrets plugin cannot emit a valid Java String for an absent key.
+          # Exclude this property from the plugin and provide an explicit empty String.
+          runner_line = '    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"'
+          field_line = r'    buildConfigField("String", "GEMINI_API_KEY", "\"\"")'
           if 'buildConfigField("String", "GEMINI_API_KEY"' not in source:
-              raise SystemExit("Could not add the optional Gemini BuildConfig default")
-          if 'ignoreList.add("GEMINI_API_KEY")' not in source:
-              raise SystemExit("Could not exclude Gemini from Secrets plugin injection")
+              if runner_line not in source:
+                  raise SystemExit("Could not locate defaultConfig insertion point")
+              source = source.replace(runner_line, runner_line + "\n" + field_line, 1)
+
+          secrets_line = '  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")'
+          gemini_ignore = '  ignoreList.add("GEMINI_API_KEY")'
+          if gemini_ignore not in source:
+              if secrets_line not in source:
+                  raise SystemExit("Could not locate Secrets plugin ignoreList")
+              source = source.replace(secrets_line, secrets_line + "\n" + gemini_ignore, 1)
 
           gradle_file.write_text(source)
           for env_file in (root / ".env", root / ".env.example"):
               if env_file.exists():
                   lines = [line for line in env_file.read_text().splitlines()
                            if not line.startswith("GEMINI_API_KEY=")]
-                  env_file.write_text("\\n".join(lines) + "\\n")
-          print("Gemini key now defaults to an empty Java String; no API key is required to build.")
+                  env_file.write_text("\n".join(lines) + "\n")
+
+          print("Gemini key configured as an optional empty Java String.")
           PYFIX
           echo '--- Applied optional Gemini configuration ---'
           grep -n -C 2 'GEMINI_API_KEY' "$PROJECT_DIR/app/build.gradle.kts"
