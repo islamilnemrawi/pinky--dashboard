@@ -787,9 +787,13 @@ for relative, ranges in {
     'app/src/main/java/com/pinky/dashboard/domain/model/Order.kt': [(40, 90)],
     'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (425, 455)],
     'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt': [(1, 180), (300, 520), (520, 703)],
-    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt': [(180, 420)],
-    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(470, 570), (1390, 1455)],
-    'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt': [(1, 100)]
+    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt': [(1, 60), (180, 260), (410, 520)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrdersScreen.kt': [(1, 60), (100, 260)],
+    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(45, 225), (470, 570), (1390, 1455)],
+    'app/src/main/java/com/pinky/dashboard/core/sync/OrderSyncManager.kt': [(1, 90)],
+    'app/src/main/java/com/pinky/dashboard/domain/model/AuthModels.kt': [(1, 80)],
+    'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (340, 455)],
+    'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt': [(1, 70)]
 }.items():
     target = root / relative
     if not target.exists():
@@ -801,5 +805,28 @@ for relative, ranges in {
         for line_no in range(lo, min(hi, len(lines)) + 1):
             print(f'  {line_no}: {lines[line_no-1][:240]}')
     print(f'DETAILED_SOURCE_END {relative}')
+
+
+# Trace the real call sites for order details and shipping persistence.
+for source_file in root.rglob('*.kt'):
+    if any(part in ('.gradle', 'build') for part in source_file.parts):
+        continue
+    try:
+        lines = source_file.read_text(encoding='utf-8').splitlines()
+    except Exception:
+        continue
+    terms = ('OrderDetailDialog(', 'upsertGovernorate(', 'upsertShippingCenter(',
+             'saveGovernorate(', 'saveShippingCenter(', 'getGovernorates(',
+             'getShippingCenters(', 'getOrders(', 'syncOrders(', 'getOrderItems(')
+    hits = [i for i, line in enumerate(lines) if any(term in line for term in terms)]
+    if hits:
+        print(f'CALLSITE_MATCHES_BEGIN {source_file.relative_to(root)}')
+        emitted = set()
+        for idx in hits[:25]:
+            for n in range(max(0, idx-5), min(len(lines), idx+8)):
+                if n not in emitted:
+                    print(f'  {n+1}: {lines[n][:240]}')
+                    emitted.add(n)
+        print(f'CALLSITE_MATCHES_END {source_file.relative_to(root)}')
 
 print('Android CMS patches applied.')
