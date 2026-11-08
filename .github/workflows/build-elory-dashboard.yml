@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '**'
+      - 'Elory_Dashboard_Build_Ready.zip'
       - '.github/workflows/build-elory-dashboard.yml'
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -30,8 +30,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Install only platform-tools here. Android Gradle Plugin downloads
-      # the exact compile SDK/build-tools required by compileSdk 36.1.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
@@ -42,34 +40,56 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
-      - name: Detect project location
+      - name: Extract Android project archive
+        id: extract
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ -f 'dash/settings.gradle.kts' && -f 'dash/app/build.gradle.kts' ]]; then
-            PROJECT_DIR='dash'
-          elif [[ -f 'settings.gradle.kts' && -f 'app/build.gradle.kts' ]]; then
-            PROJECT_DIR='.'
-          else
-            echo 'Could not find the Android project in the repository root or ./dash.'
-            echo 'Expected settings.gradle.kts and app/build.gradle.kts.'
-            echo 'Repository files:'
-            ls -la
+
+          ARCHIVE="$GITHUB_WORKSPACE/Elory_Dashboard_Build_Ready.zip"
+          SOURCE_DIR="$RUNNER_TEMP/elory-source"
+
+          if [[ ! -s "$ARCHIVE" ]]; then
+            echo "Required project archive not found: $ARCHIVE"
+            echo "Repository contents:"
+            ls -lah "$GITHUB_WORKSPACE"
             exit 1
           fi
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Android project directory: $PROJECT_DIR"
 
-      - name: Validate and prepare project
+          mkdir -p "$SOURCE_DIR"
+          unzip -q "$ARCHIVE" -d "$SOURCE_DIR"
+
+          SETTINGS_FILE="$(find "$SOURCE_DIR" -type f -name settings.gradle.kts -print -quit)"
+          if [[ -z "$SETTINGS_FILE" ]]; then
+            echo 'settings.gradle.kts was not found inside the project ZIP.'
+            echo 'Archive contents:'
+            unzip -l "$ARCHIVE" | head -80
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          if [[ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]]; then
+            echo "Found settings.gradle.kts but app/build.gradle.kts is missing in $PROJECT_DIR"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Android project extracted to: $PROJECT_DIR"
+          echo 'Project files:'
+          ls -lah "$PROJECT_DIR"
+
+      - name: Prepare project configuration
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -Eeuo pipefail
           cd "$PROJECT_DIR"
-          test -f settings.gradle.kts
-          test -f app/build.gradle.kts
-          test -f .env.example
+
+          if [[ ! -f .env.example ]]; then
+            echo '.env.example is missing from the Android project.'
+            exit 1
+          fi
 
           cp .env.example .env
           python3 - <<'PYENV'
@@ -96,35 +116,20 @@ jobs:
               -dname 'CN=Android Debug,O=Android,C=US'
           fi
 
-      - name: Apply previously identified Kotlin compile fix
+      - name: Verify previously reported Kotlin fix
         shell: bash
         run: |
           set -Eeuo pipefail
-          cd "$PROJECT_DIR"
-          python3 - <<'PYFIX'
-          from pathlib import Path
-
-          file = Path('app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt')
-          if not file.is_file():
-              raise SystemExit(f'Expected source file not found: {file}')
-
-          source = file.read_text()
-          old = 'SupabaseClient.service.getProducts()'
-          new = '''SupabaseClient.service.getProducts(
-                      select = "*",
-                      order = "id.asc",
-                      range = "0-999",
-                      rangeUnit = "items"
-                  )'''
-
-          if old in source:
-              file.write_text(source.replace(old, new, 1))
-              print('Applied the known getProducts() compile fix.')
-          elif 'rangeUnit = "items"' in source:
-              print('The getProducts() call already appears to be fixed.')
-          else:
-              raise SystemExit('Could not identify the expected getProducts() call; stopping safely.')
-          PYFIX
+          SOURCE_FILE="$PROJECT_DIR/app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
+          if [[ ! -f "$SOURCE_FILE" ]]; then
+            echo "Expected Kotlin file not found: $SOURCE_FILE"
+            exit 1
+          fi
+          if ! grep -Fq 'rangeUnit = "items"' "$SOURCE_FILE"; then
+            echo 'The previously reported getProducts() fix is missing from the source archive.'
+            exit 1
+          fi
+          echo 'Previously reported getProducts() parameters are present.'
 
       - name: Build Debug APK
         shell: bash
@@ -133,19 +138,23 @@ jobs:
           gradle --no-daemon --stacktrace --max-workers=2 \
             -p "$PROJECT_DIR" :app:assembleDebug
 
-      - name: Verify and stage APK
+      - name: Verify APK
         shell: bash
         run: |
           set -Eeuo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          cp "$APK" "$RUNNER_TEMP/app-debug.apk"
-          ls -lh "$RUNNER_TEMP/app-debug.apk"
+          if [[ ! -s "$APK" ]]; then
+            echo "APK was not generated: $APK"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/apk-output"
+          cp "$APK" "$RUNNER_TEMP/apk-output/Elory-Dashboard-debug.apk"
+          ls -lh "$RUNNER_TEMP/apk-output/Elory-Dashboard-debug.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Elory-Dashboard-APK
-          path: ${{ runner.temp }}/app-debug.apk
+          path: ${{ runner.temp }}/apk-output/Elory-Dashboard-debug.apk
           if-no-files-found: error
           retention-days: 30
