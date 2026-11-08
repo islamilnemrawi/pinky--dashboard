@@ -120,8 +120,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo '--- Gradle references to Gemini ---'
-          grep -n -i -C 5 'GEMINI_API_KEY\|geminiApiKey' "$PROJECT_DIR/app/build.gradle.kts" || true
+          echo '--- All project references to Gemini ---'
+          grep -R -n -i -C 4 --exclude-dir=.gradle --exclude-dir=build 'GEMINI_API_KEY\|geminiApiKey' "$PROJECT_DIR" || true
+          echo '--- Gradle configuration files ---'
+          find "$PROJECT_DIR" -maxdepth 3 -type f \( -name '*.gradle' -o -name '*.gradle.kts' -o -name 'gradle.properties' \) -print
+          echo '--- Root Gradle settings ---'
+          for file in "$PROJECT_DIR/build.gradle.kts" "$PROJECT_DIR/gradle.properties" "$PROJECT_DIR/app/build.gradle.kts"; do
+            if [[ -f "$file" ]]; then echo "--- $file ---"; sed -n '1,260p' "$file"; fi
+          done
           echo '--- Environment template ---'
           sed -n '1,100p' "$PROJECT_DIR/.env.example"
 
