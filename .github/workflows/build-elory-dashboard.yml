@@ -80,6 +80,7 @@ jobs:
 
       - name: Apply Elory CMS updates
         # CMS patch includes hero visibility, custom-section image uploads, and safe section ordering.
+        # Adds the live phone preview component missing from the source archive.
         shell: bash
         run: |
           set -Eeuo pipefail
