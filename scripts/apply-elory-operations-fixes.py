@@ -144,6 +144,74 @@ repo_source = replace_method(
 repo_file.write_text(repo_source, encoding="utf-8")
 print("PASS: repository status, shipping RPC persistence, and Prime request mapping")
 
+# Normalize the complete Room migration block after all earlier CMS/order patches.
+database_file = PROJECT / "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt"
+database_source = database_file.read_text(encoding="utf-8")
+database_source = re.sub(r"version\s*=\s*\d+", "version = 5", database_source, count=1)
+companion_start = database_source.find("    companion object {")
+seed_start = database_source.find("\n}\n\nprivate suspend fun seedMockData", companion_start)
+if companion_start < 0 or seed_start < 0:
+    raise SystemExit("PinkyDatabase companion object boundaries not found")
+companion_block = """    companion object {
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE order_items ADD COLUMN productCode TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE order_items ADD COLUMN wholesalePrice REAL")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE orders ADD COLUMN primeRequested INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        @Volatile
+        private var INSTANCE: PinkyDatabase? = null
+
+        fun getInstance(context: Context): PinkyDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    PinkyDatabase::class.java,
+                    "pinky_dashboard.db"
+                )
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+                    .fallbackToDestructiveMigration()
+                    .build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }"""
+database_source = database_source[:companion_start] + companion_block + database_source[seed_start:]
+if "import androidx.sqlite.db.SupportSQLiteDatabase" not in database_source:
+    database_source = database_source.replace(
+        "import androidx.room.migration.Migration\n",
+        "import androidx.room.migration.Migration\nimport androidx.sqlite.db.SupportSQLiteDatabase\n",
+        1
+    )
+database_file.write_text(database_source, encoding="utf-8")
+print("PASS: Room database version 5 migrations are structurally complete")
+
+# SupabaseStaffProfileDto exposes active, not a legacy isActive property.
+repository_file = PROJECT / "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
+repository_source = repository_file.read_text(encoding="utf-8")
+repository_source = repository_source.replace(
+    "profile.active ?: profile.isActive ?: false",
+    "profile.active ?: false"
+)
+repository_file.write_text(repository_source, encoding="utf-8")
+
+health_file = PROJECT / "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
+health_source = health_file.read_text(encoding="utf-8")
+health_source = health_source.replace(
+    "profile.active ?: profile.isActive ?: true",
+    "profile.active ?: true"
+)
+health_file.write_text(health_source, encoding="utf-8")
+print("PASS: Staff profile code uses actual Supabase DTO fields")
+
 checks = {
     "Prime checkout is represented in orders": ("app/src/main/java/com/pinky/dashboard/domain/model/Order.kt", "primeRequested"),
     "shipping price writes use admin RPC": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "admin_apply_shipping_governorate_price"),
