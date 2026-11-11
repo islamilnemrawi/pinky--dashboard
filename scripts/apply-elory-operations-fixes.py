@@ -30,3 +30,57 @@ for label, (relative, marker) in checks.items():
     if marker not in source:
         raise SystemExit("Patch verification failed: " + label)
     print("PASS: " + label)
+
+# Keep Prime visible as a first-class line beside ordered products, while preserving
+# the original product-only items array for stock and accounting.
+order_ui = PROJECT / "app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt"
+order_source = order_ui.read_text(encoding="utf-8")
+header_old = 'text = "المنتجات والأصناف المطلوبة (${order.items.size})",'
+header_new = 'text = "المنتجات والأصناف المطلوبة (${order.items.size + if (order.primeRequested) 1 else 0})",'
+if header_old in order_source:
+    order_source = order_source.replace(header_old, header_new, 1)
+prime_anchor = '                    items(order.items, key = { it.id }) { item ->'
+prime_block = """                    if (order.primeRequested) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFD700).copy(alpha = 0.08f)),
+                                border = BorderStroke(1.dp, Color(0xFFD4AF37).copy(alpha = 0.45f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(76.dp).clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFFFD700).copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Outlined.Star, contentDescription = "Elory Prime", tint = Color(0xFFD4AF37), modifier = Modifier.size(34.dp))
+                                    }
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("Elory Prime – اشتراك 30 يومًا", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                        Text("يبدأ التفعيل تلقائيًا بعد تسليم الطلب", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Text(Formatters.formatCurrencyEgp(300.0), fontWeight = FontWeight.Bold, color = Color(0xFFB8860B))
+                                }
+                            }
+                        }
+                    }
+
+                    items(order.items, key = { it.id }) { item ->"""
+if prime_anchor in order_source and 'Elory Prime – اشتراك 30 يومًا' not in order_source:
+    order_source = order_source.replace(prime_anchor, prime_block, 1)
+elif 'Elory Prime – اشتراك 30 يومًا' not in order_source:
+    raise SystemExit("Prime line-item insertion point not found")
+order_ui.write_text(order_source, encoding="utf-8")
+
+staff_ui = PROJECT / "app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt"
+staff_source = staff_ui.read_text(encoding="utf-8")
+staff_source = staff_source.replace(
+    "enabled = canAssignElevatedRoles || (r == UserRole.EMPLOYEE && staff?.role !in setOf(UserRole.ADMIN, UserRole.MANAGER, UserRole.OWNER)) || r == staff?.role,",
+    "enabled = canAssignElevatedRoles || r == UserRole.EMPLOYEE || r == staff?.role,"
+)
+staff_ui.write_text(staff_source, encoding="utf-8")
+print("PASS: Prime line-item display and staff role downgrade")
