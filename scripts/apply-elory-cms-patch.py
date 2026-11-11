@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 root = Path(os.environ["PROJECT_DIR"])
 
@@ -604,8 +605,14 @@ new = '''                    Switch(checked = section.isVisible, onCheckedChange
 assert s.count(old) == 1
 pe.write_text(s.replace(old,new,1), encoding='utf-8')
 
+screen_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+screen_text = screen_file.read_text(encoding='utf-8')
+screen_package_match = re.search(r'^\s*package\s+([^\s]+)', screen_text, re.MULTILINE)
+if not screen_package_match:
+    raise SystemExit(f'Could not determine Kotlin package from {screen_file}')
+screen_package = screen_package_match.group(1)
 mockup_file = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/PhoneMockupView.kt')
-mockup_file.write_text(r'''
+mockup_source = r'''
 package com.pinky.dashboard.ui.screens.website
 
 import androidx.compose.foundation.background
@@ -725,6 +732,499 @@ fun PhoneMockupView(
     }
 }
 
-''', encoding='utf-8')
+'''
+mockup_source = mockup_source.replace(
+    'package com.pinky.dashboard.ui.screens.website',
+    f'package {screen_package}',
+    1
+)
+mockup_file.write_text(mockup_source, encoding='utf-8')
+if not mockup_file.is_file() or 'fun PhoneMockupView(' not in mockup_file.read_text(encoding='utf-8'):
+    raise SystemExit('PhoneMockupView source was not generated correctly')
+
+print(f'PhoneMockupView generated: {mockup_file} (package {screen_package})')
+
+
+# Repair the website order JSON adapter and hydrate internal product data for owner/staff.
+def patch_source(relative_path, old, new, label):
+    source_path = root / relative_path
+    if not source_path.is_file():
+        raise SystemExit(f'Missing source file for {label}: {relative_path}')
+    source_text = source_path.read_text(encoding='utf-8')
+    if old not in source_text:
+        raise SystemExit(f'Expected source anchor not found for {label}: {relative_path}')
+    source_path.write_text(source_text.replace(old, new, 1), encoding='utf-8')
+
+order_model = 'app/src/main/java/com/pinky/dashboard/domain/model/Order.kt'
+patch_source(
+    order_model,
+    '    val imageUrl: String? = null\n)',
+    '    val imageUrl: String? = null,\n    val productCode: String = "",\n    val wholesalePrice: Double? = null\n)',
+    'order item internal fields'
+)
+
+
+entities_file = 'app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt'
+entities_path = root / entities_file
+entities_text = entities_path.read_text(encoding='utf-8')
+if 'import androidx.room.ColumnInfo' not in entities_text:
+    entities_text = entities_text.replace(
+        'import androidx.room.Entity\n',
+        'import androidx.room.ColumnInfo\nimport androidx.room.Entity\n',
+        1
+    )
+old_entity_end = """    val imageUrl: String?
+)"""
+new_entity_end = """    val imageUrl: String?,
+    @ColumnInfo(defaultValue = "''") val productCode: String = "",
+    val wholesalePrice: Double? = null
+)"""
+if old_entity_end not in entities_text:
+    raise SystemExit('OrderItemEntity fields anchor not found')
+entities_text = entities_text.replace(old_entity_end, new_entity_end, 1)
+entities_path.write_text(entities_text, encoding='utf-8')
+
+database_file = 'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt'
+database_path = root / database_file
+database_text = database_path.read_text(encoding='utf-8')
+if 'import androidx.room.migration.Migration' not in database_text:
+    database_text = database_text.replace(
+        'import androidx.room.RoomDatabase\n',
+        'import androidx.room.RoomDatabase\nimport androidx.room.migration.Migration\n',
+        1
+    )
+database_text = database_text.replace('    version = 3,', '    version = 4,', 1)
+old_instance = """        private var INSTANCE: PinkyDatabase? = null
+"""
+new_instance = """        private var INSTANCE: PinkyDatabase? = null
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE order_items ADD COLUMN productCode TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE order_items ADD COLUMN wholesalePrice REAL")
+            }
+        }
+"""
+if old_instance not in database_text:
+    raise SystemExit('PinkyDatabase migration insertion anchor not found')
+database_text = database_text.replace(old_instance, new_instance, 1)
+database_text = database_text.replace(
+    '                .fallbackToDestructiveMigration()',
+    '                .addMigrations(MIGRATION_3_4)\n                .fallbackToDestructiveMigration()',
+    1
+)
+database_path.write_text(database_text, encoding='utf-8')
+
+supabase_client = 'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt'
+patch_source(
+    supabase_client,
+    '    @Json(name = "image_url") val imageUrl: String? = null\n)',
+    '    @Json(name = "image_url") val imageUrl: String? = null,\n'
+    '    // The storefront JSONB item schema uses name/price/image/code.\n'
+    '    @Json(name = "name") val name: String? = null,\n'
+    '    @Json(name = "price") val price: Double? = null,\n'
+    '    @Json(name = "image") val image: String? = null,\n'
+    '    @Json(name = "code") val code: String? = null,\n'
+    '    @Json(name = "wholesale_price") val wholesalePrice: Double? = null,\n'
+    '    @Json(name = "product_code") val productCode: String? = null,\n'
+    '    @Json(name = "product_image") val productImage: String? = null\n)',
+    'storefront order item JSON aliases'
+)
+patch_source(
+    supabase_client,
+    '    @POST("rest/v1/shipping_governorates")\n'
+    '    suspend fun upsertGovernorate(\n'
+    '        @Body gov: SupabaseGovernorateDto,\n'
+    '        @Header("Prefer") prefer: String = "resolution=merge-duplicates"\n'
+    '    ): Response<Unit>\n',
+    '    @POST("rest/v1/shipping_governorates")\n'
+    '    suspend fun upsertGovernorate(\n'
+    '        @Body gov: SupabaseGovernorateDto,\n'
+    '        @Header("Prefer") prefer: String = "resolution=merge-duplicates"\n'
+    '    ): Response<Unit>\n\n'
+    '    @POST("rest/v1/rpc/admin_save_shipping_governorate")\n'
+    '    suspend fun saveShippingGovernorate(\n'
+    '        @Body params: Map<String, Any>\n'
+    '    ): Response<Map<String, Any>>\n',
+    'transactional governorate save RPC'
+)
+
+repo_file = 'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt'
+repo_path = root / repo_file
+repo_text = repo_path.read_text(encoding='utf-8')
+if 'import kotlinx.coroutines.flow.first' not in repo_text:
+    repo_text = repo_text.replace(
+        'package com.pinky.dashboard.data.repository\n',
+        'package com.pinky.dashboard.data.repository\n\nimport kotlinx.coroutines.flow.first\n',
+        1
+    )
+order_class_index = repo_text.index('class OrderRepositoryImpl(')
+order_dao_line = '    private val orderDao = database.orderDao()\n'
+order_dao_index = repo_text.find(order_dao_line, order_class_index)
+if order_dao_index < 0:
+    raise SystemExit('OrderRepositoryImpl orderDao anchor not found')
+next_class_index = repo_text.find('class ', order_class_index + 1)
+if next_class_index < 0:
+    next_class_index = len(repo_text)
+if 'private val productDao = database.productDao()' not in repo_text[order_class_index:next_class_index]:
+    insert_at = order_dao_index + len(order_dao_line)
+    repo_text = repo_text[:insert_at] + '    private val productDao = database.productDao()\n' + repo_text[insert_at:]
+repo_text = repo_text.replace(
+    'return orderDao.getAllOrdersFlow().map { entities ->',
+    'return combine(orderDao.getAllOrdersFlow(), productDao.getAllProductsFlow()) { entities, products ->\n'
+    '            val productsById = products.associateBy { it.id }',
+    1
+)
+repo_text = repo_text.replace(
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n                    OrderItem(',
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n'
+    '                    val product = productsById[itemEntity.productId]\n'
+    '                    OrderItem(',
+    1
+)
+repo_text = repo_text.replace(
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n            OrderItem(',
+    'val items = orderDao.getOrderItems(entity.id).map { itemEntity ->\n'
+    '            val product = productDao.getProductById(itemEntity.productId)\n'
+    '            OrderItem(',
+    1
+)
+repo_text = repo_text.replace(
+    'productName = itemEntity.productName,',
+    'productName = itemEntity.productName.ifBlank { product?.name.orEmpty() },',
+    2
+)
+repo_text = repo_text.replace(
+    'imageUrl = itemEntity.imageUrl',
+    'imageUrl = itemEntity.imageUrl?.takeIf { it.isNotBlank() } ?: product?.imageUrl.orEmpty(),\n'
+    '                        productCode = itemEntity.productCode.ifBlank { product?.internalCode.orEmpty() },\n'
+    '                        wholesalePrice = itemEntity.wholesalePrice ?: product?.wholesalePrice',
+    2
+)
+repo_text = repo_text.replace(
+    'productName = item.productName ?: "",',
+    'productName = item.productName?.takeIf { it.isNotBlank() } ?: item.name?.takeIf { it.isNotBlank() } ?: product?.name.orEmpty(),',
+    1
+)
+repo_text = repo_text.replace(
+    'unitPrice = item.unitPrice ?: 0.0,',
+    'unitPrice = item.unitPrice ?: item.price ?: 0.0,',
+    1
+)
+repo_text = repo_text.replace(
+    'lineTotal = item.lineTotal ?: 0.0,',
+    'lineTotal = item.lineTotal ?: ((item.unitPrice ?: item.price ?: 0.0) * (item.quantity ?: 1)),',
+    1
+)
+repo_text = repo_text.replace(
+    'imageUrl = item.imageUrl ?: ""',
+    'imageUrl = item.productImage?.takeIf { it.isNotBlank() } ?: item.imageUrl?.takeIf { it.isNotBlank() } ?: item.image?.takeIf { it.isNotBlank() } ?: product?.imageUrl,\n'
+    '                            productCode = item.productCode?.takeIf { it.isNotBlank() } ?: item.code?.takeIf { it.isNotBlank() } ?: product?.internalCode.orEmpty(),\n'
+    '                            wholesalePrice = item.wholesalePrice ?: product?.wholesalePrice',
+    1
+)
+repo_text = repo_text.replace(
+    '                    dto.items?.map { item ->\n                        OrderItemEntity(',
+    '                    dto.items?.map { item ->\n'
+    '                        val product = productDao.getProductById(item.productId ?: "")\n'
+    '                        OrderItemEntity(',
+    1
+)
+repo_path.write_text(repo_text, encoding='utf-8')
+
+order_dialog = 'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt'
+dialog_path = root / order_dialog
+dialog_text = dialog_path.read_text(encoding='utf-8')
+if 'import coil.compose.AsyncImage' not in dialog_text:
+    dialog_text = dialog_text.replace(
+        'import androidx.compose.ui.graphics.Color\n',
+        'import androidx.compose.ui.graphics.Color\n'
+        'import androidx.compose.ui.layout.ContentScale\n'
+        'import coil.compose.AsyncImage\n',
+        1
+    )
+dialog_text = dialog_text.replace(
+    '    onStatusChange: (OrderStatus) -> Unit\n) {',
+    '    onStatusChange: (OrderStatus) -> Unit,\n'
+    '    canViewWholesale: Boolean = false,\n'
+    '    canViewInternalCode: Boolean = false\n) {',
+    1
+)
+image_block = """                                if (!item.imageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = item.imageUrl,
+                                        contentDescription = item.productName,
+                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Outlined.Image, contentDescription = "صورة المنتج غير متاحة",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+"""
+dialog_text = dialog_text.replace(image_block, '', 1)
+items_start = dialog_text.index('items(order.items, key = { it.id })')
+column_marker = '                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {'
+column_index = dialog_text.index(column_marker, items_start)
+dialog_text = dialog_text[:column_index] + image_block + dialog_text[column_index:]
+dialog_text = dialog_text.replace(
+    '                                    Text(item.productName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n',
+    '                                    Text(item.productName.ifBlank { "منتج غير معروف" }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)\n'
+    '                                    if (canViewInternalCode && item.productCode.isNotBlank()) {\n'
+    '                                        Text("كود المنتج: ${item.productCode}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)\n'
+    '                                    }\n'
+    '                                    if (canViewWholesale && item.wholesalePrice != null) {\n'
+    '                                        Text("سعر الجملة: ${Formatters.formatCurrencyEgp(item.wholesalePrice)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)\n'
+    '                                    }\n',
+    1
+)
+dialog_path.write_text(dialog_text, encoding='utf-8')
+
+pinky_app = 'app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt'
+patch_source(
+    pinky_app,
+    '                    order = order,\n'
+    '                    onDismiss = { viewModel.selectOrder(null) },',
+    '                    order = order,\n'
+    '                    canViewWholesale = currentUser?.canViewWholesale == true,\n'
+    '                    canViewInternalCode = currentUser?.canViewInternalCode == true,\n'
+    '                    onDismiss = { viewModel.selectOrder(null) },',
+    'order dialog permission wiring'
+)
+
+# Governorate price saves now use the transactional RPC which also updates existing centers.
+repo_text = repo_path.read_text(encoding='utf-8')
+old_save = (
+    'val response = SupabaseClient.service.upsertGovernorate(\n'
+    '                SupabaseGovernorateDto(\n'
+    '                    governorate = gov.name,\n'
+    '                    price = gov.deliveryPrice,\n'
+    '                    centersEnabled = true,\n'
+    '                    active = gov.isActive\n'
+    '                )\n'
+    '            )'
+)
+new_save = (
+    'val response = SupabaseClient.service.saveShippingGovernorate(\n'
+    '                mapOf(\n'
+    '                    "p_governorate" to gov.name,\n'
+    '                    "p_price" to gov.deliveryPrice,\n'
+    '                    "p_active" to gov.isActive,\n'
+    '                    "p_centers_enabled" to true\n'
+    '                )\n'
+    '            )'
+)
+if old_save not in repo_text:
+    raise SystemExit('Governorate save source anchor not found')
+repo_text = repo_text.replace(old_save, new_save, 1)
+old_local = (
+    '            shippingDao.insertGovernorate(\n'
+    '                ShippingGovernorateEntity(gov.id, gov.name, gov.deliveryPrice, gov.estimatedDays, gov.isActive)\n'
+    '            )\n'
+    '            Result.success(gov)'
+)
+new_local = (
+    '            shippingDao.insertGovernorate(\n'
+    '                ShippingGovernorateEntity(gov.id, gov.name, gov.deliveryPrice, gov.estimatedDays, gov.isActive)\n'
+    '            )\n'
+    '            val updatedCenterCount = (response.body()?.get("updated_centers") as? Number)?.toInt() ?: 0\n'
+    '            if (updatedCenterCount > 0) {\n'
+    '                shippingDao.getAllCentersFlow().first()\n'
+    '                    .filter { it.governorateId == gov.name }\n'
+    '                    .forEach { center -> shippingDao.insertCenter(center.copy(deliveryPrice = gov.deliveryPrice)) }\n'
+    '            }\n'
+    '            Result.success(gov)'
+)
+if old_local not in repo_text:
+    raise SystemExit('Governorate local-cache anchor not found')
+repo_text = repo_text.replace(old_local, new_local, 1)
+repo_path.write_text(repo_text, encoding='utf-8')
+
+
+dao_path = root / 'app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt'
+dao_text = dao_path.read_text(encoding='utf-8')
+if 'suspend fun deleteOrderItems(orderId: String)' not in dao_text:
+    dao_needle = 'suspend fun getOrderItems(orderId: String): List<OrderItemEntity>'
+    dao_index = dao_text.find(dao_needle)
+    if dao_index < 0:
+        raise SystemExit('OrderDao getOrderItems method not found')
+    dao_end = dao_index + len(dao_needle)
+    dao_text = dao_text[:dao_end] + """
+    
+    @Query("DELETE FROM order_items WHERE orderId = :orderId")
+    suspend fun deleteOrderItems(orderId: String)
+""" + dao_text[dao_end:]
+    dao_path.write_text(dao_text, encoding='utf-8')
+
+repo_text = repo_path.read_text(encoding='utf-8')
+sync_insert_anchor = 'orderDao.insertOrders(orderEntities)'
+sync_insert_index = repo_text.find(sync_insert_anchor, repo_text.index('override suspend fun syncOrders()'))
+if sync_insert_index < 0:
+    raise SystemExit('Order sync insert anchor not found')
+after_insert = sync_insert_index + len(sync_insert_anchor)
+if 'deleteOrderItems(dto.id)' not in repo_text:
+    repo_text = repo_text[:after_insert] + """
+                orders.filter { it.items != null }.forEach { dto -> orderDao.deleteOrderItems(dto.id) }
+""" + repo_text[after_insert:]
+repo_path.write_text(repo_text, encoding='utf-8')
+
+# Prevent invalid/empty prices from silently falling back to unrelated default values.
+shipping_screen = 'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt'
+shipping_path = root / shipping_screen
+shipping_text = shipping_path.read_text(encoding='utf-8')
+shipping_text = shipping_text.replace(
+    '    var isActive by remember { mutableStateOf(gov.isActive) }\n',
+    '    var isActive by remember { mutableStateOf(gov.isActive) }\n'
+    '    var validationError by remember { mutableStateOf<String?>(null) }\n',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = daysText,',
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n'
+    '                validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = daysText,',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                            val price = priceText.toDoubleOrNull() ?: 60.0\n'
+    '                            onSave(gov.copy(name = name, deliveryPrice = price, estimatedDays = daysText, isActive = isActive))',
+    '                            val price = priceText.trim().toDoubleOrNull()\n'
+    '                            if (name.isBlank() || price == null || price < 0.0) {\n'
+    '                                validationError = "أدخل اسم المحافظة وسعر شحن صحيحًا (صفر أو أكثر)."\n'
+    '                            } else {\n'
+    '                                validationError = null\n'
+    '                                onSave(gov.copy(name = name.trim(), deliveryPrice = price, estimatedDays = daysText, isActive = isActive))\n'
+    '                            }',
+    1
+)
+shipping_text = shipping_text.replace(
+    '    var isActive by remember { mutableStateOf(center.isActive) }\n',
+    '    var isActive by remember { mutableStateOf(center.isActive) }\n'
+    '    var validationError by remember { mutableStateOf<String?>(null) }\n',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = contact,',
+    '                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)\n'
+    '                )\n'
+    '                validationError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }\n\n'
+    '                OutlinedTextField(\n'
+    '                    value = contact,',
+    1
+)
+shipping_text = shipping_text.replace(
+    '                            val price = priceText.toDoubleOrNull() ?: center.deliveryPrice\n'
+    '                            onSave(center.copy(name = name, deliveryPrice = price, contactNumber = contact.ifBlank { null }, isActive = isActive))',
+    '                            val price = priceText.trim().toDoubleOrNull()\n'
+    '                            if (name.isBlank() || price == null || price < 0.0) {\n'
+    '                                validationError = "أدخل اسم المركز وسعر توصيل صحيحًا (صفر أو أكثر)."\n'
+    '                            } else {\n'
+    '                                validationError = null\n'
+    '                                onSave(center.copy(name = name.trim(), deliveryPrice = price, contactNumber = contact.ifBlank { null }, isActive = isActive))\n'
+    '                            }',
+    1
+)
+shipping_path.write_text(shipping_text, encoding='utf-8')
+
+# Focused source diagnostics for order rendering, shipping writes, and owner permissions.
+for source_file in root.rglob('*.kt'):
+    if any(part in ('.gradle', 'build') for part in source_file.parts):
+        continue
+    relative = str(source_file.relative_to(root))
+    lower_path = relative.lower()
+    try:
+        lines = source_file.read_text(encoding='utf-8').splitlines()
+    except Exception:
+        continue
+    if any(token in lower_path for token in ('order', 'shipping', 'auth', 'staff', 'permission')):
+        print(f'SOURCE_FILE {relative} ({len(lines)} lines)')
+    if source_file.name == 'Order.kt' or ('order' in lower_path and any(token in lower_path for token in ('screen', 'dialog', 'detail', 'repository'))):
+        print(f'SOURCE_EXCERPT_BEGIN {relative}')
+        for line_no, line in enumerate(lines[:240], 1):
+            print(f'  {line_no}: {line[:260]}')
+        print(f'SOURCE_EXCERPT_END {relative}')
+    if source_file.name in ('RepositoriesImpl.kt', 'SupabaseClient.kt', 'AuthModels.kt') or 'shipping' in lower_path:
+        matches = [i for i, line in enumerate(lines)
+                   if any(term in line.lower() for term in (
+                       'admin_list_orders', 'admin_save_shipping', 'admin_apply_shipping',
+                       'from("orders")', "from('orders')", 'orderitem', 'wholesale',
+                       'product_id', 'productid', 'permissions', 'isowner', 'role ==',
+                       'shipping_governorates', 'shipping_centers'
+                   ))]
+        if matches:
+            print(f'SOURCE_MATCHES_BEGIN {relative}')
+            emitted = set()
+            for idx in matches[:35]:
+                lo, hi = max(0, idx - 5), min(len(lines), idx + 7)
+                for n in range(lo, hi):
+                    if n not in emitted:
+                        print(f'  {n+1}: {lines[n][:260]}')
+                        emitted.add(n)
+            print(f'SOURCE_MATCHES_END {relative}')
+
+
+# Detailed snippets for the known order JSON schema mismatch and shipping editor path.
+for relative, ranges in {
+    'app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt': [(1, 125)],
+    'app/src/main/java/com/pinky/dashboard/domain/model/Order.kt': [(40, 90)],
+    'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (425, 455)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt': [(1, 180), (300, 520), (520, 703)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt': [(1, 60), (180, 260), (410, 520)],
+    'app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrdersScreen.kt': [(1, 60), (100, 260)],
+    'app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt': [(45, 225), (890, 970), (1390, 1455)],
+    'app/src/main/java/com/pinky/dashboard/core/sync/OrderSyncManager.kt': [(1, 90)],
+    'app/src/main/java/com/pinky/dashboard/domain/model/AuthModels.kt': [(1, 80)],
+    'app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt': [(80, 125), (340, 455)],
+    'app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt': [(1, 80), (405, 435)],
+    'app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt': [(180, 240), (1145, 1185)],
+    'app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt': [(1, 70)]
+}.items():
+    target = root / relative
+    if not target.exists():
+        continue
+    lines = target.read_text(encoding='utf-8').splitlines()
+    print(f'DETAILED_SOURCE_BEGIN {relative}')
+    for lo, hi in ranges:
+        print(f'  RANGE {lo}-{hi}')
+        for line_no in range(lo, min(hi, len(lines)) + 1):
+            print(f'  {line_no}: {lines[line_no-1][:240]}')
+    print(f'DETAILED_SOURCE_END {relative}')
+
+
+# Trace the real call sites for order details and shipping persistence.
+for source_file in root.rglob('*.kt'):
+    if any(part in ('.gradle', 'build') for part in source_file.parts):
+        continue
+    try:
+        lines = source_file.read_text(encoding='utf-8').splitlines()
+    except Exception:
+        continue
+    terms = ('OrderDetailDialog(', 'upsertGovernorate(', 'upsertShippingCenter(',
+             'saveGovernorate(', 'saveShippingCenter(', 'getGovernorates(',
+             'getShippingCenters(', 'getOrders(', 'syncOrders(', 'getOrderItems(')
+    hits = [i for i, line in enumerate(lines) if any(term in line for term in terms)]
+    if hits:
+        print(f'CALLSITE_MATCHES_BEGIN {source_file.relative_to(root)}')
+        emitted = set()
+        for idx in hits[:25]:
+            for n in range(max(0, idx-5), min(len(lines), idx+8)):
+                if n not in emitted:
+                    print(f'  {n+1}: {lines[n][:240]}')
+                    emitted.add(n)
+        print(f'CALLSITE_MATCHES_END {source_file.relative_to(root)}')
 
 print('Android CMS patches applied.')
