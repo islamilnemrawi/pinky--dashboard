@@ -1,0 +1,168 @@
+--- a/app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt
++++ b/app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt
+@@ -225,6 +225,8 @@
+     @Json(name = "payment_reference") val paymentReference: String? = null,
+     @Json(name = "status") val status: String? = "pending",
+     @Json(name = "order_id") val orderId: String? = null,
++    @Json(name = "order_number") val orderNumber: String? = null,
++    @Json(name = "display_status") val displayStatus: String? = null,
+     @Json(name = "customer_name") val customerName: String? = null,
+     @Json(name = "phone") val phone: String? = null,
+     @Json(name = "email") val email: String? = null,
+--- a/app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt
++++ b/app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt
+@@ -51,7 +51,9 @@
+ enum class PrimeSubscriberStatus(val arabicLabel: String) {
+     ACTIVE("نشط"),
+     EXPIRING_SOON("ينتهي قريباً"),
+-    PENDING("بانتظار التفعيل عند التسليم"),
++    PENDING("مطلوب مع أوردر — التفعيل بعد التسليم"),
++    PENDING_PAYMENT("بانتظار تأكيد الدفع"),
++    INACTIVE("غير نشط"),
+     EXPIRED("منتهي")
+ }
+ 
+@@ -73,18 +75,19 @@
+     val totalSavedWithPrime: Double = 0.0,
+     val userId: String? = null,
+-    val email: String? = null
++    val email: String? = null,
++    val orderNumber: String? = null
+ )
+ 
+ data class PinkyPrimeSettings(
+-    val monthlyPrice: Double = 149.0,
+-    val annualPrice: Double = 1190.0,
++    val monthlyPrice: Double = 300.0,
++    val annualPrice: Double = 3600.0,
+     val isServiceActive: Boolean = true,
+     val benefits: List<PrimeBenefit> = listOf(
+-        PrimeBenefit("b1", "شحن مجاني غير محدود", "على جميع الطلبات لأي مكان في مصر بدون حد أدنى"),
+-        PrimeBenefit("b2", "خصم إضافي 5% حصري", "يطبق تلقائياً على كافة التشكيلات غير المخفضة"),
+-        PrimeBenefit("b3", "أولوية التجهيز والشحن السريع", "يتم تسليم الطلب خلال 24 ساعة في القاهرة والجيزة"),
+-        PrimeBenefit("b4", "هدية خاصة مع كل طلب", "عينات وإكسسوارات حصرية مع شحنات المشتركين")
++        PrimeBenefit("b1", "شحن مجاني", "حتى 6 طلبات خلال مدة الاشتراك"),
++        PrimeBenefit("b2", "خصم إضافي 10%", "على المنتجات المؤهلة وفق شروط الخصم"),
++        PrimeBenefit("b3", "تغليف مميز", "تغليف مميز مجاني لأعضاء Elory Prime"),
++        PrimeBenefit("b4", "هوية Prime", "مظهر ومزايا Prime الخاصة أثناء الاشتراك")
+     )
+ )
+ 
+--- a/app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt
++++ b/app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt
+@@ -551,11 +551,14 @@
+         val soon = now + 7L * 24L * 60L * 60L * 1000L
+         _primeSubscribers.value = (response.body() ?: emptyList()).map { dto ->
+             val expiry = dto.expiresAt.toEpochMillisOrNull() ?: 0L
+-            val rawStatus = dto.status.orEmpty().lowercase()
++            val rawStatus = (dto.displayStatus ?: dto.status).orEmpty().lowercase()
++            val isOrderLinked = !dto.orderId.isNullOrBlank()
+             val status = when {
+                 dto.active == true && expiry > now && expiry <= soon -> PrimeSubscriberStatus.EXPIRING_SOON
+                 dto.active == true && expiry > now -> PrimeSubscriberStatus.ACTIVE
+-                rawStatus in setOf("pending", "pending_payment", "awaiting_payment") -> PrimeSubscriberStatus.PENDING
++                rawStatus in setOf("pending_delivery", "pending") && isOrderLinked -> PrimeSubscriberStatus.PENDING
++                rawStatus in setOf("pending_payment", "pending", "awaiting_payment") -> PrimeSubscriberStatus.PENDING_PAYMENT
++                rawStatus in setOf("inactive", "superseded", "cancelled", "canceled", "failed") -> PrimeSubscriberStatus.INACTIVE
+                 else -> PrimeSubscriberStatus.EXPIRED
+             }
+             PrimeSubscriber(
+@@ -568,7 +571,8 @@
+                 totalSavedWithPrime = dto.totalSaved ?: 0.0,
+                 userId = dto.userId,
+-                email = dto.email
++                email = dto.email,
++                orderNumber = dto.orderNumber
+             )
+         }
+     }
+--- a/app/src/main/java/com/pinky/dashboard/ui/screens/prime/PrimeScreen.kt
++++ b/app/src/main/java/com/pinky/dashboard/ui/screens/prime/PrimeScreen.kt
+@@ -41,7 +41,8 @@
+         else subscribers.filter {
+             it.customerName.contains(searchQuery, ignoreCase = true) ||
+             it.phone.contains(searchQuery) ||
+-            (it.email?.contains(searchQuery, ignoreCase = true) == true)
++            (it.email?.contains(searchQuery, ignoreCase = true) == true) ||
++            (it.orderNumber?.contains(searchQuery, ignoreCase = true) == true)
+         }
+     }
+ 
+@@ -207,6 +208,21 @@
+                                     Text(subscriber.customerName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                     Text("هاتف: ${subscriber.phone.ifBlank { "غير مسجل" }}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                 subscriber.email?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
++                                    when (subscriber.status) {
++                                        PrimeSubscriberStatus.PENDING -> Text(
++                                            "طلب Prime مرتبط بالأوردر ${subscriber.orderNumber?.let { "#$it" } ?: ""} — سيتم التفعيل بعد التسليم",
++                                            style = MaterialTheme.typography.bodySmall,
++                                            color = MaterialTheme.colorScheme.primary
++                                        )
++                                        PrimeSubscriberStatus.PENDING_PAYMENT -> Text(
++                                            "اشتراك مستقل — بانتظار تأكيد الدفع، وليس طلبًا بانتظار التسليم",
++                                            style = MaterialTheme.typography.bodySmall,
++                                            color = MaterialTheme.colorScheme.onSurfaceVariant
++                                        )
++                                        else -> subscriber.orderNumber?.takeIf { it.isNotBlank() }?.let {
++                                            Text("الأوردر المرتبط: #$it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                                        }
++                                    }
+                                 }
+ 
+                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+--- a/app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt
++++ b/app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt
+@@ -1100,19 +1100,26 @@
+             minLines = 2
+         )
+ 
++        Text(
++            "قيم الاشتراك مرتبطة مباشرة بنظام الدفع والتفعيل: 300 جنيه لمدة 30 يومًا، خصم 10%، و6 شحنات مجانية. تعديل هذه القيم يحتاج تحديثًا متزامنًا في الباك إند، لذلك تظهر هنا للقراءة فقط حتى لا تختلف المعلومات عن المبلغ الفعلي.",
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant
++        )
+         Row(
+             modifier = Modifier.fillMaxWidth(),
+             horizontalArrangement = Arrangement.spacedBy(12.dp)
+         ) {
+             OutlinedTextField(
+-                value = config.primePrice.toString(),
+-                onValueChange = { onUpdate(config.copy(primePrice = it.toDoubleOrNull() ?: 0.0)) },
++                value = "300",
++                onValueChange = {},
++                readOnly = true,
+                 label = { Text("سعر الاشتراك الشهري (جنيه)") },
+                 modifier = Modifier.weight(1f)
+             )
+             OutlinedTextField(
+-                value = config.primeDurationDays.toString(),
+-                onValueChange = { onUpdate(config.copy(primeDurationDays = it.toIntOrNull() ?: 30)) },
++                value = "30",
++                onValueChange = {},
++                readOnly = true,
+                 label = { Text("مدة الصلاحية بالأيام") },
+                 modifier = Modifier.weight(1f)
+             )
+@@ -1123,15 +1130,17 @@
+             horizontalArrangement = Arrangement.spacedBy(12.dp)
+         ) {
+             OutlinedTextField(
+-                value = config.primeDiscountPercent.toString(),
+-                onValueChange = { onUpdate(config.copy(primeDiscountPercent = it.toDoubleOrNull() ?: 0.0)) },
++                value = "10",
++                onValueChange = {},
++                readOnly = true,
+                 label = { Text("نسبة الخصم الإضافية للأعضاء (%)") },
+                 modifier = Modifier.weight(1f)
+             )
+             OutlinedTextField(
+-                value = config.primeFreeShippingOrdersCount.toString(),
+-                onValueChange = { onUpdate(config.copy(primeFreeShippingOrdersCount = it.toIntOrNull() ?: 4)) },
+-                label = { Text("عدد مرات الشحن المجاني شهرياً") },
++                value = "6",
++                onValueChange = {},
++                readOnly = true,
++                label = { Text("عدد مرات الشحن المجاني لكل اشتراك") },
+                 modifier = Modifier.weight(1f)
+             )
+ 

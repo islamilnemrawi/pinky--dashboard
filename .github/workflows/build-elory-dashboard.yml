@@ -94,6 +94,13 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-operations-fixes.py
 
+      - name: Apply Prime status and pricing consistency fixes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PROJECT_DIR"
+          patch --batch --forward --strip=1 < "$GITHUB_WORKSPACE/scripts/elory-prime-quality.patch"
+
       - name: Verify order item image and pricing fields
         shell: bash
         run: |
