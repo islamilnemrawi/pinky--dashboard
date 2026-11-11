@@ -1,6 +1,5 @@
 -- Elory operations hardening: order-linked Prime, manual Prime administration,
 -- transactional shipping writes, authenticated staff management and permission checks.
--- This migration mirrors the already-applied production database changes.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.activate_prime_from_paid_order()
@@ -78,8 +77,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_apply_shipping_governorate_price(p_governorate text, p_price numeric)
  RETURNS jsonb
@@ -138,8 +136,7 @@ begin
   );
 
 end;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_grant_prime_by_email(p_email text, p_days integer DEFAULT 30)
  RETURNS TABLE(success boolean, user_id uuid, expires_at timestamp with time zone, message text)
@@ -197,8 +194,7 @@ BEGIN
 
   RETURN QUERY SELECT true, target_id, new_expiry, 'تم تفعيل Elory Prime بنجاح'::text;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_list_prime_subscriptions()
  RETURNS SETOF jsonb
@@ -249,8 +245,7 @@ BEGIN
   ) order_stats ON true
   ORDER BY ps.created_at DESC NULLS LAST, ps.started_at DESC NULLS LAST;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_save_shipping_center(p_id text DEFAULT ''::text, p_governorate text DEFAULT ''::text, p_center text DEFAULT ''::text, p_price numeric DEFAULT 0, p_active boolean DEFAULT true)
  RETURNS jsonb
@@ -302,8 +297,7 @@ BEGIN
 
   RETURN v_result;
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_save_shipping_governorate(p_governorate text, p_price numeric, p_active boolean DEFAULT true, p_centers_enabled boolean DEFAULT true)
  RETURNS jsonb
@@ -348,8 +342,7 @@ BEGIN
     'centers_enabled', r.centers_enabled
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_set_prime_subscription_active(p_subscription_id uuid, p_active boolean)
  RETURNS jsonb
@@ -399,8 +392,7 @@ BEGIN
 
   RETURN to_jsonb(r);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_set_staff_active(p_staff_id uuid, p_active boolean)
  RETURNS jsonb
@@ -445,8 +437,7 @@ BEGIN
     'active',r.active,'updated_at',r.updated_at,'created_at',r.created_at
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_update_order_status(p_order_id uuid, p_status text)
  RETURNS jsonb
@@ -483,8 +474,7 @@ BEGIN
 
   RETURN to_jsonb(r);
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.admin_upsert_staff_by_email(p_email text, p_name text DEFAULT NULL::text, p_role text DEFAULT 'staff'::text, p_permissions jsonb DEFAULT '{}'::jsonb, p_active boolean DEFAULT true)
  RETURNS jsonb
@@ -554,8 +544,7 @@ BEGIN
     'active',r.active,'updated_at',r.updated_at,'created_at',r.created_at
   );
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.has_staff_permission(p_permission text)
  RETURNS boolean
@@ -642,8 +631,7 @@ EXCEPTION
   WHEN invalid_text_representation THEN
     RETURN false;
 END;
-$function$
-
+$function$;
 
 DROP TRIGGER IF EXISTS elory_prime_order_lifecycle ON public.orders;
 CREATE TRIGGER elory_prime_order_lifecycle
@@ -651,7 +639,6 @@ AFTER INSERT OR UPDATE OF status, prime_requested, user_id
 ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.activate_prime_from_paid_order();
-
 
 
 REVOKE ALL ON FUNCTION public.admin_list_prime_subscriptions() FROM PUBLIC, anon;
