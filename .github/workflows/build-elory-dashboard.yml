@@ -6,6 +6,7 @@ on:
     paths:
       - 'Elory_Dashboard_Build_Ready.zip'
       - '.github/workflows/build-elory-dashboard.yml'
+      - 'scripts/**'
 
 permissions:
   contents: read
@@ -86,6 +87,18 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/apply-elory-cms-patch.py
+
+      - name: Apply shipping, Prime, and staff management fixes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-operations-fixes.py
+
+      - name: Verify order item image and pricing fields
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/verify-order-item-display.py
 
       - name: Prepare project configuration
         shell: bash
