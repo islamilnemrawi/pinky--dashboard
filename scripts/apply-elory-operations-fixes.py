@@ -12,7 +12,10 @@ PATCH_TEXT = gzip.decompress(base64.b64decode("""H4sIAKUB9GoC/+19a3MbR5Lgd/+KFkI
 # non-overlapping changes separately after preserving those CMS changes.
 PATCH = "".join(
     section for section in re.split(r"(?=^--- )", PATCH_TEXT, flags=re.MULTILINE)
-    if not section.startswith("--- app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt")
+    if not section.startswith((
+        "--- app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt",
+        "--- app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
+    ))
 ).encode("utf-8")
 result = subprocess.run(
     ["patch", "--batch", "--forward", "-p0"],
