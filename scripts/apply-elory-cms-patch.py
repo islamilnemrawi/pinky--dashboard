@@ -186,28 +186,16 @@ new='''                    item {
                     }
 
                     item {
-                        SectionCard(
-                            title = "مدير أقسام الصفحة الرئيسية",
-                            description = "إخفاء وإظهار الأقسام، تغيير ترتيبها، وإضافة أقسام مخصصة دون تعديل ملفات الموقع",
-                            icon = Icons.Outlined.ViewAgenda,
-                            isActive = true,
-                            onToggleActive = null,
-                            onClick = { activeEditingDialog = 12 }
-                        )
-                    }
-
-                    item {
                         Spacer(modifier = Modifier.height(80.dp))
                     }'''
 if old not in s: raise SystemExit('WebsiteEditor card 11 anchor missing')
 s=s.replace(old,new,1)
 s=s.replace('''                    11 -> "هوية وإعدادات الموقع العامة" to Icons.Outlined.SettingsSuggest
                     else ->''','''                    11 -> "هوية وإعدادات الموقع العامة" to Icons.Outlined.SettingsSuggest
-                    12 -> "مدير أقسام الصفحة الرئيسية" to Icons.Outlined.ViewAgenda
                     else ->''',1)
 s=s.replace('''                        4 -> HeroBannersForm(bannersList, onSaveBanner, onDeleteBanner, categoriesList)''','''                        4 -> HeroBannersForm(dialogConfig, onUpdate = { dialogConfig = it })''',1)
 s=s.replace('''                        11 -> GlobalSettingsForm(dialogConfig, onUpdate = { dialogConfig = it })''','''                        11 -> GlobalSettingsForm(dialogConfig, onUpdate = { dialogConfig = it })
-                        12 -> SectionsLayoutForm(dialogConfig, onUpdate = { dialogConfig = it })''',1)
+                        ''',1)
 start=s.index('@Composable\nfun HeroBannersForm(')
 end=s.index('\n@Composable\nfun CategoriesLayoutForm',start)
 new_hero='''@Composable
