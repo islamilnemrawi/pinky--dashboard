@@ -1232,20 +1232,29 @@ print('Android CMS patches applied.')
 # Full-bleed hero campaigns: add optional media fields without changing legacy slides.
 hero_model = root / Path('app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt')
 hero_model_text = hero_model.read_text(encoding='utf-8')
-hero_model_old = '''    @Json(name = "sortOrder") val sortOrder: Int = 1,
-    @Json(name = "isActive") val isActive: Boolean = true
-)'''
-hero_model_new = '''    @Json(name = "sortOrder") val sortOrder: Int = 1,
-    @Json(name = "isActive") val isActive: Boolean = true,
-    @Json(name = "fullBleed") val fullBleed: Boolean = false,
-    @Json(name = "mediaType") val mediaType: String = "image",
-    @Json(name = "mediaUrl") val mediaUrl: String = "",
-    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",
-    @Json(name = "posterUrl") val posterUrl: String = ""
-)'''
-if hero_model_text.count(hero_model_old) != 1:
-    raise SystemExit('HeroSlideConfig extension anchor must exist exactly once')
-hero_model.write_text(hero_model_text.replace(hero_model_old, hero_model_new, 1), encoding='utf-8')
+hero_class_start = hero_model_text.find("data class HeroSlideConfig(")
+if hero_class_start < 0:
+    raise SystemExit("HeroSlideConfig model was not found in the dashboard source")
+hero_class_end = hero_model_text.find("\n)", hero_class_start)
+if hero_class_end < 0:
+    raise SystemExit("HeroSlideConfig model closing parenthesis was not found")
+hero_class_end += 2
+hero_class = hero_model_text[hero_class_start:hero_class_end]
+hero_fields = [
+    ('fullBleed', '    @Json(name = "fullBleed") val fullBleed: Boolean = false,'),
+    ('mediaType', '    @Json(name = "mediaType") val mediaType: String = "image",'),
+    ('mediaUrl', '    @Json(name = "mediaUrl") val mediaUrl: String = "",'),
+    ('mobileMediaUrl', '    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",'),
+    ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = ""')
+]
+missing_fields = [line for field, line in hero_fields if '@Json(name = "' + field + '")' not in hero_class]
+if missing_fields:
+    hero_body = hero_class[:-2].rstrip()
+    if not hero_body.endswith(","):
+        hero_body += ","
+    hero_class = hero_body + "\n" + "\n".join(missing_fields) + "\n)"
+    hero_model_text = hero_model_text[:hero_class_start] + hero_class + hero_model_text[hero_class_end:]
+hero_model.write_text(hero_model_text, encoding='utf-8')
 
 hero_editor = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
 hero_editor_text = hero_editor.read_text(encoding='utf-8')
