@@ -1233,7 +1233,11 @@ hero_fields = [
     ('mediaType', '    @Json(name = "mediaType") val mediaType: String = "image",'),
     ('mediaUrl', '    @Json(name = "mediaUrl") val mediaUrl: String = "",'),
     ('mobileMediaUrl', '    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",'),
-    ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = ""')
+    ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = "",'),
+    ('buttonVisible', '    @Json(name = "buttonVisible") val buttonVisible: Boolean = false,'),
+    ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-center",'),
+    ('actionType', '    @Json(name = "actionType") val actionType: String = "product",'),
+    ('productId', '    @Json(name = "productId") val productId: String = ""')
 ]
 missing_fields = [line for field, line in hero_fields if '@Json(name = "' + field + '")' not in hero_class]
 if missing_fields:
@@ -1264,7 +1268,6 @@ hero_editor_block = r"""
 fun HeroCampaignMediaSelector(
     label: String,
     mediaUrl: String,
-    isVideo: Boolean,
     onUrlChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -1285,13 +1288,13 @@ fun HeroCampaignMediaSelector(
                     val publicUrl = HeroAdMediaUploader.upload(
                         contentResolver = context.contentResolver,
                         uri = uri,
-                        isVideo = isVideo
+                        isVideo = false
                     )
                     onUrlChanged(publicUrl)
                     uploadSuccess = true
                 } catch (error: Exception) {
-                    uploadError = error.message ?: "تعذر رفع الملف. تحقق من صلاحية إدارة الموقع والاتصال."
-                    android.util.Log.e("EloryHeroCampaign", "Media upload failed", error)
+                    uploadError = error.message ?: "تعذر رفع صورة الإعلان. تحقق من الاتصال وصلاحية إدارة الموقع."
+                    android.util.Log.e("EloryHeroCampaign", "Hero image upload failed", error)
                 } finally {
                     isUploading = false
                 }
@@ -1299,45 +1302,27 @@ fun HeroCampaignMediaSelector(
         }
     }
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, fontWeight = FontWeight.SemiBold)
         if (mediaUrl.isNotBlank()) {
-            if (isVideo) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(76.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) { Text("تم رفع ملف الفيديو", fontWeight = FontWeight.Bold) }
-            } else {
-                AsyncImage(
-                    model = mediaUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(9.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
-            Text(mediaUrl, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
-                overflow = TextOverflow.Ellipsis)
-        } else {
-            Text(
-                if (isVideo) "الصيغ المدعومة MP4 وWebM، بحد أقصى 50 ميجابايت."
-                else "الصيغ المدعومة JPG وPNG وWebP وAVIF، بحد أقصى 15 ميجابايت.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            AsyncImage(
+                model = mediaUrl,
+                contentDescription = "معاينة صورة الهيرو",
+                modifier = Modifier.fillMaxWidth().height(155.dp).clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Fit
             )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(105.dp).clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("لم يتم رفع صورة لهذا الإعلان بعد", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = {
-                    val request = if (isVideo) {
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                    } else {
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    }
-                    picker.launch(request)
-                },
+                onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 enabled = !isUploading,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
@@ -1347,17 +1332,22 @@ fun HeroCampaignMediaSelector(
                     Spacer(Modifier.width(7.dp))
                     Text("جاري الرفع...")
                 } else {
-                    Text(if (isVideo) "اختيار فيديو الإعلان" else "اختيار صورة الإعلان")
+                    Text(if (mediaUrl.isBlank()) "رفع صورة الإعلان" else "تغيير صورة الإعلان")
                 }
             }
             if (mediaUrl.isNotBlank()) {
                 OutlinedButton(onClick = { onUrlChanged(""); uploadSuccess = false }, enabled = !isUploading) {
-                    Text("إزالة")
+                    Text("إزالة الصورة")
                 }
             }
         }
-        if (uploadSuccess) Text("تم رفع الملف بنجاح", color = Color(0xFF16834A), style = MaterialTheme.typography.bodySmall)
+        if (uploadSuccess) Text("تم رفع الصورة بنجاح", color = Color(0xFF16834A), style = MaterialTheme.typography.bodySmall)
         uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        Text(
+            "الصورة الواحدة تُستخدم على الكمبيوتر والموبايل. صمّم النصوص داخل الصورة نفسها؛ لن يضيف المتجر نصوصًا فوقها.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -1366,32 +1356,44 @@ fun HeroBannersForm(
     config: WebsiteConfig,
     onUpdate: (WebsiteConfig) -> Unit
 ) {
-    val context = LocalContext.current
     val slides = config.heroSlides.sortedBy { it.sortOrder }
+    fun updateSlide(slideId: String, transform: (HeroSlideConfig) -> HeroSlideConfig) {
+        onUpdate(config.copy(heroSlides = slides.map { current ->
+            if (current.id == slideId) transform(current) else current
+        }))
+    }
+
+    val buttonPositions = listOf(
+        listOf("top-left" to "أعلى يسار", "top-center" to "أعلى وسط", "top-right" to "أعلى يمين"),
+        listOf("center-left" to "وسط يسار", "center" to "منتصف", "center-right" to "وسط يمين"),
+        listOf("bottom-left" to "أسفل يسار", "bottom-center" to "أسفل وسط", "bottom-right" to "أسفل يمين")
+    )
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("شرائح الهيرو المتحرك", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text("إعلانات الهيرو", fontWeight = FontWeight.Bold, fontSize = 17.sp)
         Text(
-            "تحكم في الشرائح القديمة أو حوّل أي شريحة إلى إعلان كامل بصورة أو فيديو يغطي مساحة الهيرو.",
+            "ارفع تصميم البانر كاملًا. يمكنك إخفاء الزر وجعل الصورة كلها قابلة للضغط، أو إظهار زر واختيار مكانه.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
         slides.forEachIndexed { index, slide ->
+            val currentImage = slide.mediaUrl.ifBlank { slide.imageUrl.ifBlank { slide.mobileMediaUrl } }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("الشريحة " + (index + 1), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Switch(checked = slide.isActive, onCheckedChange = { active ->
-                            onUpdate(config.copy(heroSlides = slides.map {
-                                if (it.id == slide.id) it.copy(isActive = active) else it
-                            }))
-                        })
+                        Text("الإعلان " + (index + 1), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = slide.isActive,
+                            onCheckedChange = { active -> updateSlide(slide.id) { it.copy(isActive = active) } }
+                        )
                         IconButton(enabled = index > 0, onClick = {
                             val mutable = slides.toMutableList()
                             val item = mutable.removeAt(index)
@@ -1406,165 +1408,161 @@ fun HeroBannersForm(
                         }) { Icon(Icons.Filled.ArrowDownward, contentDescription = "تحريك لأسفل") }
                         IconButton(onClick = {
                             onUpdate(config.copy(heroSlides = slides.filterNot { it.id == slide.id }.mapIndexed { i, v -> v.copy(sortOrder = i + 1) }))
-                        }) { Icon(Icons.Filled.Delete, contentDescription = "حذف الشريحة", tint = MaterialTheme.colorScheme.error) }
+                        }) { Icon(Icons.Filled.Delete, contentDescription = "حذف الإعلان", tint = MaterialTheme.colorScheme.error) }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    HeroCampaignMediaSelector(
+                        label = "صورة البانر",
+                        mediaUrl = currentImage,
+                        onUrlChanged = { url ->
+                            updateSlide(slide.id) {
+                                it.copy(
+                                    fullBleed = true,
+                                    mediaType = "image",
+                                    mediaUrl = url,
+                                    imageUrl = url,
+                                    mobileMediaUrl = "",
+                                    posterUrl = ""
+                                )
+                            }
+                        }
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("إعلان كامل يغطي الهيرو", fontWeight = FontWeight.Bold)
-                            Text("اعرض الصورة أو الفيديو كاملًا بدل تصميم المنتج والنصوص الداخلية.",
-                                style = MaterialTheme.typography.bodySmall,
+                            Text("إظهار زر فوق الصورة", fontWeight = FontWeight.SemiBold)
+                            Text("أوقفه لجعل الصورة كلها هي الرابط بدون زر ظاهر.", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = slide.fullBleed, onCheckedChange = { enabled ->
-                            onUpdate(config.copy(heroSlides = slides.map {
-                                if (it.id == slide.id) it.copy(fullBleed = enabled) else it
-                            }))
-                        })
+                        Switch(
+                            checked = slide.buttonVisible,
+                            onCheckedChange = { visible -> updateSlide(slide.id) { it.copy(buttonVisible = visible) } }
+                        )
                     }
 
-                    if (slide.fullBleed) {
+                    if (slide.buttonVisible) {
                         OutlinedTextField(
-                            value = slide.title,
-                            onValueChange = { value -> onUpdate(config.copy(heroSlides = slides.map {
-                                if (it.id == slide.id) it.copy(title = value) else it
-                            })) },
-                            label = { Text("اسم الإعلان (للتعريف فقط)") },
+                            value = slide.buttonText,
+                            onValueChange = { value -> updateSlide(slide.id) { it.copy(buttonText = value) } },
+                            label = { Text("النص الذي يظهر على الزر") },
+                            placeholder = { Text("اكتشفي المنتج") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (slide.mediaType == "image") {
-                                Button(onClick = { onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaType = "image", mediaUrl = "") else it
-                                })) }, modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))) {
-                                    Text("إعلان بصورة")
+                        Text("مكان الزر داخل الصورة", fontWeight = FontWeight.SemiBold)
+                        buttonPositions.forEach { positionRow ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                positionRow.forEach { (position, label) ->
+                                    if (slide.buttonPosition == position) {
+                                        Button(
+                                            onClick = { updateSlide(slide.id) { it.copy(buttonPosition = position) } },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
+                                        ) { Text(label, maxLines = 1) }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { updateSlide(slide.id) { it.copy(buttonPosition = position) } },
+                                            modifier = Modifier.weight(1f)
+                                        ) { Text(label, maxLines = 1) }
+                                    }
                                 }
-                            } else {
-                                OutlinedButton(onClick = { onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaType = "image", mediaUrl = "") else it
-                                })) }, modifier = Modifier.weight(1f)) { Text("إعلان بصورة") }
-                            }
-                            if (slide.mediaType == "video") {
-                                Button(onClick = { onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaType = "video", mediaUrl = "") else it
-                                })) }, modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))) {
-                                    Text("إعلان بفيديو")
-                                }
-                            } else {
-                                OutlinedButton(onClick = { onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaType = "video", mediaUrl = "") else it
-                                })) }, modifier = Modifier.weight(1f)) { Text("إعلان بفيديو") }
                             }
                         }
+                    }
 
-                        if (slide.mediaType == "video") {
-                            HeroCampaignMediaSelector(
-                                label = "فيديو الإعلان الرئيسي",
-                                mediaUrl = slide.mediaUrl,
-                                isVideo = true,
-                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaUrl = url) else it
-                                })) }
-                            )
-                            HeroCampaignMediaSelector(
-                                label = "صورة غلاف احتياطية للفيديو (اختياري)",
-                                mediaUrl = slide.posterUrl,
-                                isVideo = false,
-                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(posterUrl = url) else it
-                                })) }
-                            )
-                        } else {
-                            HeroCampaignMediaSelector(
-                                label = "صورة الإعلان للكمبيوتر",
-                                mediaUrl = slide.mediaUrl,
-                                isVideo = false,
-                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mediaUrl = url) else it
-                                })) }
-                            )
-                            HeroCampaignMediaSelector(
-                                label = "صورة الإعلان للموبايل (اختياري)",
-                                mediaUrl = slide.mobileMediaUrl,
-                                isVideo = false,
-                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
-                                    if (it.id == slide.id) it.copy(mobileMediaUrl = url) else it
-                                })) }
-                            )
+                    Text("ماذا يحدث عند الضغط على الصورة أو الزر؟", fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("product" to "صفحة منتج", "url" to "رابط خارجي", "none" to "بدون إجراء").forEach { (type, label) ->
+                            if (slide.actionType == type) {
+                                Button(
+                                    onClick = { updateSlide(slide.id) { it.copy(actionType = type) } },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
+                                ) { Text(label, maxLines = 1) }
+                            } else {
+                                OutlinedButton(
+                                    onClick = { updateSlide(slide.id) { it.copy(actionType = type) } },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text(label, maxLines = 1) }
+                            }
                         }
+                    }
 
-                        if (slide.mediaUrl.isBlank()) {
-                            Text("ارفع ملف الإعلان قبل نشر هذه الشريحة حتى لا تظهر فارغة.",
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall)
-                        }
-                        OutlinedTextField(
-                            value = slide.actionUrl,
-                            onValueChange = { value -> onUpdate(config.copy(heroSlides = slides.map {
-                                if (it.id == slide.id) it.copy(actionUrl = value) else it
-                            })) },
-                            label = { Text("الرابط الذي يفتحه الضغط على الإعلان بالكامل") },
-                            placeholder = { Text("#featured أو رابط منتج/عرض") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        val campaignUrl = "https://islamilnemrawi.github.io/Elory-store/?hero=" + Uri.encode(slide.id)
-                        Column(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                                .padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
-                            Text("رابط الحملة الإعلانية على فيسبوك", fontWeight = FontWeight.Bold)
-                            Text(campaignUrl, style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            OutlinedButton(onClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("رابط حملة Elory", campaignUrl))
-                                android.widget.Toast.makeText(context, "تم نسخ رابط الحملة", android.widget.Toast.LENGTH_SHORT).show()
-                            }, modifier = Modifier.fillMaxWidth()) { Text("نسخ رابط الحملة") }
-                            Text("هذا الرابط يفتح هذه الشريحة أولًا ويوقف التبديل التلقائي أثناء زيارة الحملة.",
+                    when (slide.actionType) {
+                        "product" -> {
+                            OutlinedTextField(
+                                value = slide.productId,
+                                onValueChange = { value -> updateSlide(slide.id) { it.copy(productId = value.trim()) } },
+                                label = { Text("معرّف المنتج") },
+                                placeholder = { Text("الصقي معرّف المنتج هنا") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Text(
+                                "الأفضل اختيار صفحة المنتج: سيفتح تفاصيله ليختار العميل اللون والمقاس ثم يضيفه إلى السلة.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (slide.productId.isBlank()) {
+                                Text("أضيفي معرّف المنتج حتى يعمل الضغط على الإعلان.", color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
                         }
-                    } else {
-                        ImageUploadSelector(
-                            imageUrl = slide.imageUrl,
-                            onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
-                                if (it.id == slide.id) it.copy(imageUrl = url) else it
-                            })) },
-                            bucket = "product-images",
-                            placeholderText = "اختيار صورة الشريحة"
-                        )
-                        OutlinedTextField(value = slide.smallText, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(smallText=v) else it })) }, label = { Text("النص الصغير") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = slide.title, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(title=v) else it })) }, label = { Text("العنوان الرئيسي") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = slide.arabicTitle, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(arabicTitle=v) else it })) }, label = { Text("العنوان العربي") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = slide.description, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(description=v) else it })) }, label = { Text("الوصف") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                        OutlinedTextField(value = slide.buttonText, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(buttonText=v) else it })) }, label = { Text("نص الزر") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = slide.actionUrl, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(actionUrl=v) else it })) }, label = { Text("رابط الزر (مثل #featured)") }, modifier = Modifier.fillMaxWidth())
+                        "url" -> {
+                            OutlinedTextField(
+                                value = slide.actionUrl,
+                                onValueChange = { value -> updateSlide(slide.id) { it.copy(actionUrl = value) } },
+                                label = { Text("الرابط الذي يفتحه الإعلان") },
+                                placeholder = { Text("https://...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                        else -> {
+                            Text(
+                                "الضغط على الصورة لن ينفذ أي إجراء.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (currentImage.isBlank()) {
+                        Text("ارفع صورة البانر قبل تفعيل هذا الإعلان.", color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
+
         Button(
             onClick = {
                 val updated = slides + HeroSlideConfig(
-                    id = "hero_" + System.currentTimeMillis(), imageUrl = "", smallText = "NEW COLLECTION",
-                    title = "عنوان جديد", arabicTitle = "", description = "اكتب وصف الشريحة هنا",
-                    buttonText = "اكتشفي الآن", actionUrl = "#featured", sortOrder = slides.size + 1, isActive = true
+                    id = "hero_" + System.currentTimeMillis(),
+                    imageUrl = "",
+                    smallText = "",
+                    title = "",
+                    arabicTitle = "",
+                    description = "",
+                    buttonText = "اكتشفي المنتج",
+                    actionUrl = "",
+                    sortOrder = slides.size + 1,
+                    isActive = true,
+                    fullBleed = true,
+                    mediaType = "image",
+                    mediaUrl = "",
+                    mobileMediaUrl = "",
+                    posterUrl = "",
+                    buttonVisible = false,
+                    buttonPosition = "bottom-center",
+                    actionType = "product",
+                    productId = ""
                 )
                 onUpdate(config.copy(heroSlides = updated))
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
-        ) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("إضافة شريحة جديدة") }
+        ) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("إضافة إعلان هيرو") }
     }
 }
 """
