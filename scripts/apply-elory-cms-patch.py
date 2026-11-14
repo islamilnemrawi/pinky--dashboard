@@ -1357,10 +1357,31 @@ fun HeroBannersForm(
     onUpdate: (WebsiteConfig) -> Unit
 ) {
     val slides = config.heroSlides.sortedBy { it.sortOrder }
-    fun updateSlide(slideId: String, transform: (HeroSlideConfig) -> HeroSlideConfig) {
-        onUpdate(config.copy(heroSlides = slides.map { current ->
-            if (current.id == slideId) transform(current) else current
-        }))
+    fun updateSlide(
+        slideId: String,
+        activateUploadedSlideIfOnlyActiveIsEmpty: Boolean = false,
+        transform: (HeroSlideConfig) -> HeroSlideConfig
+    ) {
+        // If the only active campaign has no image and the user uploads one
+        // to another campaign, transfer the active slot to the image-bearing
+        // campaign. Do not change multi-slide campaigns or valid active slides.
+        val onlyActiveEmptySlide = slides.filter { it.isActive }.singleOrNull()
+            ?.takeIf { active ->
+                active.id != slideId &&
+                    active.mediaUrl.ifBlank { active.imageUrl.ifBlank { active.mobileMediaUrl } }.isBlank()
+            }
+        val transferActivation = activateUploadedSlideIfOnlyActiveIsEmpty && onlyActiveEmptySlide != null
+        val updatedSlides = slides.map { current ->
+            when {
+                current.id == slideId -> {
+                    val changed = transform(current)
+                    if (transferActivation) changed.copy(isActive = true) else changed
+                }
+                transferActivation && current.id == onlyActiveEmptySlide?.id -> current.copy(isActive = false)
+                else -> current
+            }
+        }
+        onUpdate(config.copy(heroSlides = updatedSlides))
     }
 
     val buttonPositions = listOf(
@@ -1411,11 +1432,33 @@ fun HeroBannersForm(
                         }) { Icon(Icons.Filled.Delete, contentDescription = "حذف الإعلان", tint = MaterialTheme.colorScheme.error) }
                     }
 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (slide.isActive) "الحالة: الإعلان ظاهر على الموقع"
+                            else "الحالة: الإعلان مخفي عن الزوار",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (slide.isActive) Color(0xFF16834A) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (!slide.isActive && currentImage.isNotBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            Text("الصورة محفوظة لكن الإعلان متوقف", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    if (slide.isActive && currentImage.isBlank()) {
+                        Text(
+                            "تنبيه: هذا الإعلان نشط لكنه بلا صورة، لذلك لن يظهر تصميمه الجديد على الموقع.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
                     HeroCampaignMediaSelector(
                         label = "صورة البانر",
                         mediaUrl = currentImage,
                         onUrlChanged = { url ->
-                            updateSlide(slide.id) {
+                            updateSlide(slide.id, activateUploadedSlideIfOnlyActiveIsEmpty = true) {
                                 it.copy(
                                     fullBleed = true,
                                     mediaType = "image",
