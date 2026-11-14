@@ -1236,7 +1236,7 @@ hero_fields = [
     ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = "",'),
     ('buttonVisible', '    @Json(name = "buttonVisible") val buttonVisible: Boolean = false,'),
     ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-center",'),
-    ('actionType', '    @Json(name = "actionType") val actionType: String = "product",'),
+    ('actionType', '    @Json(name = "actionType") val actionType: String = "url",'),
     ('productId', '    @Json(name = "productId") val productId: String = ""')
 ]
 missing_fields = [line for field, line in hero_fields if '@Json(name = "' + field + '")' not in hero_class]
