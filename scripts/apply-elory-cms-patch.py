@@ -1228,3 +1228,444 @@ for source_file in root.rglob('*.kt'):
         print(f'CALLSITE_MATCHES_END {source_file.relative_to(root)}')
 
 print('Android CMS patches applied.')
+
+# Full-bleed hero campaigns: add optional media fields without changing legacy slides.
+hero_model = root / Path('app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt')
+hero_model_text = hero_model.read_text(encoding='utf-8')
+hero_model_old = '''    @Json(name = "sortOrder") val sortOrder: Int = 1,
+    @Json(name = "isActive") val isActive: Boolean = true
+)'''
+hero_model_new = '''    @Json(name = "sortOrder") val sortOrder: Int = 1,
+    @Json(name = "isActive") val isActive: Boolean = true,
+    @Json(name = "fullBleed") val fullBleed: Boolean = false,
+    @Json(name = "mediaType") val mediaType: String = "image",
+    @Json(name = "mediaUrl") val mediaUrl: String = "",
+    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",
+    @Json(name = "posterUrl") val posterUrl: String = ""
+)'''
+if hero_model_text.count(hero_model_old) != 1:
+    raise SystemExit('HeroSlideConfig extension anchor must exist exactly once')
+hero_model.write_text(hero_model_text.replace(hero_model_old, hero_model_new, 1), encoding='utf-8')
+
+hero_editor = root / Path('app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt')
+hero_editor_text = hero_editor.read_text(encoding='utf-8')
+for old_import, new_import in [
+    ('import android.net.Uri\n', 'import android.content.ClipData\nimport android.content.ClipboardManager\nimport android.content.Context\nimport android.net.Uri\n'),
+    ('import com.pinky.dashboard.data.remote.SupabaseStorageUploader\n',
+     'import com.pinky.dashboard.data.remote.SupabaseStorageUploader\nimport com.pinky.dashboard.data.remote.HeroAdMediaUploader\n')
+]:
+    if old_import not in hero_editor_text:
+        raise SystemExit('Missing WebsiteEditorScreen import anchor: ' + old_import.strip())
+    if new_import not in hero_editor_text:
+        hero_editor_text = hero_editor_text.replace(old_import, new_import, 1)
+
+hero_start = hero_editor_text.index('@Composable\nfun HeroBannersForm(')
+hero_end = hero_editor_text.index('\n@Composable\nfun CategoriesLayoutForm', hero_start)
+
+hero_editor_block = r"""
+@Composable
+fun HeroCampaignMediaSelector(
+    label: String,
+    mediaUrl: String,
+    isVideo: Boolean,
+    onUrlChanged: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+    var uploadSuccess by remember { mutableStateOf(false) }
+
+    val picker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null && !isUploading) {
+            isUploading = true
+            uploadError = null
+            uploadSuccess = false
+            scope.launch {
+                try {
+                    val publicUrl = HeroAdMediaUploader.upload(
+                        contentResolver = context.contentResolver,
+                        uri = uri,
+                        isVideo = isVideo
+                    )
+                    onUrlChanged(publicUrl)
+                    uploadSuccess = true
+                } catch (error: Exception) {
+                    uploadError = error.message ?: "تعذر رفع الملف. تحقق من صلاحية إدارة الموقع والاتصال."
+                    android.util.Log.e("EloryHeroCampaign", "Media upload failed", error)
+                } finally {
+                    isUploading = false
+                }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(label, fontWeight = FontWeight.SemiBold)
+        if (mediaUrl.isNotBlank()) {
+            if (isVideo) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(76.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) { Text("تم رفع ملف الفيديو", fontWeight = FontWeight.Bold) }
+            } else {
+                AsyncImage(
+                    model = mediaUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(9.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Text(mediaUrl, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                overflow = TextOverflow.Ellipsis)
+        } else {
+            Text(
+                if (isVideo) "الصيغ المدعومة MP4 وWebM، بحد أقصى 50 ميجابايت."
+                else "الصيغ المدعومة JPG وPNG وWebP وAVIF، بحد أقصى 15 ميجابايت.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    val request = if (isVideo) {
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                    } else {
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    }
+                    picker.launch(request)
+                },
+                enabled = !isUploading,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(7.dp))
+                    Text("جاري الرفع...")
+                } else {
+                    Text(if (isVideo) "اختيار فيديو الإعلان" else "اختيار صورة الإعلان")
+                }
+            }
+            if (mediaUrl.isNotBlank()) {
+                OutlinedButton(onClick = { onUrlChanged(""); uploadSuccess = false }, enabled = !isUploading) {
+                    Text("إزالة")
+                }
+            }
+        }
+        if (uploadSuccess) Text("تم رفع الملف بنجاح", color = Color(0xFF16834A), style = MaterialTheme.typography.bodySmall)
+        uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+@Composable
+fun HeroBannersForm(
+    config: WebsiteConfig,
+    onUpdate: (WebsiteConfig) -> Unit
+) {
+    val context = LocalContext.current
+    val slides = config.heroSlides.sortedBy { it.sortOrder }
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("شرائح الهيرو المتحرك", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(
+            "تحكم في الشرائح القديمة أو حوّل أي شريحة إلى إعلان كامل بصورة أو فيديو يغطي مساحة الهيرو.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        slides.forEachIndexed { index, slide ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("الشريحة " + (index + 1), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Switch(checked = slide.isActive, onCheckedChange = { active ->
+                            onUpdate(config.copy(heroSlides = slides.map {
+                                if (it.id == slide.id) it.copy(isActive = active) else it
+                            }))
+                        })
+                        IconButton(enabled = index > 0, onClick = {
+                            val mutable = slides.toMutableList()
+                            val item = mutable.removeAt(index)
+                            mutable.add(index - 1, item)
+                            onUpdate(config.copy(heroSlides = mutable.mapIndexed { i, v -> v.copy(sortOrder = i + 1) }))
+                        }) { Icon(Icons.Filled.ArrowUpward, contentDescription = "تحريك لأعلى") }
+                        IconButton(enabled = index < slides.lastIndex, onClick = {
+                            val mutable = slides.toMutableList()
+                            val item = mutable.removeAt(index)
+                            mutable.add(index + 1, item)
+                            onUpdate(config.copy(heroSlides = mutable.mapIndexed { i, v -> v.copy(sortOrder = i + 1) }))
+                        }) { Icon(Icons.Filled.ArrowDownward, contentDescription = "تحريك لأسفل") }
+                        IconButton(onClick = {
+                            onUpdate(config.copy(heroSlides = slides.filterNot { it.id == slide.id }.mapIndexed { i, v -> v.copy(sortOrder = i + 1) }))
+                        }) { Icon(Icons.Filled.Delete, contentDescription = "حذف الشريحة", tint = MaterialTheme.colorScheme.error) }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("إعلان كامل يغطي الهيرو", fontWeight = FontWeight.Bold)
+                            Text("اعرض الصورة أو الفيديو كاملًا بدل تصميم المنتج والنصوص الداخلية.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = slide.fullBleed, onCheckedChange = { enabled ->
+                            onUpdate(config.copy(heroSlides = slides.map {
+                                if (it.id == slide.id) it.copy(fullBleed = enabled) else it
+                            }))
+                        })
+                    }
+
+                    if (slide.fullBleed) {
+                        OutlinedTextField(
+                            value = slide.title,
+                            onValueChange = { value -> onUpdate(config.copy(heroSlides = slides.map {
+                                if (it.id == slide.id) it.copy(title = value) else it
+                            })) },
+                            label = { Text("اسم الإعلان (للتعريف فقط)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (slide.mediaType == "image") {
+                                Button(onClick = { onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaType = "image", mediaUrl = "") else it
+                                })) }, modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))) {
+                                    Text("إعلان بصورة")
+                                }
+                            } else {
+                                OutlinedButton(onClick = { onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaType = "image", mediaUrl = "") else it
+                                })) }, modifier = Modifier.weight(1f)) { Text("إعلان بصورة") }
+                            }
+                            if (slide.mediaType == "video") {
+                                Button(onClick = { onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaType = "video", mediaUrl = "") else it
+                                })) }, modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))) {
+                                    Text("إعلان بفيديو")
+                                }
+                            } else {
+                                OutlinedButton(onClick = { onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaType = "video", mediaUrl = "") else it
+                                })) }, modifier = Modifier.weight(1f)) { Text("إعلان بفيديو") }
+                            }
+                        }
+
+                        if (slide.mediaType == "video") {
+                            HeroCampaignMediaSelector(
+                                label = "فيديو الإعلان الرئيسي",
+                                mediaUrl = slide.mediaUrl,
+                                isVideo = true,
+                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaUrl = url) else it
+                                })) }
+                            )
+                            HeroCampaignMediaSelector(
+                                label = "صورة غلاف احتياطية للفيديو (اختياري)",
+                                mediaUrl = slide.posterUrl,
+                                isVideo = false,
+                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(posterUrl = url) else it
+                                })) }
+                            )
+                        } else {
+                            HeroCampaignMediaSelector(
+                                label = "صورة الإعلان للكمبيوتر",
+                                mediaUrl = slide.mediaUrl,
+                                isVideo = false,
+                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mediaUrl = url) else it
+                                })) }
+                            )
+                            HeroCampaignMediaSelector(
+                                label = "صورة الإعلان للموبايل (اختياري)",
+                                mediaUrl = slide.mobileMediaUrl,
+                                isVideo = false,
+                                onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
+                                    if (it.id == slide.id) it.copy(mobileMediaUrl = url) else it
+                                })) }
+                            )
+                        }
+
+                        if (slide.mediaUrl.isBlank()) {
+                            Text("ارفع ملف الإعلان قبل نشر هذه الشريحة حتى لا تظهر فارغة.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedTextField(
+                            value = slide.actionUrl,
+                            onValueChange = { value -> onUpdate(config.copy(heroSlides = slides.map {
+                                if (it.id == slide.id) it.copy(actionUrl = value) else it
+                            })) },
+                            label = { Text("الرابط الذي يفتحه الضغط على الإعلان بالكامل") },
+                            placeholder = { Text("#featured أو رابط منتج/عرض") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        val campaignUrl = "https://islamilnemrawi.github.io/Elory-store/?hero=" + Uri.encode(slide.id)
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Text("رابط الحملة الإعلانية على فيسبوك", fontWeight = FontWeight.Bold)
+                            Text(campaignUrl, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            OutlinedButton(onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("رابط حملة Elory", campaignUrl))
+                                android.widget.Toast.makeText(context, "تم نسخ رابط الحملة", android.widget.Toast.LENGTH_SHORT).show()
+                            }, modifier = Modifier.fillMaxWidth()) { Text("نسخ رابط الحملة") }
+                            Text("هذا الرابط يفتح هذه الشريحة أولًا ويوقف التبديل التلقائي أثناء زيارة الحملة.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        ImageUploadSelector(
+                            imageUrl = slide.imageUrl,
+                            onUrlChanged = { url -> onUpdate(config.copy(heroSlides = slides.map {
+                                if (it.id == slide.id) it.copy(imageUrl = url) else it
+                            })) },
+                            bucket = "product-images",
+                            placeholderText = "اختيار صورة الشريحة"
+                        )
+                        OutlinedTextField(value = slide.smallText, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(smallText=v) else it })) }, label = { Text("النص الصغير") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = slide.title, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(title=v) else it })) }, label = { Text("العنوان الرئيسي") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = slide.arabicTitle, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(arabicTitle=v) else it })) }, label = { Text("العنوان العربي") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = slide.description, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(description=v) else it })) }, label = { Text("الوصف") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                        OutlinedTextField(value = slide.buttonText, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(buttonText=v) else it })) }, label = { Text("نص الزر") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = slide.actionUrl, onValueChange = { v -> onUpdate(config.copy(heroSlides = slides.map { if(it.id==slide.id) it.copy(actionUrl=v) else it })) }, label = { Text("رابط الزر (مثل #featured)") }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
+        Button(
+            onClick = {
+                val updated = slides + HeroSlideConfig(
+                    id = "hero_" + System.currentTimeMillis(), imageUrl = "", smallText = "NEW COLLECTION",
+                    title = "عنوان جديد", arabicTitle = "", description = "اكتب وصف الشريحة هنا",
+                    buttonText = "اكتشفي الآن", actionUrl = "#featured", sortOrder = slides.size + 1, isActive = true
+                )
+                onUpdate(config.copy(heroSlides = updated))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
+        ) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("إضافة شريحة جديدة") }
+    }
+}
+"""
+hero_editor_text = hero_editor_text[:hero_start] + hero_editor_block + hero_editor_text[hero_end:]
+hero_editor.write_text(hero_editor_text, encoding='utf-8')
+
+# Authenticated upload helper for dedicated image/video campaign assets.
+uploader_file = root / Path('app/src/main/java/com/pinky/dashboard/data/remote/HeroAdMediaUploader.kt')
+uploader_file.parent.mkdir(parents=True, exist_ok=True)
+uploader_file.write_text(r"""package com.pinky.dashboard.data.remote
+
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.OpenableColumns
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody
+import okio.BufferedSink
+import okio.source
+import java.io.IOException
+import java.util.UUID
+
+object HeroAdMediaUploader {
+    private const val BUCKET = "hero-ads"
+    private const val MAX_IMAGE_BYTES = 15L * 1024L * 1024L
+    private const val MAX_VIDEO_BYTES = 50L * 1024L * 1024L
+
+    suspend fun upload(
+        contentResolver: ContentResolver,
+        uri: Uri,
+        isVideo: Boolean
+    ): String = withContext(Dispatchers.IO) {
+        val mimeType = contentResolver.getType(uri)?.lowercase()
+            ?: throw IllegalArgumentException("تعذر تحديد نوع الملف. اختر صورة أو فيديو بصيغة مدعومة.")
+
+        val extension = when (mimeType) {
+            "image/jpeg" -> "jpg"
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/avif" -> "avif"
+            "video/mp4" -> "mp4"
+            "video/webm" -> "webm"
+            else -> throw IllegalArgumentException(
+                if (isVideo) "صيغة الفيديو غير مدعومة. استخدم MP4 أو WebM."
+                else "صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP أو AVIF."
+            )
+        }
+        if (isVideo != mimeType.startsWith("video/")) {
+            throw IllegalArgumentException("نوع الملف لا يطابق نوع الوسائط المختار.")
+        }
+
+        val maxBytes = if (isVideo) MAX_VIDEO_BYTES else MAX_IMAGE_BYTES
+        val queriedLength = contentResolver.query(
+            uri, arrayOf(OpenableColumns.SIZE), null, null, null
+        )?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getLong(index) else -1L
+        } ?: -1L
+        val length = if (queriedLength > 0L) queriedLength else {
+            contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        }
+
+        if (length <= 0L || length > maxBytes) {
+            throw IllegalArgumentException(
+                if (isVideo) "حجم الفيديو يجب ألا يتجاوز 50 ميجابايت."
+                else "حجم الصورة يجب ألا يتجاوز 15 ميجابايت."
+            )
+        }
+
+        val fileName = "hero-" + UUID.randomUUID().toString() + "." + extension
+        val body = object : RequestBody() {
+            override fun contentType() = mimeType.toMediaTypeOrNull()
+            override fun contentLength() = length
+            override fun writeTo(sink: BufferedSink) {
+                val input = contentResolver.openInputStream(uri)
+                    ?: throw IOException("تعذر قراءة الملف المحدد.")
+                input.use { stream ->
+                    stream.source().use { source -> sink.writeAll(source) }
+                }
+            }
+        }
+
+        val response = SupabaseClient.service.uploadStorageFile(
+            bucket = BUCKET,
+            path = fileName,
+            file = body,
+            contentType = mimeType
+        )
+        if (!response.isSuccessful) {
+            val details = response.errorBody()?.string()?.take(300).orEmpty()
+            throw IOException("فشل رفع الإعلان إلى التخزين (" + response.code() + "). " + details)
+        }
+
+        SupabaseClient.supabaseUrl.trimEnd('/') +
+            "/storage/v1/object/public/" + BUCKET + "/" + fileName
+    }
+}
+""", encoding='utf-8')
+
+print('Hero campaign media controls and uploader generated.')
