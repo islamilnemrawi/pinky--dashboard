@@ -88,6 +88,15 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-cms-patch.py
 
+      - name: Repair coupons and use the same editor for homepage hero banners
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          PATCH_SCRIPT="$RUNNER_TEMP/apply-elory-coupons-hero.py"
+          base64 --decode scripts/apply-elory-coupons-hero.py.gz.b64 | gzip --decompress > "$PATCH_SCRIPT"
+          python3 -m py_compile "$PATCH_SCRIPT"
+          PROJECT_DIR="$PROJECT_DIR" python3 "$PATCH_SCRIPT"
+
       - name: Apply shipping, Prime, and staff management fixes
         shell: bash
         run: |
