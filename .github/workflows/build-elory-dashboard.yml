@@ -94,6 +94,12 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-operations-fixes.py
 
+      - name: Integrate Elory customer metrics, FCM notifications and branded launcher
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-order-push-icon.py
+
       - name: Verify order item image and pricing fields
         shell: bash
         run: |
@@ -104,6 +110,7 @@ jobs:
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ELORY_GOOGLE_SERVICES_JSON: ${{ secrets.ELORY_GOOGLE_SERVICES_JSON }}
         run: |
           set -Eeuo pipefail
           cd "$PROJECT_DIR"
@@ -114,6 +121,32 @@ jobs:
           fi
 
           cp .env.example .env
+
+          # Firebase Android client configuration is supplied as a private Actions secret.
+          # Without it the project still compiles, but FCM registration stays safely disabled.
+          if [[ -n "${ELORY_GOOGLE_SERVICES_JSON:-}" ]]; then
+            umask 077
+            printf '%s' "$ELORY_GOOGLE_SERVICES_JSON" > app/google-services.json
+            python3 - <<'PYFIREBASE'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("app/google-services.json").read_text(encoding="utf-8"))
+          project_id = config.get("project_info", {}).get("project_id")
+          clients = config.get("client", [])
+          matching = [
+              client for client in clients
+              if client.get("client_info", {}).get("android_client_info", {}).get("package_name")
+              == "com.pinky.dashboard"
+          ]
+          if not project_id or not matching:
+              raise SystemExit("ELORY_GOOGLE_SERVICES_JSON must be for package com.pinky.dashboard.")
+          print("Firebase Android config validated for com.pinky.dashboard.")
+          PYFIREBASE
+          else
+            echo "::warning::ELORY_GOOGLE_SERVICES_JSON is not set. FCM code will compile, but the app cannot obtain a device token yet."
+          fi
+
           python3 - <<'PYENV'
           import os
           from pathlib import Path
@@ -344,3 +377,12 @@ jobs:
           path: ${{ runner.temp }}/apk-output/Elory-Dashboard-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove temporary Firebase configuration
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [[ -n "${PROJECT_DIR:-}" ]]; then
+            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env"
+          fi
