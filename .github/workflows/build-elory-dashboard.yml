@@ -79,6 +79,12 @@ jobs:
           echo 'Project files:'
           ls -lah "$PROJECT_DIR"
 
+      - name: Inspect order profit UI source
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/inspect-order-profit-ui.py
+
       - name: Apply Elory CMS updates
         # CMS patch includes hero visibility, custom-section image uploads, and safe section ordering.
         # Adds the live phone preview component missing from the source archive.
