@@ -51,6 +51,12 @@ data class SupabasePushDeviceRegistrationRequest(
     @Json(name = "p_token") val token: String,
     @Json(name = "p_platform") val platform: String = "android"
 )
+
+@JsonClass(generateAdapter = true)
+data class SupabasePushDeviceRegistrationResult(
+    @Json(name = "ok") val ok: Boolean,
+    @Json(name = "user_id") val userId: String? = null
+)
 ''',
     "replace push DTO"
 )
@@ -67,7 +73,7 @@ replace_once(
     @POST("rest/v1/rpc/register_dashboard_push_device")
     suspend fun registerDashboardPushDevice(
         @Body request: SupabasePushDeviceRegistrationRequest
-    ): Response<Unit>
+    ): Response<SupabasePushDeviceRegistrationResult>
 ''',
     "replace direct push-table insert with RPC"
 )
