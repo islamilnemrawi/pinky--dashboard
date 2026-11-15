@@ -137,15 +137,14 @@ for import_line, anchor in (
     if import_line.rstrip("\\n") not in database_source:
         database_source = database_source.replace(anchor, anchor + import_line, 1)
 
-migration_marker = "        @Volatile\\n        private var INSTANCE: PinkyDatabase? = null"
+migration_marker = "        fun getInstance(context: Context): PinkyDatabase {"
 migration_block = '''        private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE orders ADD COLUMN customerOrderCode TEXT NOT NULL DEFAULT ''")
             }
         }
 
-        @Volatile
-        private var INSTANCE: PinkyDatabase? = null'''
+        fun getInstance(context: Context): PinkyDatabase {'''
 if "MIGRATION_5_6" not in database_source:
     if database_source.count(migration_marker) != 1:
         raise SystemExit("Room 5-to-6 migration insertion point is not unique.")
