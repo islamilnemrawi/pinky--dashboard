@@ -139,6 +139,9 @@ a=s.find('            if (selectedTab == 0) {\n                // Offers & Banne
 if a<0 or b<0: raise SystemExit("offers tab block boundary missing")
 branch='''            if (selectedTab == 0) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val heroImageReady = localHeroConfig.heroSlides.any {
+                        it.isActive && (it.mediaUrl.isNotBlank() || it.imageUrl.isNotBlank())
+                    }
                     Text("مركز البنرات والهيرو", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PinkPrimary)
                     Text("ارفع تصميم الصورة كاملًا، ثم أضف زرًا فوقها وحدد مكانه ورابطه. الحفظ يحدّث نفس إعدادات الهيرو التي يقرأها المتجر.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -170,9 +173,12 @@ branch='''            if (selectedTab == 0) {
                             heroDirty = true
                         })
                     }
+                    if (localHeroConfig.showHeroBanner && !heroImageReady) {
+                        Text("لا يمكن نشر الهيرو وهو ظاهر بدون صورة نشطة. ارفع صورة لإحدى الشرائح أو أوقف إظهار الهيرو.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
                     Button(
                         onClick = { onSaveWebsiteConfig(localHeroConfig) },
-                        enabled = heroDirty && websiteSaveState != "saving",
+                        enabled = heroDirty && websiteSaveState != "saving" && (!localHeroConfig.showHeroBanner || heroImageReady),
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
                     ) {
