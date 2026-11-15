@@ -94,7 +94,7 @@ G(VM,'    // Coupon management: update local state only after Supabase confirms 
 ''',"await coupon write and refresh")
 
 p=F(OFFERS); s=p.read_text(encoding="utf-8")
-for imp in ['import com.pinky.dashboard.ui.screens.website.HeroBannersForm\n','import kotlinx.coroutines.launch\n','import java.util.UUID\n']:
+for imp in ['import com.pinky.dashboard.ui.screens.website.HeroBannersForm\n','import kotlinx.coroutines.launch\n','import java.util.UUID\n','import androidx.compose.foundation.rememberScrollState\n','import androidx.compose.foundation.verticalScroll\n']:
     if imp.strip() not in s:
         s=s.replace('import com.pinky.dashboard.domain.model.*\n','import com.pinky.dashboard.domain.model.*\n'+imp,1)
 old='''    onSaveCoupon: (Coupon) -> Unit,
