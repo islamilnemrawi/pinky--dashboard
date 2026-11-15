@@ -392,5 +392,5 @@ jobs:
         run: |
           set +e
           if [[ -n "${PROJECT_DIR:-}" ]]; then
-            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env"
+            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env" "$PROJECT_DIR/debug.keystore"
           fi
