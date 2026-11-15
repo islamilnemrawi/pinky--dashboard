@@ -202,6 +202,20 @@ if "android.permission.POST_NOTIFICATIONS" not in manifest_text:
     )
     manifest_path.write_text(manifest_text, encoding="utf-8")
 
+manifest_path = PROJECT / "app/src/main/AndroidManifest.xml"
+manifest_text = manifest_path.read_text(encoding="utf-8")
+if "android.permission.POST_NOTIFICATIONS" not in manifest_text:
+    manifest_tag = manifest_text.find("<manifest")
+    manifest_tag_end = manifest_text.find(">", manifest_tag)
+    if manifest_tag < 0 or manifest_tag_end < 0:
+        raise SystemExit("Could not safely locate the Android manifest root.")
+    manifest_text = (
+        manifest_text[:manifest_tag_end + 1]
+        + '\\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+        + manifest_text[manifest_tag_end + 1:]
+    )
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
 replace_once(
     "app/src/main/AndroidManifest.xml",
     '''        <activity
