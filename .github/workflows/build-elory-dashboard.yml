@@ -117,6 +117,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ELORY_GOOGLE_SERVICES_JSON: ${{ secrets.ELORY_GOOGLE_SERVICES_JSON }}
+          ELORY_DASHBOARD_DEBUG_KEYSTORE_BASE64: ${{ secrets.ELORY_DASHBOARD_DEBUG_KEYSTORE_BASE64 }}
         run: |
           set -Eeuo pipefail
           cd "$PROJECT_DIR"
@@ -165,17 +166,18 @@ jobs:
           env_file.write_text('\n'.join(lines) + '\n')
           PYENV
 
-          if [[ ! -f debug.keystore ]]; then
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname 'CN=Android Debug,O=Android,C=US'
+          # Use one persistent signing key for every debug APK. A fresh CI-generated
+          # key breaks Android in-place upgrades because each run gets a new certificate.
+          if [[ -z "${ELORY_DASHBOARD_DEBUG_KEYSTORE_BASE64:-}" ]]; then
+            echo "::error::Missing ELORY_DASHBOARD_DEBUG_KEYSTORE_BASE64 repository secret."
+            exit 1
           fi
+          umask 077
+          printf '%s' "$ELORY_DASHBOARD_DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
+          chmod 600 debug.keystore
+          keytool -list -keystore debug.keystore -storetype JKS \
+            -storepass android -alias androiddebugkey >/dev/null
+          echo 'Persistent Elory dashboard signing key loaded and validated.'
 
       - name: Inspect Gemini BuildConfig configuration
         shell: bash
@@ -390,5 +392,5 @@ jobs:
         run: |
           set +e
           if [[ -n "${PROJECT_DIR:-}" ]]; then
-            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env"
+            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env" "$PROJECT_DIR/debug.keystore"
           fi
