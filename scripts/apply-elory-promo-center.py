@@ -142,6 +142,28 @@ branch='''            if (selectedTab == 0) {
                     Text("مركز البنرات والهيرو", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = PinkPrimary)
                     Text("ارفع تصميم الصورة كاملًا، ثم أضف زرًا فوقها وحدد مكانه ورابطه. الحفظ يحدّث نفس إعدادات الهيرو التي يقرأها المتجر.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("إظهار قسم الهيرو على الموقع", fontWeight = FontWeight.SemiBold)
+                                Text("يمكن إخفاء الهيرو بالكامل مع الاحتفاظ بالشرائح والصور.", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Switch(
+                                checked = localHeroConfig.showHeroBanner,
+                                onCheckedChange = { show ->
+                                    localHeroConfig = localHeroConfig.copy(showHeroBanner = show)
+                                    heroDirty = true
+                                }
+                            )
+                        }
+                    }
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         HeroBannersForm(config = localHeroConfig, onUpdate = {
                             localHeroConfig = it
