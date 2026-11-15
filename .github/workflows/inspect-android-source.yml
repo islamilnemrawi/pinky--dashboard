@@ -31,6 +31,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: elory-dashboard-source-review
-          path: ${{ runner.temp }}/elory-source
+          path: |
+            Elory_Dashboard_Build_Ready.zip
+            ${{ runner.temp }}/elory-source
           if-no-files-found: error
           retention-days: 1
