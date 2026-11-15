@@ -112,6 +112,12 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-promo-center.py
 
+      - name: Fix reactive Room order item updates
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-order-items-reactive-fix.py
+
       - name: Verify order item image and pricing fields
         shell: bash
         run: |
