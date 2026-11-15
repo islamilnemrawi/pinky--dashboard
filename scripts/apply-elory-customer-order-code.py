@@ -120,12 +120,22 @@ replace_once(
     "read customer order code from Supabase",
 )
 
-replace_once(
-    "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt",
-    "import androidx.room.Entity\n",
-    "import androidx.room.ColumnInfo\nimport androidx.room.Entity\n",
-    "import Room column default annotation",
-)
+entities_path = PROJECT / "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt"
+entities_source = entities_path.read_text(encoding="utf-8")
+if "import androidx.room.ColumnInfo" not in entities_source.splitlines():
+    entity_import = "import androidx.room.Entity" + chr(10)
+    if entities_source.count(entity_import) != 1:
+        raise SystemExit("Could not find a unique Room Entity import for ColumnInfo.")
+    entities_source = entities_source.replace(
+        entity_import,
+        "import androidx.room.ColumnInfo" + chr(10) + entity_import,
+        1,
+    )
+    entities_path.write_text(entities_source, encoding="utf-8")
+    print("Applied: import Room ColumnInfo annotation.")
+else:
+    print("Already present: Room ColumnInfo annotation import.")
+
 replace_once(
     "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt",
     '    val couponFreeShipping: Boolean = false\n)',
