@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
-        openedOrderId = intent?.getStringExtra(PinkyNotificationManager.EXTRA_ORDER_ID)
+        openedOrderId = intent?.getStringExtra(PinkyNotificationManager.EXTRA_ORDER_ID) ?: intent?.getStringExtra("order_id")
         setContent {
             PinkyApp(viewModel = viewModel, initialOrderId = openedOrderId)
         }
@@ -46,6 +46,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.getStringExtra(PinkyNotificationManager.EXTRA_ORDER_ID)?.let { openedOrderId = it }
+        (intent.getStringExtra(PinkyNotificationManager.EXTRA_ORDER_ID) ?: intent.getStringExtra("order_id"))?.let { openedOrderId = it }
     }
 }
