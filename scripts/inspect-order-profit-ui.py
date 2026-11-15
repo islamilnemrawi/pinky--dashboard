@@ -12,6 +12,10 @@ targets = [
     "app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt",
     "app/src/main/java/com/pinky/dashboard/domain/model/Order.kt",
     "app/src/main/java/com/pinky/dashboard/ui/screens/prime/PrimeScreen.kt",
+    "app/src/main/java/com/pinky/dashboard/ui/screens/reports/ReportsScreen.kt",
+    "app/src/main/java/com/pinky/dashboard/domain/model/OrderStatus.kt",
+    "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt",
+    "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
     "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt",
 ]
 for relative in targets:
@@ -36,7 +40,7 @@ for relative in targets:
         for number, line in enumerate(lines[:1000], 1):
             print(f"{number}: {line}")
 
-patterns = re.compile(r"data class AnalyticsData|interface AnalyticsRepository|enum class OrderStatus|data class .*PrimeSubscription|data class PrimeSubscriber|enum class PrimeSubscriberStatus|PrimeSubscriber|prime_subscriptions|VIEW_PROFIT")
+patterns = re.compile(r"data class AnalyticsData|interface AnalyticsRepository|enum class OrderStatus|data class .*PrimeSubscription|data class PrimeSubscriber|enum class PrimeSubscriberStatus|PrimeSubscriber|prime_subscriptions|VIEW_PROFIT|OrderStatus")
 for path in root.rglob("*.kt"):
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
