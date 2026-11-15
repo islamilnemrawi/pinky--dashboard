@@ -57,7 +57,7 @@ object EloryPushTokenRegistrar {
             val response = SupabaseClient.service.registerDashboardPushDevice(
                 SupabasePushDeviceRegistrationRequest(token = token, platform = "android")
             )
-            if (!response.isSuccessful) {
+            if (!response.isSuccessful || response.body()?.ok != true) {
                 Log.w(TAG, "Supabase rejected FCM token registration (HTTP " + response.code() + ").")
                 return@withContext PushRegistrationResult.SUPABASE_REJECTED
             }
