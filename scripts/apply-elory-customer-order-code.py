@@ -187,10 +187,14 @@ replace_once(
 )
 replace_once(
     "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt",
+    "            val entity = OrderEntity(\n"
+    "                id = order.id,\n"
     "                orderNumber = order.orderNumber,\n",
+    "            val entity = OrderEntity(\n"
+    "                id = order.id,\n"
     "                orderNumber = order.orderNumber,\n"
     "                customerOrderCode = order.customerOrderCode,\n",
-    "preserve customer code for local order creation",
+    "preserve customer code in local order cache only",
 )
 
 replace_once(
