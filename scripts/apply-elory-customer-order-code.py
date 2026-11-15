@@ -33,17 +33,20 @@ if not icon_file.is_file() or icon_file.stat().st_size < 1000:
 
 mipmap_root = RESOURCE_ROOT / "mipmap-nodpi"
 drawable_root = RESOURCE_ROOT / "drawable"
+drawable_nodpi_root = RESOURCE_ROOT / "drawable-nodpi"
 adaptive_root = RESOURCE_ROOT / "mipmap-anydpi-v26"
 mipmap_root.mkdir(parents=True, exist_ok=True)
 drawable_root.mkdir(parents=True, exist_ok=True)
+drawable_nodpi_root.mkdir(parents=True, exist_ok=True)
 adaptive_root.mkdir(parents=True, exist_ok=True)
 shutil.copy2(icon_file, mipmap_root / "ic_launcher.webp")
 shutil.copy2(icon_file, mipmap_root / "ic_launcher_round.webp")
+shutil.copy2(icon_file, drawable_nodpi_root / "ic_elory_launcher.webp")
 
 (drawable_root / "ic_launcher_foreground.xml").write_text(
     '<?xml version="1.0" encoding="utf-8"?>\\n'
     '<bitmap xmlns:android="http://schemas.android.com/apk/res/android"\\n'
-    '    android:src="@mipmap/ic_launcher"\\n'
+    '    android:src="@drawable/ic_elory_launcher"\\n'
     '    android:gravity="center" />\\n',
     encoding="utf-8",
 )
@@ -67,6 +70,7 @@ adaptive_icon = (
 required_icons = (
     mipmap_root / "ic_launcher.webp",
     mipmap_root / "ic_launcher_round.webp",
+    drawable_nodpi_root / "ic_elory_launcher.webp",
     drawable_root / "ic_launcher_foreground.xml",
     drawable_root / "ic_launcher_background.xml",
     adaptive_root / "ic_launcher.xml",
@@ -118,36 +122,45 @@ replace_once(
     "add customer code to cached order entity",
 )
 
-replace_once(
-    "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
-    "import androidx.room.RoomDatabase\n",
-    "import androidx.room.RoomDatabase\nimport androidx.room.migration.Migration\n",
-    "import Room migration API",
+# The preceding operations patch installs Room schema 5. Add a dedicated 5 -> 6
+# migration so its existing 3 -> 4 -> 5 chain remains intact.
+database_path = PROJECT / "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt"
+database_source = database_path.read_text(encoding="utf-8")
+database_source, version_count = re.subn(r"(?m)^[ \\t]*version = 5,", "    version = 6,", database_source, count=1)
+if version_count != 1:
+    raise SystemExit("Expected Room database version 5 before adding customer code.")
+
+for import_line, anchor in (
+    ("import androidx.room.migration.Migration\\n", "import androidx.room.RoomDatabase\\n"),
+    ("import androidx.sqlite.db.SupportSQLiteDatabase\\n", "import androidx.room.migration.Migration\\n"),
+):
+    if import_line.rstrip("\\n") not in database_source:
+        database_source = database_source.replace(anchor, anchor + import_line, 1)
+
+migration_marker = "        @Volatile\\n        private var INSTANCE: PinkyDatabase? = null"
+migration_block = '''        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN customerOrderCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        @Volatile
+        private var INSTANCE: PinkyDatabase? = null'''
+if "MIGRATION_5_6" not in database_source:
+    if database_source.count(migration_marker) != 1:
+        raise SystemExit("Room 5-to-6 migration insertion point is not unique.")
+    database_source = database_source.replace(migration_marker, migration_block, 1)
+
+builder_migrations = ".addMigrations(MIGRATION_3_4, MIGRATION_4_5)"
+if builder_migrations not in database_source:
+    raise SystemExit("Existing Room 3-to-4 and 4-to-5 migrations were not found.")
+database_source = database_source.replace(
+    builder_migrations,
+    ".addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)",
+    1,
 )
-replace_once(
-    "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
-    "    version = 3,",
-    "    version = 4,",
-    "increment Room schema version",
-)
-replace_once(
-    "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
-    "        @Volatile\n        private var INSTANCE: PinkyDatabase? = null",
-    '        private val MIGRATION_3_4 = object : Migration(3, 4) {\n'
-    '            override fun migrate(db: SupportSQLiteDatabase) {\n'
-    '                db.execSQL("ALTER TABLE orders ADD COLUMN customerOrderCode TEXT NOT NULL DEFAULT \'\'")\n'
-    '            }\n'
-    '        }\n\n'
-    '        @Volatile\n'
-    '        private var INSTANCE: PinkyDatabase? = null',
-    "add non-destructive Room 3-to-4 migration",
-)
-replace_once(
-    "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt",
-    "                .fallbackToDestructiveMigration()",
-    "                .addMigrations(MIGRATION_3_4)\n                .fallbackToDestructiveMigration()",
-    "register safe Room migration",
-)
+database_path.write_text(database_source, encoding="utf-8")
+print("Applied: non-destructive Room 5-to-6 migration for customer order codes.")
 
 # Preserve the code in both local-entity -> domain-model repository paths.
 repository_path = PROJECT / "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
@@ -277,6 +290,6 @@ for relative, marker in required_markers.items():
         raise SystemExit("Customer order code integration check failed in " + relative)
 
 database_source = (PROJECT / "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt").read_text(encoding="utf-8")
-if "version = 4" not in database_source or ".addMigrations(MIGRATION_3_4)" not in database_source:
-    raise SystemExit("Room 3-to-4 migration is not registered.")
+if "version = 6" not in database_source or "MIGRATION_5_6" not in database_source or ".addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)" not in database_source:
+    raise SystemExit("Room 5-to-6 customer-code migration is not registered.")
 print("PASS: customer code DTO/cache/search/detail and non-destructive Room migration are installed.")
