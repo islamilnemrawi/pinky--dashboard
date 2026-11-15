@@ -21,7 +21,14 @@ for relative in targets:
         continue
     lines = path.read_text(encoding="utf-8").splitlines()
     print(f"\n=== TARGET SOURCE: {relative} ({len(lines)} lines) ===")
-    if len(lines) <= 1000:
+    if relative.endswith("RepositoriesImpl.kt"):
+        start = next((i for i, line in enumerate(lines) if "class AnalyticsRepositoryImpl" in line), 0)
+        selected = lines[max(0, start - 5):]
+        offset = max(0, start - 5)
+        print(f"Printing analytics repository tail from line {offset + 1}")
+        for number, line in enumerate(selected, offset + 1):
+            print(f"{number}: {line}")
+    elif len(lines) <= 1000:
         for number, line in enumerate(lines, 1):
             print(f"{number}: {line}")
     else:
@@ -29,7 +36,7 @@ for relative in targets:
         for number, line in enumerate(lines[:1000], 1):
             print(f"{number}: {line}")
 
-patterns = re.compile(r"data class AnalyticsData|interface AnalyticsRepository|enum class OrderStatus|data class .*PrimeSubscription|prime_subscriptions|VIEW_PROFIT")
+patterns = re.compile(r"data class AnalyticsData|interface AnalyticsRepository|enum class OrderStatus|data class .*PrimeSubscription|data class PrimeSubscriber|enum class PrimeSubscriberStatus|PrimeSubscriber|prime_subscriptions|VIEW_PROFIT")
 for path in root.rglob("*.kt"):
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -41,7 +48,7 @@ for path in root.rglob("*.kt"):
     print(f"\n=== MODEL OR PRIME SOURCE: {path.relative_to(root)} ({len(lines)} lines) ===")
     ranges = []
     for hit in hits:
-        start, end = max(0, hit - 25), min(len(lines), hit + 55)
+        start, end = max(0, hit - 20), min(len(lines), hit + 35)
         if ranges and start <= ranges[-1][1]:
             ranges[-1] = (ranges[-1][0], max(ranges[-1][1], end))
         else:
