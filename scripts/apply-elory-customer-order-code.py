@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 PROJECT = Path(os.environ["PROJECT_DIR"]).resolve()
@@ -44,25 +45,25 @@ shutil.copy2(icon_file, mipmap_root / "ic_launcher_round.webp")
 shutil.copy2(icon_file, drawable_nodpi_root / "ic_elory_launcher.webp")
 
 (drawable_root / "ic_launcher_foreground.xml").write_text(
-    '<?xml version="1.0" encoding="utf-8"?>\\n'
-    '<bitmap xmlns:android="http://schemas.android.com/apk/res/android"\\n'
-    '    android:src="@drawable/ic_elory_launcher"\\n'
-    '    android:gravity="center" />\\n',
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<bitmap xmlns:android="http://schemas.android.com/apk/res/android"\n'
+    '    android:src="@drawable/ic_elory_launcher"\n'
+    '    android:gravity="center" />\n',
     encoding="utf-8",
 )
 (drawable_root / "ic_launcher_background.xml").write_text(
-    '<?xml version="1.0" encoding="utf-8"?>\\n'
-    '<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">\\n'
-    '    <solid android:color="#EB0063" />\\n'
-    '</shape>\\n',
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">\n'
+    '    <solid android:color="#EB0063" />\n'
+    '</shape>\n',
     encoding="utf-8",
 )
 adaptive_icon = (
-    '<?xml version="1.0" encoding="utf-8"?>\\n'
-    '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\\n'
-    '    <background android:drawable="@drawable/ic_launcher_background" />\\n'
-    '    <foreground android:drawable="@drawable/ic_launcher_foreground" />\\n'
-    '</adaptive-icon>\\n'
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+    '    <background android:drawable="@drawable/ic_launcher_background" />\n'
+    '    <foreground android:drawable="@drawable/ic_launcher_foreground" />\n'
+    '</adaptive-icon>\n'
 )
 (adaptive_root / "ic_launcher.xml").write_text(adaptive_icon, encoding="utf-8")
 (adaptive_root / "ic_launcher_round.xml").write_text(adaptive_icon, encoding="utf-8")
@@ -78,6 +79,17 @@ required_icons = (
 )
 if any(not path.is_file() or path.stat().st_size == 0 for path in required_icons):
     raise SystemExit("Elory launcher resources were not installed completely.")
+
+for xml_resource in (
+    drawable_root / "ic_launcher_foreground.xml",
+    drawable_root / "ic_launcher_background.xml",
+    adaptive_root / "ic_launcher.xml",
+    adaptive_root / "ic_launcher_round.xml",
+):
+    try:
+        ET.parse(xml_resource)
+    except ET.ParseError as error:
+        raise SystemExit(f"Invalid Android launcher XML {xml_resource}: {error}") from error
 
 manifest = PROJECT / "app/src/main/AndroidManifest.xml"
 manifest_text = manifest.read_text(encoding="utf-8")
