@@ -106,6 +106,12 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-customer-order-code.py
 
+      - name: Apply Elory hero banners, coupon controls, and store availability
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-promo-center.py
+
       - name: Verify order item image and pricing fields
         shell: bash
         run: |
