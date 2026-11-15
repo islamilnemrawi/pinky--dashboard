@@ -79,6 +79,14 @@ jobs:
           echo 'Project files:'
           ls -lah "$PROJECT_DIR"
 
+      - name: Upload original dashboard source archive for integration inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elory-Dashboard-Source-Archive
+          path: Elory_Dashboard_Build_Ready.zip
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Apply Elory CMS updates
         # CMS patch includes hero visibility, custom-section image uploads, and safe section ordering.
         # Adds the live phone preview component missing from the source archive.
