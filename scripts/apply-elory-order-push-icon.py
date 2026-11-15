@@ -27,10 +27,17 @@ if not OVERLAY.is_dir():
 for source in OVERLAY.rglob("*"):
     if not source.is_file():
         continue
-    target = PROJECT / source.relative_to(OVERLAY)
+    target = PROJECT / "app" / source.relative_to(OVERLAY)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
-print("Copied complete FCM, notification, application entry and Elory icon sources.")
+required_sources = [
+    PROJECT / "app/src/main/java/com/pinky/dashboard/core/notification/EloryPushTokenRegistrar.kt",
+    PROJECT / "app/src/main/java/com/pinky/dashboard/core/notification/EloryFirebaseMessagingService.kt",
+]
+missing_sources = [str(path) for path in required_sources if not path.is_file()]
+if missing_sources:
+    raise SystemExit("Android feature overlay copy is incomplete: " + ", ".join(missing_sources))
+print("Copied and verified FCM, notification, application entry and Elory icon sources.")
 
 replace_once(
     "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt",
