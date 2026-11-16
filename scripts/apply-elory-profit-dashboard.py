@@ -232,7 +232,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -323,7 +323,7 @@ fun ProfitDashboardPanel(
                     title = "مبيعات الطلبات المسلّمة",
                     value = Formatters.formatCurrencyEgp(summary.deliveredSales),
                     subtitle = summary.deliveredOrders.toString() + " طلب تم تسليمه",
-                    icon = Icons.Outlined.Payments,
+                    icon = Icons.Outlined.MonetizationOn,
                     modifier = Modifier.weight(1f)
                 )
                 PinkyStatCard(
@@ -339,7 +339,7 @@ fun ProfitDashboardPanel(
                     title = "طلبات قيد التنفيذ",
                     value = summary.openOrders.toString(),
                     subtitle = "قيمة معلّقة: " + Formatters.formatCurrencyEgp(summary.openOrderValue),
-                    icon = Icons.Outlined.PendingActions,
+                    icon = Icons.Outlined.Inventory2,
                     modifier = Modifier.weight(1f)
                 )
                 PinkyStatCard(
@@ -473,7 +473,7 @@ fun ProfitDashboardPanel(
                         title = "نتيجة الاشتراكات المكتملة",
                         value = Formatters.formatCurrencyEgp(netKnown),
                         subtitle = complete.size.toString() + " اشتراك بحساب مكتمل",
-                        icon = Icons.Outlined.WorkspacePremium,
+                        icon = Icons.Outlined.Star,
                         modifier = Modifier.weight(1f)
                     )
                     PinkyStatCard(
