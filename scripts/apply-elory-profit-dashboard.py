@@ -672,6 +672,24 @@ source = read(reports)
 print("ELORY_REPORTS_SOURCE_BEGIN")
 print(source)
 print("ELORY_REPORTS_SOURCE_END")
+print("ELORY_NAV_MATCHES_BEGIN")
+for candidate in sorted(PROJECT.rglob("*.kt")):
+    lines = candidate.read_text(encoding="utf-8").splitlines()
+    matched = [i for i, line in enumerate(lines) if any(term in line.lower() for term in (
+        "المنتجات", "المخزون", "الشحن", "التوصيل", "productscreen", "shippingscreen",
+        "inventoryscreen", "selectednavigation", "bottomnavigation", "navigationitem",
+        "currentdestination", "selectedscreen", "route."
+    ))]
+    if matched:
+        print("FILE:", candidate.relative_to(PROJECT))
+        emitted = set()
+        for i in matched:
+            for j in range(max(0, i - 3), min(len(lines), i + 5)):
+                if j not in emitted:
+                    print(f"{j + 1}: {lines[j]}")
+                    emitted.add(j)
+        print("END FILE")
+print("ELORY_NAV_MATCHES_END")
 source = replace_once(source,
     "import com.pinky.dashboard.core.util.Formatters\n",
     "import com.pinky.dashboard.core.util.Formatters\nimport com.pinky.dashboard.data.remote.ProfitDashboardDto\n",
