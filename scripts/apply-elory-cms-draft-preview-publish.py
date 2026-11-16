@@ -385,7 +385,7 @@ if seo_desc_old in editor_text:
 # The promo-center patch owns the hero editor range and can replace the adjacent CMS section editor.
 # Reinsert the exact previously reviewed SectionsLayoutForm implementation after all other patches.
 if "fun SectionsLayoutForm(" not in editor_text:
-    cms_source = (root / "scripts/apply-elory-cms-patch.py").read_text(encoding="utf-8")
+    cms_source = (Path(__file__).resolve().parent / "apply-elory-cms-patch.py").read_text(encoding="utf-8")
     layout_marker = "layout='''"
     layout_start = cms_source.find(layout_marker)
     layout_end = cms_source.find("'''", layout_start + len(layout_marker))
