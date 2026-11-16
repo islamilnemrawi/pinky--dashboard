@@ -382,6 +382,21 @@ seo_desc_new = '''            value = config.metaDescription,
 if seo_desc_old in editor_text:
     editor_text = once(editor_text, seo_desc_old, seo_desc_new, "independent SEO description editor")
 
+# The promo-center patch owns the hero editor range and can replace the adjacent CMS section editor.
+# Reinsert the exact previously reviewed SectionsLayoutForm implementation after all other patches.
+if "fun SectionsLayoutForm(" not in editor_text:
+    cms_source = (root / "scripts/apply-elory-cms-patch.py").read_text(encoding="utf-8")
+    layout_marker = "layout='''"
+    layout_start = cms_source.find(layout_marker)
+    layout_end = cms_source.find("'''", layout_start + len(layout_marker))
+    if layout_start < 0 or layout_end < 0:
+        raise SystemExit("Could not recover the existing SectionsLayoutForm source")
+    layout_source = cms_source[layout_start + len(layout_marker):layout_end].strip("\n")
+    category_anchor = "\n@Composable\nfun CategoriesLayoutForm"
+    if category_anchor not in editor_text:
+        raise SystemExit("Could not find insertion point for SectionsLayoutForm")
+    editor_text = editor_text.replace(category_anchor, "\n" + layout_source + category_anchor, 1)
+
 # The custom-section editor can switch between generic content, FAQ accordions and trust cards.
 custom_title_field = '''                    OutlinedTextField(local.title, { local=local.copy(title=it) }, label={ Text("عنوان القسم") }, modifier=Modifier.fillMaxWidth())'''
 if custom_title_field in editor_text and "اختيار نوع القسم" not in editor_text:
