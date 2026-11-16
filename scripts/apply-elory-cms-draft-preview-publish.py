@@ -556,3 +556,431 @@ if desktop_path.is_file():
     )
     desktop_path.write_text(desktop_text, encoding="utf-8")
 
+
+
+# Integrated marketing, appearance and footer controls. These stay in the existing
+# WebsiteConfig/site_customizations JSONB path; no duplicate tables or settings rows.
+model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
+
+def add_model_field(source, anchor, replacement, label):
+    if replacement.splitlines()[0].strip() in source:
+        return source
+    if source.count(anchor) != 1:
+        raise SystemExit(label + " anchor count " + str(source.count(anchor)))
+    return source.replace(anchor, replacement, 1)
+
+model_text = add_model_field(
+    model_text,
+    '    @Json(name = "customSections") val customSections: List<CustomSiteSectionConfig>? = null\n)',
+    '''    @Json(name = "customSections") val customSections: List<CustomSiteSectionConfig>? = null,
+    @Json(name = "productCards") val productCards: ProductCardsConfig? = null,
+    @Json(name = "popup") val popup: SitePopupConfig? = null
+)''',
+    "site customization marketing fields"
+)
+model_text = add_model_field(
+    model_text,
+    '    @Json(name = "textColor") val textColor: String = "#FFFFFF"\n)',
+    '''    @Json(name = "textColor") val textColor: String = "#FFFFFF",
+    @Json(name = "actionUrl") val actionUrl: String = "",
+    @Json(name = "rotationSeconds") val rotationSeconds: Int = 3
+)''',
+    "announcement actions"
+)
+model_text = add_model_field(
+    model_text,
+    '    @Json(name = "fontFamily") val fontFamily: String = ""\n)',
+    '''    @Json(name = "fontFamily") val fontFamily: String = "",
+    @Json(name = "metaImage") val metaImage: String = "",
+    @Json(name = "canonicalUrl") val canonicalUrl: String = "",
+    @Json(name = "fontScale") val fontScale: Float = 1.0f,
+    @Json(name = "sectionSpacingDp") val sectionSpacingDp: Int = 24,
+    @Json(name = "buttonRadiusDp") val buttonRadiusDp: Int = 20,
+    @Json(name = "cardRadiusDp") val cardRadiusDp: Int = 18
+)''',
+    "global visual controls"
+)
+model_text = add_model_field(
+    model_text,
+    '    @Json(name = "credits") val credits: String = "تم التطوير بواسطة Nemrawy"\n)',
+    '''    @Json(name = "credits") val credits: String = "تم التطوير بواسطة Nemrawy",
+    @Json(name = "customLinks") val customLinks: List<SiteFooterLink> = emptyList()
+)''',
+    "footer custom links"
+)
+if "data class ProductCardsConfig(" not in model_text:
+    model_text += '''
+
+@JsonClass(generateAdapter = true)
+data class ProductCardsConfig(
+    @Json(name = "mobileColumns") val mobileColumns: Int = 2,
+    @Json(name = "desktopColumns") val desktopColumns: Int = 4,
+    @Json(name = "showDiscountBadge") val showDiscountBadge: Boolean = true,
+    @Json(name = "showOldPrice") val showOldPrice: Boolean = true,
+    @Json(name = "showPrimePrice") val showPrimePrice: Boolean = true
+)
+
+@JsonClass(generateAdapter = true)
+data class SitePopupConfig(
+    @Json(name = "enabled") val enabled: Boolean = false,
+    @Json(name = "title") val title: String = "",
+    @Json(name = "message") val message: String = "",
+    @Json(name = "imageUrl") val imageUrl: String = "",
+    @Json(name = "buttonText") val buttonText: String = "",
+    @Json(name = "buttonUrl") val buttonUrl: String = "",
+    @Json(name = "delaySeconds") val delaySeconds: Int = 5,
+    @Json(name = "cooldownDays") val cooldownDays: Int = 7,
+    @Json(name = "showOnMobile") val showOnMobile: Boolean = true,
+    @Json(name = "showOnDesktop") val showOnDesktop: Boolean = true
+)
+
+@JsonClass(generateAdapter = true)
+data class SiteFooterLink(
+    @Json(name = "label") val label: String = "",
+    @Json(name = "url") val url: String = ""
+)
+'''
+model_path.write_text(model_text, encoding="utf-8")
+
+# Extend the existing WebsiteConfig model with fields used by the dashboard form.
+store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
+if "val popupEnabled: Boolean" not in store_model_text:
+    anchor = '    val metaDescription: String = "",'
+    fields = '''    val metaDescription: String = "",
+    val announcementActionUrl: String = "",
+    val announcementRotationSeconds: Int = 3,
+    val popupEnabled: Boolean = false,
+    val popupTitle: String = "",
+    val popupMessage: String = "",
+    val popupImageUrl: String = "",
+    val popupButtonText: String = "",
+    val popupButtonUrl: String = "",
+    val popupDelaySeconds: Int = 5,
+    val popupCooldownDays: Int = 7,
+    val popupShowOnMobile: Boolean = true,
+    val popupShowOnDesktop: Boolean = true,
+    val productCardsMobileColumns: Int = 2,
+    val productCardsDesktopColumns: Int = 4,
+    val productCardsShowDiscountBadge: Boolean = true,
+    val productCardsShowOldPrice: Boolean = true,
+    val productCardsShowPrimePrice: Boolean = true,
+    val footerCustomLinks: List<SiteFooterLink> = emptyList(),
+    val seoOgImage: String = "",
+    val canonicalUrl: String = "",
+    val visualFontScale: Float = 1.0f,
+    val visualSectionSpacingDp: Int = 24,
+    val visualButtonRadiusDp: Int = 20,
+    val visualCardRadiusDp: Int = 18,'''
+    if store_model_text.count(anchor) != 1:
+        raise SystemExit("WebsiteConfig SEO anchor count " + str(store_model_text.count(anchor)))
+    store_model_text = store_model_text.replace(anchor, fields, 1)
+    store_model_path.write_text(store_model_text, encoding="utf-8")
+
+# Append the additional strongly typed fields to the already-centralized mapping.
+vm_path, vm_text = read("app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt")
+helper_start = vm_text.find("private fun buildWebsiteSiteConfig(config: WebsiteConfig)")
+if helper_start < 0:
+    raise SystemExit("Central website config mapping helper was not found")
+helper_end = vm_text.find("\n    fun saveWebsiteDraft", helper_start)
+if helper_end < 0:
+    raise SystemExit("Central website config mapping helper end was not found")
+helper = vm_text[helper_start:helper_end]
+if "productCards = ProductCardsConfig(" not in helper:
+    old_return = "        return siteConfigObj"
+    if helper.count(old_return) != 1:
+        raise SystemExit("Central mapping return anchor count " + str(helper.count(old_return)))
+    replacement = '''        return siteConfigObj.copy(
+            announcement = siteConfigObj.announcement?.copy(
+                actionUrl = config.announcementActionUrl,
+                rotationSeconds = config.announcementRotationSeconds.coerceIn(1, 30)
+            ),
+            footer = siteConfigObj.footer?.copy(customLinks = config.footerCustomLinks),
+            global = siteConfigObj.global?.copy(
+                metaImage = config.seoOgImage,
+                canonicalUrl = config.canonicalUrl,
+                fontScale = config.visualFontScale.coerceIn(0.85f, 1.20f),
+                sectionSpacingDp = config.visualSectionSpacingDp.coerceIn(8, 64),
+                buttonRadiusDp = config.visualButtonRadiusDp.coerceIn(0, 36),
+                cardRadiusDp = config.visualCardRadiusDp.coerceIn(0, 36)
+            ),
+            productCards = ProductCardsConfig(
+                mobileColumns = config.productCardsMobileColumns.coerceIn(1, 3),
+                desktopColumns = config.productCardsDesktopColumns.coerceIn(2, 6),
+                showDiscountBadge = config.productCardsShowDiscountBadge,
+                showOldPrice = config.productCardsShowOldPrice,
+                showPrimePrice = config.productCardsShowPrimePrice
+            ),
+            popup = SitePopupConfig(
+                enabled = config.popupEnabled,
+                title = config.popupTitle,
+                message = config.popupMessage,
+                imageUrl = config.popupImageUrl,
+                buttonText = config.popupButtonText,
+                buttonUrl = config.popupButtonUrl,
+                delaySeconds = config.popupDelaySeconds.coerceIn(0, 120),
+                cooldownDays = config.popupCooldownDays.coerceIn(0, 90),
+                showOnMobile = config.popupShowOnMobile,
+                showOnDesktop = config.popupShowOnDesktop
+            )
+        )'''
+    vm_text = vm_text[:helper_start] + helper.replace(old_return, replacement, 1) + vm_text[helper_end:]
+
+# Restore these settings from the same JSONB config. The store-open mapping is intentionally untouched.
+if "popupEnabled = cfgObj?.popup?.enabled" not in vm_text:
+    anchor = "footerCredits = cfgObj?.footer?.credits ?: currentConfig.footerCredits"
+    if vm_text.count(anchor) != 1:
+        raise SystemExit("Website config load footer anchor count " + str(vm_text.count(anchor)))
+    extra = '''footerCredits = cfgObj?.footer?.credits ?: currentConfig.footerCredits,
+                            announcementActionUrl = cfgObj?.announcement?.actionUrl ?: currentConfig.announcementActionUrl,
+                            announcementRotationSeconds = cfgObj?.announcement?.rotationSeconds ?: currentConfig.announcementRotationSeconds,
+                            popupEnabled = cfgObj?.popup?.enabled ?: currentConfig.popupEnabled,
+                            popupTitle = cfgObj?.popup?.title ?: currentConfig.popupTitle,
+                            popupMessage = cfgObj?.popup?.message ?: currentConfig.popupMessage,
+                            popupImageUrl = cfgObj?.popup?.imageUrl ?: currentConfig.popupImageUrl,
+                            popupButtonText = cfgObj?.popup?.buttonText ?: currentConfig.popupButtonText,
+                            popupButtonUrl = cfgObj?.popup?.buttonUrl ?: currentConfig.popupButtonUrl,
+                            popupDelaySeconds = cfgObj?.popup?.delaySeconds ?: currentConfig.popupDelaySeconds,
+                            popupCooldownDays = cfgObj?.popup?.cooldownDays ?: currentConfig.popupCooldownDays,
+                            popupShowOnMobile = cfgObj?.popup?.showOnMobile ?: currentConfig.popupShowOnMobile,
+                            popupShowOnDesktop = cfgObj?.popup?.showOnDesktop ?: currentConfig.popupShowOnDesktop,
+                            productCardsMobileColumns = cfgObj?.productCards?.mobileColumns ?: currentConfig.productCardsMobileColumns,
+                            productCardsDesktopColumns = cfgObj?.productCards?.desktopColumns ?: currentConfig.productCardsDesktopColumns,
+                            productCardsShowDiscountBadge = cfgObj?.productCards?.showDiscountBadge ?: currentConfig.productCardsShowDiscountBadge,
+                            productCardsShowOldPrice = cfgObj?.productCards?.showOldPrice ?: currentConfig.productCardsShowOldPrice,
+                            productCardsShowPrimePrice = cfgObj?.productCards?.showPrimePrice ?: currentConfig.productCardsShowPrimePrice,
+                            footerCustomLinks = cfgObj?.footer?.customLinks ?: currentConfig.footerCustomLinks,
+                            seoOgImage = cfgObj?.global?.metaImage ?: currentConfig.seoOgImage,
+                            canonicalUrl = cfgObj?.global?.canonicalUrl ?: currentConfig.canonicalUrl,
+                            visualFontScale = cfgObj?.global?.fontScale ?: currentConfig.visualFontScale,
+                            visualSectionSpacingDp = cfgObj?.global?.sectionSpacingDp ?: currentConfig.visualSectionSpacingDp,
+                            visualButtonRadiusDp = cfgObj?.global?.buttonRadiusDp ?: currentConfig.visualButtonRadiusDp,
+                            visualCardRadiusDp = cfgObj?.global?.cardRadiusDp ?: currentConfig.visualCardRadiusDp'''
+    vm_text = vm_text.replace(anchor, extra, 1)
+vm_path.write_text(vm_text, encoding="utf-8")
+
+# Add one cohesive 13th editor panel, without changing the existing 11 forms or availability switch.
+editor_path, editor_text = read("app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt")
+card12 = '''                    item {
+                        SectionCard(
+                            title = "ترتيب وظهور أقسام الصفحة",
+                            description = "إخفاء الأقسام وترتيبها وإنشاء أقسام مخصصة",
+                            icon = Icons.Outlined.ViewList,
+                            isActive = true,
+                            onToggleActive = null,
+                            onClick = { activeEditingDialog = 12 }
+                        )
+                    }
+'''
+if "activeEditingDialog = 13" not in editor_text:
+    if editor_text.count(card12) != 1:
+        raise SystemExit("Sections editor card anchor count " + str(editor_text.count(card12)))
+    editor_text = editor_text.replace(card12, card12 + '''
+                    item {
+                        SectionCard(
+                            title = "التسويق وتنسيق العرض",
+                            description = "النوافذ الترويجية، شكل بطاقات المنتجات، وروابط وسياسات المتجر",
+                            icon = Icons.Outlined.SettingsSuggest,
+                            isActive = true,
+                            onToggleActive = null,
+                            onClick = { activeEditingDialog = 13 }
+                        )
+                    }
+''', 1)
+editor_text = editor_text.replace(
+    '                    12 -> "ترتيب وظهور أقسام الصفحة" to Icons.Outlined.ViewList\n                    else ->',
+    '                    12 -> "ترتيب وظهور أقسام الصفحة" to Icons.Outlined.ViewList\n                    13 -> "التسويق وتنسيق العرض" to Icons.Outlined.SettingsSuggest\n                    else ->',
+    1
+)
+editor_text = editor_text.replace(
+    '                        12 -> SectionsLayoutForm(dialogConfig, onUpdate = { dialogConfig = it })',
+    '                        12 -> SectionsLayoutForm(dialogConfig, onUpdate = { dialogConfig = it })\n                        13 -> MarketingAppearanceForm(dialogConfig, onUpdate = { dialogConfig = it })',
+    1
+)
+if "fun MarketingAppearanceForm(" not in editor_text:
+    editor_text += '''
+
+@Composable
+fun MarketingAppearanceForm(config: WebsiteConfig, onUpdate: (WebsiteConfig) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("شريط الإعلان", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        OutlinedTextField(
+            value = config.announcementActionUrl,
+            onValueChange = { onUpdate(config.copy(announcementActionUrl = it)) },
+            label = { Text("الرابط عند الضغط على شريط الإعلان") },
+            placeholder = { Text("#featured أو https://...") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = config.announcementRotationSeconds.toString(),
+            onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(announcementRotationSeconds = it.coerceIn(1, 30))) } },
+            label = { Text("مدة عرض كل رسالة بالثواني (1–30)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        HorizontalDivider()
+        Text("النافذة الترويجية المنبثقة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("تفعيل النافذة")
+                Text("تظهر للزائر وفق الجهاز وفترة التكرار المحددين.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = config.popupEnabled, onCheckedChange = { onUpdate(config.copy(popupEnabled = it)) })
+        }
+        OutlinedTextField(config.popupTitle, { onUpdate(config.copy(popupTitle = it)) }, label = { Text("عنوان النافذة") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(config.popupMessage, { onUpdate(config.copy(popupMessage = it)) }, label = { Text("رسالة النافذة") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+        ImageUploadSelector(
+            imageUrl = config.popupImageUrl,
+            onUrlChanged = { onUpdate(config.copy(popupImageUrl = it)) },
+            bucket = "product-images",
+            placeholderText = "رفع صورة النافذة الترويجية"
+        )
+        OutlinedTextField(config.popupButtonText, { onUpdate(config.copy(popupButtonText = it)) }, label = { Text("نص الزر") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(config.popupButtonUrl, { onUpdate(config.copy(popupButtonUrl = it)) }, label = { Text("رابط الزر") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = config.popupDelaySeconds.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(popupDelaySeconds = it.coerceIn(0, 120))) } },
+                label = { Text("تأخير الظهور (ث)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = config.popupCooldownDays.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(popupCooldownDays = it.coerceIn(0, 90))) } },
+                label = { Text("تكرار كل (يوم)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("إظهار على الموبايل", Modifier.weight(1f))
+            Switch(config.popupShowOnMobile, { onUpdate(config.copy(popupShowOnMobile = it)) })
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("إظهار على الكمبيوتر", Modifier.weight(1f))
+            Switch(config.popupShowOnDesktop, { onUpdate(config.copy(popupShowOnDesktop = it)) })
+        }
+
+        HorizontalDivider()
+        Text("بطاقات المنتجات", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = config.productCardsMobileColumns.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(productCardsMobileColumns = it.coerceIn(1, 3))) } },
+                label = { Text("أعمدة الموبايل (1–3)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = config.productCardsDesktopColumns.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(productCardsDesktopColumns = it.coerceIn(2, 6))) } },
+                label = { Text("أعمدة الكمبيوتر (2–6)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("إظهار شارة الخصم", Modifier.weight(1f))
+            Switch(config.productCardsShowDiscountBadge, { onUpdate(config.copy(productCardsShowDiscountBadge = it)) })
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("إظهار السعر القديم", Modifier.weight(1f))
+            Switch(config.productCardsShowOldPrice, { onUpdate(config.copy(productCardsShowOldPrice = it)) })
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("إظهار سعر Prime داخل البطاقة", Modifier.weight(1f))
+            Switch(config.productCardsShowPrimePrice, { onUpdate(config.copy(productCardsShowPrimePrice = it)) })
+        }
+
+        HorizontalDivider()
+        Text("تحسين الهوية والسيو", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        ImageUploadSelector(
+            imageUrl = config.seoOgImage,
+            onUrlChanged = { onUpdate(config.copy(seoOgImage = it)) },
+            bucket = "product-images",
+            placeholderText = "صورة المشاركة في الشبكات الاجتماعية"
+        )
+        OutlinedTextField(config.canonicalUrl, { onUpdate(config.copy(canonicalUrl = it)) }, label = { Text("الرابط الأساسي Canonical URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = config.visualFontScale.toString(),
+                onValueChange = { v -> v.toFloatOrNull()?.let { onUpdate(config.copy(visualFontScale = it.coerceIn(0.85f, 1.20f))) } },
+                label = { Text("مقياس الخط (0.85–1.20)") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = config.visualSectionSpacingDp.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(visualSectionSpacingDp = it.coerceIn(8, 64))) } },
+                label = { Text("المسافة بين الأقسام") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = config.visualButtonRadiusDp.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(visualButtonRadiusDp = it.coerceIn(0, 36))) } },
+                label = { Text("استدارة الأزرار") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = config.visualCardRadiusDp.toString(),
+                onValueChange = { v -> v.toIntOrNull()?.let { onUpdate(config.copy(visualCardRadiusDp = it.coerceIn(0, 36))) } },
+                label = { Text("استدارة البطاقات") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+        }
+
+        HorizontalDivider()
+        Text("روابط إضافية في تذييل المتجر", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        config.footerCustomLinks.forEachIndexed { index, link ->
+            Card(border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = link.label,
+                        onValueChange = { value ->
+                            onUpdate(config.copy(footerCustomLinks = config.footerCustomLinks.mapIndexed { i, old -> if (i == index) old.copy(label = value) else old }))
+                        },
+                        label = { Text("اسم الرابط") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = link.url,
+                        onValueChange = { value ->
+                            onUpdate(config.copy(footerCustomLinks = config.footerCustomLinks.mapIndexed { i, old -> if (i == index) old.copy(url = value) else old }))
+                        },
+                        label = { Text("وجهة الرابط") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    TextButton(onClick = {
+                        onUpdate(config.copy(footerCustomLinks = config.footerCustomLinks.filterIndexed { i, _ -> i != index }))
+                    }) { Text("حذف الرابط") }
+                }
+            }
+        }
+        OutlinedButton(
+            onClick = {
+                onUpdate(config.copy(footerCustomLinks = config.footerCustomLinks + com.pinky.dashboard.domain.model.SiteFooterLink()))
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Icon(Icons.Filled.Add, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("إضافة رابط للتذييل") }
+        Text(
+            "يتم حفظ هذه الخيارات داخل إعدادات الموقع الحالية. لا تغير إعدادات المنتجات أو الطلبات أو Prime، ولا تتضمن مفتاح فتح/قفل الموقع.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+'''
+editor_path.write_text(editor_text, encoding="utf-8")
+
+print("Integrated marketing, product-card, footer and appearance controls added.")
