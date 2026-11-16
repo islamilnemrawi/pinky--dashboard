@@ -1190,4 +1190,48 @@ for candidate in sorted(PROJECT.rglob("PinkyViewModel.kt")):
                     emitted.add(j)
         print("WEBSITE_VIEWMODEL_REVIEW_END")
 
+
+# Temporary targeted diagnostics for the editor entry and persisted website settings.
+for candidate in sorted(PROJECT.rglob("*.kt")):
+    lines = candidate.read_text(encoding="utf-8").splitlines()
+    targets = [i for i,line in enumerate(lines) if any(term in line for term in (
+        "SectionCard(", "SectionEditDialog(", "WebsiteEditorScreen(", "data class WebsiteConfig",
+        "fun updateWebsiteConfig", "updateWebsiteConfig("
+    ))]
+    if targets:
+        print("WEBSITE_EDITOR_CALLS_BEGIN", candidate.relative_to(PROJECT))
+        emitted = set()
+        for i in targets:
+            for j in range(max(0,i-35),min(len(lines),i+45)):
+                if j not in emitted:
+                    print(f"{j+1}: {lines[j]}")
+                    emitted.add(j)
+        print("WEBSITE_EDITOR_CALLS_END")
+for relative in (
+    "app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt",
+    "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt",
+):
+    candidate = PROJECT / relative
+    if candidate.exists():
+        lines = candidate.read_text(encoding="utf-8").splitlines()
+        if relative.endswith("StoreModels.kt"):
+            print("WEBSITE_STORE_MODELS_BEGIN")
+            for i,line in enumerate(lines):
+                if "data class WebsiteConfig" in line or (i > 0 and "data class WebsiteConfig" in lines[i-1]):
+                    for j in range(i,min(len(lines),i+230)):
+                        print(f"{j+1}: {lines[j]}")
+                    break
+            print("WEBSITE_STORE_MODELS_END")
+        else:
+            indices = [i for i,line in enumerate(lines) if "saveStoreSettings" in line or "saveSiteCustomizations" in line]
+            if indices:
+                print("WEBSITE_REPOSITORY_SAVE_BEGIN")
+                emitted = set()
+                for i in indices:
+                    for j in range(max(0,i-6),min(len(lines),i+18)):
+                        if j not in emitted:
+                            print(f"{j+1}: {lines[j]}")
+                            emitted.add(j)
+                print("WEBSITE_REPOSITORY_SAVE_END")
+
 print("Elory profit dashboard patch completed.")
