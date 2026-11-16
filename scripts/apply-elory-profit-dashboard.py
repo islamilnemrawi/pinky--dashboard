@@ -1255,4 +1255,14 @@ elif new_report_tiles not in panel_source:
 panel_path.write_text(panel_source, encoding="utf-8")
 print("PASS: Four report selectors now share one horizontally scrollable row.")
 
+
+# Make the Prime result definition explicit about costs that are not currently captured.
+prime_note_old = "المعادلة: إيراد الاشتراك المثبت − خصم Prime المستخدم في الطلبات المسلّمة − تكلفة الشحن المجاني الفعلية. لا يتم افتراض استهلاك الشحنات الست."
+prime_note_new = "المعادلة: إيراد الاشتراك المؤكد − خصم Prime المنفذ − تكلفة الشحن المجاني المسجلة. لا نفترض استهلاك الشحنات الست، ولا تشمل النتيجة تكلفة التغليف أو مصاريف التشغيل الأخرى."
+if prime_note_old in panel_source:
+    panel_source = panel_source.replace(prime_note_old, prime_note_new, 1)
+elif prime_note_new not in panel_source:
+    raise SystemExit("Prime profit explanation text did not match the expected version.")
+panel_path.write_text(panel_source, encoding="utf-8")
+
 print("Elory profit dashboard patch completed.")
