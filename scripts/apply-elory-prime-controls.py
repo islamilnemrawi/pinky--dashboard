@@ -173,3 +173,159 @@ patch(
             Text("عرض بنر اشتراك برايم في الصفحة الرئيسية", fontWeight = FontWeight.SemiBold)''',
     "Prime purchase enable switch UI"
 )
+
+
+ORDER_MODEL = "app/src/main/java/com/pinky/dashboard/domain/model/Order.kt"
+ORDER_DTO = "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt"
+ENTITIES = "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt"
+DATABASE = "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt"
+REPOSITORY = "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
+ORDER_DETAIL = "app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt"
+
+patch(
+    ORDER_MODEL,
+    '    val primeRequested: Boolean = false,\n    val profit: Double = 0.0,',
+    '    val primeRequested: Boolean = false,\n    val primePackaging: Boolean = false,\n    val profit: Double = 0.0,',
+    "Prime packaging domain model"
+)
+patch(
+    ORDER_DTO,
+    '    @Json(name = "prime") val prime: Boolean? = null,\n    @Json(name = "profit") val profit: Double? = null,',
+    '    @Json(name = "prime") val prime: Boolean? = null,\n    @Json(name = "prime_packaging") val primePackaging: Boolean? = null,\n    @Json(name = "profit") val profit: Double? = null,',
+    "Prime packaging API DTO"
+)
+patch(
+    ENTITIES,
+    '    val primeRequested: Boolean = false,\n    val prime: Boolean = false,\n    val profit: Double = 0.0,',
+    '    val primeRequested: Boolean = false,\n    val prime: Boolean = false,\n    @ColumnInfo(defaultValue = "0") val primePackaging: Boolean = false,\n    val profit: Double = 0.0,',
+    "Prime packaging Room entity"
+)
+patch(DATABASE, '    version = 6,', '    version = 7,', "Room database version for Prime packaging")
+patch(
+    DATABASE,
+    '''        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN customerOrderCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+''',
+    '''        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN customerOrderCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN primePackaging INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+''',
+    "Room migration for Prime packaging"
+)
+patch(
+    DATABASE,
+    '.addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)',
+    '.addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)',
+    "Register Prime packaging Room migration"
+)
+patch(
+    REPOSITORY,
+    '                    primeRequested = entity.primeRequested,\n                    profit = entity.profit,',
+    '                    primeRequested = entity.primeRequested,\n                    primePackaging = entity.primePackaging,\n                    profit = entity.profit,',
+    "Map Prime packaging from cached order list"
+)
+patch(
+    REPOSITORY,
+    '                    primeRequested = entity.primeRequested,\n            profit = entity.profit,',
+    '                    primeRequested = entity.primeRequested,\n                    primePackaging = entity.primePackaging,\n            profit = entity.profit,',
+    "Map Prime packaging from cached order detail"
+)
+patch(
+    REPOSITORY,
+    '                        primeRequested = dto.primeRequested ?: false,\n                        profit = dto.profit ?: 0.0,',
+    '                        primeRequested = dto.primeRequested ?: false,\n                        primePackaging = dto.primePackaging ?: false,\n                        profit = dto.profit ?: 0.0,',
+    "Map Prime packaging from Supabase orders"
+)
+patch(
+    REPOSITORY,
+    '                notes = order.notes,\n                isSynced = true\n            )',
+    '                notes = order.notes,\n                isSynced = true,\n                primePackaging = order.primePackaging\n            )',
+    "Persist Prime packaging in local order cache"
+)
+patch(
+    ORDER_DETAIL,
+    '''                                    if (order.couponFreeShipping) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.LocalShipping,
+                                                contentDescription = null,
+                                                tint = Color(0xFF10B981),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "الشحن مجاني بالكامل بفضل هذا الكوبون 🎁",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = Color(0xFF047857)
+                                            )
+                                        }
+                                    }
+''',
+    '''                                    if (order.couponFreeShipping) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.LocalShipping,
+                                                contentDescription = null,
+                                                tint = Color(0xFF10B981),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "الشحن مجاني بالكامل بفضل هذا الكوبون 🎁",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = Color(0xFF047857)
+                                            )
+                                        }
+                                    }
+
+                                    if (order.primePackaging) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.CardGiftcard,
+                                                contentDescription = null,
+                                                tint = Color(0xFFB7791F),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = "هذا الطلب يشمل التغليف المميز من Elory Prime 🎁",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = Color(0xFF92400E)
+                                            )
+                                        }
+                                    }
+''',
+    "Show Prime packaging benefit in order detail"
+)
+for relative, markers in {
+    ORDER_MODEL: ("primePackaging: Boolean",),
+    ORDER_DTO: ('@Json(name = "prime_packaging")',),
+    ENTITIES: ("primePackaging: Boolean",),
+    DATABASE: ("version = 7", "MIGRATION_6_7", "primePackaging INTEGER"),
+    REPOSITORY: ("primePackaging = dto.primePackaging ?: false", "primePackaging = entity.primePackaging", "primePackaging = order.primePackaging"),
+    ORDER_DETAIL: ("هذا الطلب يشمل التغليف المميز من Elory Prime",)
+}.items():
+    source = (ROOT / relative).read_text(encoding="utf-8")
+    missing = [marker for marker in markers if marker not in source]
+    if missing: raise SystemExit(f"Prime packaging verification failed in {relative}: {missing}")
+print("PASS: Prime packaging is persisted on eligible orders and visible to staff.")
