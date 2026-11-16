@@ -42,6 +42,7 @@ data class ProfitSummaryDto(
     @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,
     @Json(name = "open_orders") val openOrders: Int = 0,
     @Json(name = "open_order_value") val openOrderValue: Double = 0.0,
+    @Json(name = "open_missing_profit_orders") val openMissingProfitOrders: Int = 0,
     @Json(name = "cancelled_orders") val cancelledOrders: Int = 0,
     @Json(name = "cancelled_order_value") val cancelledOrderValue: Double = 0.0
 )
@@ -362,6 +363,15 @@ fun ProfitDashboardPanel(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+
+        if (summary.openMissingProfitOrders > 0) {
+            Text(
+                "ملاحظة: هامش الربح لم يُسجّل بعد لـ " + summary.openMissingProfitOrders +
+                    " طلب مفتوح. لن يدخل ضمن الأرباح المحققة قبل التسليم واكتمال تكلفة المنتجات.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         SectionCard(title = "الأرباح حسب اليوم") {
