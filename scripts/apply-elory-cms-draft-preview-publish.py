@@ -485,3 +485,63 @@ if custom_title_field in editor_text and "اختيار نوع القسم" not in
 editor_path.write_text(editor_text, encoding="utf-8")
 
 print("FAQ/trust section models, editors and independent SEO fields applied.")
+
+
+# Keep both device previews faithful to the FAQ and trust section types.
+phone_path = root / "app/src/main/java/com/pinky/dashboard/ui/screens/website/PhoneMockupView.kt"
+if phone_path.is_file():
+    phone_text = phone_path.read_text(encoding="utf-8")
+    phone_text = once(
+        phone_text,
+        "                        Text(section.text, fontSize = 10.sp)",
+        '''                        if (section.sectionType == "faq") {
+                            section.faqItems.forEach { item ->
+                                Column(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                                    Text(item.question, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    Text(item.answer, fontSize = 9.sp, color = Color.DarkGray)
+                                }
+                            }
+                        } else if (section.sectionType == "trust") {
+                            section.trustItems.forEach { item ->
+                                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item.icon, fontSize = 15.sp, color = iconColor)
+                                    Spacer(Modifier.width(7.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(item.title, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        Text(item.description, fontSize = 9.sp, color = Color.DarkGray)
+                                    }
+                                }
+                            }
+                        } else Text(section.text, fontSize = 10.sp)''',
+        "phone preview FAQ/trust rendering"
+    )
+    phone_path.write_text(phone_text, encoding="utf-8")
+
+desktop_path = root / "app/src/main/java/com/pinky/dashboard/ui/screens/website/DesktopMockupView.kt"
+if desktop_path.is_file():
+    desktop_text = desktop_path.read_text(encoding="utf-8")
+    desktop_text = once(
+        desktop_text,
+        '                        Text(block.text,fontSize=13.sp)',
+        '''                        if (block.sectionType == "faq") {
+                            block.faqItems.forEach { item ->
+                                Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                    Text(item.question, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(item.answer, fontSize = 13.sp, color = Color.DarkGray)
+                                }
+                            }
+                        } else if (block.sectionType == "trust") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                block.trustItems.forEach { item ->
+                                    Column(Modifier.weight(1f).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(item.icon, fontSize = 22.sp, color = Color(0xFFC96F92))
+                                        Text(item.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center)
+                                        Text(item.description, fontSize = 12.sp, textAlign = TextAlign.Center)
+                                    }
+                                }
+                            }
+                        } else Text(block.text,fontSize=13.sp)''',
+        "desktop preview FAQ/trust rendering"
+    )
+    desktop_path.write_text(desktop_text, encoding="utf-8")
+
