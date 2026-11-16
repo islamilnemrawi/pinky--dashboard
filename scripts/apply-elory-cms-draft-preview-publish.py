@@ -489,12 +489,8 @@ if "fun refreshWebsiteVersions()" not in vm_text:
                     android.util.Log.e("EloryWebsite", "Website version restore failed: " + response.code())
                     return@launch
                 }
-                val clearDraftResponse = SupabaseClient.service.clearSiteCustomizationDraft(emptyMap())
-                if (!clearDraftResponse.isSuccessful) {
-                    _websiteVersionRestoreState.value = "error"
-                    android.util.Log.e("EloryWebsite", "Version restored but draft cleanup failed: " + clearDraftResponse.code())
-                    return@launch
-                }
+                // The restore RPC clears the draft inside the same database transaction.
+                // Refresh only after the RPC confirms that both operations committed.
                 syncRemainingSupabaseData()
                 refreshWebsiteVersions()
                 _websiteVersionRestoreState.value = "success"
