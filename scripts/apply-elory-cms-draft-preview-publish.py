@@ -17,6 +17,13 @@ if "data class SiteCustomizationDraftRequest(" not in model_text:
 data class SiteCustomizationDraftRequest(
     @Json(name = "p_config") val config: SiteCustomizationConfig
 )
+
+@JsonClass(generateAdapter = true)
+data class SiteCustomizationVersion(
+    @Json(name = "id") val id: Long,
+    @Json(name = "label") val label: String,
+    @Json(name = "createdAt") val createdAt: String
+)
 '''
     model_path.write_text(model_text, encoding="utf-8")
 
@@ -43,6 +50,26 @@ if "fun saveSiteCustomizationDraft(" not in s:
     suspend fun clearSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Boolean>
 '''+s[en:]
 p.write_text(s,encoding="utf-8")
+
+
+p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
+if "createSiteCustomizationSnapshot(" not in s:
+    anchor = '''    @POST("rest/v1/rpc/admin_clear_site_customization_draft")
+    suspend fun clearSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Boolean>'''
+    additions = anchor + '''
+ 
+    @POST("rest/v1/rpc/admin_create_site_customization_snapshot")
+    suspend fun createSiteCustomizationSnapshot(@Body params: Map<String, String>): Response<Long>
+
+    @POST("rest/v1/rpc/admin_list_site_customization_versions")
+    suspend fun listSiteCustomizationVersions(@Body params: Map<String, Any>): Response<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>>
+
+    @POST("rest/v1/rpc/admin_restore_site_customization_version")
+    suspend fun restoreSiteCustomizationVersion(@Body params: Map<String, Long>): Response<Boolean>'''
+    s=once(s,anchor,additions,"CMS version RPC endpoints")
+    p.write_text(s,encoding="utf-8")
+
+
 
 p,s=read("app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt")
 if "private fun buildWebsiteSiteConfig" not in s:
@@ -392,6 +419,87 @@ if load_anchor in vm_text and "metaTitle = cfgObj?.global?.metaTitle" not in vm_
                             metaDescription = cfgObj?.global?.metaDescription ?: currentConfig.metaDescription,''',
         "load separate SEO metadata"
     )
+
+# A published snapshot is required before either independently-written settings row is changed.
+if "fun refreshWebsiteVersions()" not in vm_text:
+    state_anchor = '''    private val _websiteDraftSaveState = MutableStateFlow("idle")
+    val websiteDraftSaveState: StateFlow<String> = _websiteDraftSaveState.asStateFlow()'''
+    state_add = state_anchor + '''
+    private val _websiteVersions = MutableStateFlow<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>>(emptyList())
+    val websiteVersions: StateFlow<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>> = _websiteVersions.asStateFlow()'''
+    vm_text = once(vm_text,state_anchor,state_add,"website version state")
+    methods = '''
+    fun refreshWebsiteVersions() {
+        viewModelScope.launch {
+            try {
+                val response = SupabaseClient.service.listSiteCustomizationVersions(emptyMap())
+                if (response.isSuccessful) _websiteVersions.value = response.body().orEmpty()
+                else android.util.Log.e("EloryWebsite", "Version history load failed: " + response.code())
+            } catch (e: Exception) {
+                android.util.Log.e("EloryWebsite", "Version history load failed", e)
+            }
+        }
+    }
+
+    fun restoreWebsiteVersion(versionId: Long) {
+        viewModelScope.launch {
+            try {
+                val response = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to versionId))
+                if (!response.isSuccessful || response.body() != true) {
+                    android.util.Log.e("EloryWebsite", "Website version restore failed: " + response.code())
+                    return@launch
+                }
+                refreshWebsiteVersions()
+                // The published storefront refreshes from Supabase realtime; reopening this editor
+                // reloads the restored config through the normal dashboard loader.
+            } catch (e: Exception) {
+                android.util.Log.e("EloryWebsite", "Website version restore failed", e)
+            }
+        }
+    }
+
+'''
+    insert_at = vm_text.find("    fun saveWebsiteDraft(config: WebsiteConfig)")
+    if insert_at < 0:
+        raise SystemExit("Website draft method insertion point missing for version history")
+    vm_text = vm_text[:insert_at] + methods + vm_text[insert_at:]
+
+publish_start = vm_text.find("    fun updateWebsiteConfig(config: WebsiteConfig)")
+publish_end = vm_text.find("\n    // Notification management", publish_start)
+if publish_start < 0 or publish_end < 0:
+    raise SystemExit("Website publish method bounds missing for version snapshot")
+publish = vm_text[publish_start:publish_end]
+if "createSiteCustomizationSnapshot(" not in publish:
+    snapshot_anchor = "                val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)"
+    snapshot_code = '''                val snapshotResponse = SupabaseClient.service.createSiteCustomizationSnapshot(mapOf("p_label" to "قبل نشر إعدادات الموقع"))
+                if (!snapshotResponse.isSuccessful || snapshotResponse.body() == null) {
+                    android.util.Log.e("EloryWebsite", "Publish aborted: could not create a recovery snapshot (code=" + snapshotResponse.code() + ").")
+                    _websiteSaveState.value = "error"
+                    return@launch
+                }
+                val snapshotId = snapshotResponse.body()!!
+                val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)'''
+    publish = once(publish,snapshot_anchor,snapshot_code,"pre-publish snapshot")
+if "restoreSiteCustomizationVersion(" not in publish:
+    failure_anchor = '''                    _websiteSaveState.value = "error"
+                    return@launch
+                }
+                _websiteConfig.value = config'''
+    failure_replacement = '''                    val rollbackResponse = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to snapshotId))
+                    if (!rollbackResponse.isSuccessful || rollbackResponse.body() != true) {
+                        android.util.Log.e("EloryWebsite", "Publish failed and automatic rollback also failed: " + rollbackResponse.code())
+                    } else {
+                        android.util.Log.w("EloryWebsite", "Partial publish was rolled back to the pre-publish snapshot.")
+                    }
+                    _websiteSaveState.value = "error"
+                    return@launch
+                }
+                _websiteConfig.value = config'''
+    if failure_anchor not in publish:
+        raise SystemExit("Website publish failure anchor missing for automatic rollback")
+    publish = publish.replace(failure_anchor,failure_replacement,1)
+vm_text = vm_text[:publish_start] + publish + vm_text[publish_end:]
+
 vm_path.write_text(vm_text, encoding="utf-8")
 
 editor_path = root / "app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"
