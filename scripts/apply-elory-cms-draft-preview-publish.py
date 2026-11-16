@@ -23,13 +23,13 @@ if "fun saveSiteCustomizationDraft(" not in s:
     if en<0: raise SystemExit("SupabaseService end missing")
     s=s[:en]+'''
     @POST("rest/v1/rpc/admin_save_site_customization_draft")
-    suspend fun saveSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Unit>
+    suspend fun saveSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Boolean>
 
     @POST("rest/v1/rpc/admin_get_site_customization_draft")
     suspend fun getSiteCustomizationDraft(@Body params: Map<String, Any>): Response<com.pinky.dashboard.domain.model.SiteCustomizationConfig>
 
     @POST("rest/v1/rpc/admin_clear_site_customization_draft")
-    suspend fun clearSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Unit>
+    suspend fun clearSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Boolean>
 '''+s[en:]
 p.write_text(s,encoding="utf-8")
 
