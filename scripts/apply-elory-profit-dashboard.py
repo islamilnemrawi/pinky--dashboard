@@ -1533,3 +1533,16 @@ patch_file(
             }''',
     "Show zero Prime shipping only when no free shipment was used"
 )
+
+patch_file(
+    panel_file,
+    'title = "مبيعات الطلبات المسلّمة",',
+    'title = "مبيعات المتجر بدون الشحن",',
+    "Clarify delivered sales exclude courier pass-through"
+)
+patch_file(
+    panel_file,
+    'DetailLine("قيمة الطلبات المسلّمة", Formatters.formatCurrencyEgp(day.deliveredSales))',
+    'DetailLine("قيمة الطلبات بدون رسوم الشحن", Formatters.formatCurrencyEgp(day.deliveredSales))',
+    "Clarify daily sales exclude courier pass-through"
+)
