@@ -1488,3 +1488,48 @@ for relative, markers in {
     if missing:
         raise SystemExit("Courier-cost integration verification failed in " + relative + ": " + str(missing))
 print("PASS: courier shipping snapshots, order detail, daily/store profit, and Prime profitability are wired.")
+
+
+# Explicitly tell administrators that editable shipping tariffs are full courier costs,
+# not store income; the database snapshots each tariff on order creation.
+patch_file(
+    "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt",
+    '''                        Text(
+                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )''',
+    '''                        Text(
+                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "ملاحظة محاسبية: السعر هنا هو كامل المبلغ المستحق لشركة الشحن، وليس إيرادًا للمتجر. يُحفظ كسعر تكلفة على الطلب وقت إنشائه ويُخصم من الربح، بما في ذلك الشحن المجاني في Prime. تغيير السعر لاحقًا لا يغيّر تكلفة الطلبات القديمة.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )''',
+    "Explain editable courier tariff and historical snapshots"
+)
+patch_file(
+    panel_file,
+    '''            if (row.freeShippingCostTotal != null) {
+                DetailLine("تكلفة شركة الشحن على Prime",
+                    Formatters.formatCurrencyEgp(row.freeShippingCostTotal))
+            } else if (row.freeShippingUsed > 0) {
+                Text("تكلفة شحنة أو أكثر غير مسجلة تاريخيًا؛ لا يمكن تأكيد ربحية الاشتراك.",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            } else {
+                DetailLine("تكلفة الشحن المجاني", "لا توجد شحنات مجانية مستخدمة")
+            }''',
+    '''            if (row.freeShippingUsed == 0) {
+                DetailLine("تكلفة الشحن المجاني", "لا توجد شحنات مجانية مستخدمة")
+            } else if (row.freeShippingCostTotal != null) {
+                DetailLine("تكلفة شركة الشحن على Prime",
+                    Formatters.formatCurrencyEgp(row.freeShippingCostTotal))
+            } else {
+                Text("تكلفة شحنة أو أكثر غير مسجلة تاريخيًا؛ لا يمكن تأكيد ربحية الاشتراك.",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }''',
+    "Show zero Prime shipping only when no free shipment was used"
+)
