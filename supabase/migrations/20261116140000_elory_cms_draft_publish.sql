@@ -37,3 +37,26 @@ revoke all on function public.admin_save_site_customization_draft(jsonb) from pu
 revoke all on function public.admin_clear_site_customization_draft() from public,anon;
 grant execute on function public.admin_save_site_customization_draft(jsonb) to authenticated;
 grant execute on function public.admin_clear_site_customization_draft() to authenticated;
+
+
+create or replace function public.admin_get_site_customization_draft()
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_draft jsonb;
+begin
+  if not public.elory_can_edit_site() then
+    raise exception 'not_authorized' using errcode = '42501';
+  end if;
+  select draft_config into v_draft
+  from public.site_customizations
+  where id = 1;
+  return v_draft;
+end;
+$function$;
+
+revoke all on function public.admin_get_site_customization_draft() from public, anon;
+grant execute on function public.admin_get_site_customization_draft() to authenticated;
