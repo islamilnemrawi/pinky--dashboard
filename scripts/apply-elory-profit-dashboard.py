@@ -669,6 +669,9 @@ write("app/src/main/java/com/pinky/dashboard/ui/screens/reports/ProfitDashboardP
 
 reports = "app/src/main/java/com/pinky/dashboard/ui/screens/reports/ReportsScreen.kt"
 source = read(reports)
+print("ELORY_REPORTS_SOURCE_BEGIN")
+print(source)
+print("ELORY_REPORTS_SOURCE_END")
 source = replace_once(source,
     "import com.pinky.dashboard.core.util.Formatters\n",
     "import com.pinky.dashboard.core.util.Formatters\nimport com.pinky.dashboard.data.remote.ProfitDashboardDto\n",
