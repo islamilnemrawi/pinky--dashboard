@@ -114,7 +114,7 @@ if "saveSiteCustomizationDraft" not in pub:
     pub=once(pub,
 '''                val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)
                 val customizationsResponse = SupabaseClient.service.upsertSiteCustomizations(customizationsDto)''',
-'''                val draftResponse = SupabaseClient.service.saveSiteCustomizationDraft(mapOf("p_config" to siteConfigObj))
+'''                val draftResponse = SupabaseClient.service.saveSiteCustomizationDraft(com.pinky.dashboard.domain.model.SiteCustomizationDraftRequest(siteConfigObj))
                 if (!draftResponse.isSuccessful) {
                     android.util.Log.e("EloryWebsite", "Publish checkpoint failed: " + draftResponse.code())
                     return@launch
