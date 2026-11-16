@@ -134,7 +134,9 @@ state_block = r"""
 
 """
 source = replace_once(source, state_anchor, state_anchor + state_block, "profit dashboard state")
-method_anchor = "    // Staff member management"
+method_anchor = "    fun savePrimeSubscriber(subscriber: PrimeSubscriber) {"
+if source.count(method_anchor) != 1:
+    raise SystemExit("Could not find the stable Prime subscriber method insertion point.")
 methods = r"""
     fun loadProfitDashboard(days: Int = _profitDashboardDays.value) {
         val safeDays = days.coerceIn(1, 3650)
