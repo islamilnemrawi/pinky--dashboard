@@ -92,7 +92,6 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/apply-elory-cms-patch.py
-          python3 scripts/apply-elory-cms-draft-preview-publish.py
 
       - name: Apply shipping, Prime, and staff management fixes
         shell: bash
@@ -135,6 +134,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/apply-elory-profit-dashboard.py
+          python3 scripts/apply-elory-cms-draft-preview-publish.py
 
       - name: Prepare project configuration
         shell: bash
