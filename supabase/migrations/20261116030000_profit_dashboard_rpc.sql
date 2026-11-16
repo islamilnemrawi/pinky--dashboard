@@ -81,6 +81,11 @@ BEGIN
         )::integer AS missing_profit_orders,
         count(*) FILTER (
           WHERE trim(coalesce(status, '')) NOT IN
+            ('تم التسليم', 'DELIVERED', 'ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
+            AND profit IS NULL
+        )::integer AS open_missing_profit_orders,
+        count(*) FILTER (
+          WHERE trim(coalesce(status, '')) NOT IN
             ('ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
         )::integer AS requested_orders
       FROM scoped_orders
@@ -192,7 +197,7 @@ BEGIN
         ps.order_id IS NOT NULL
         AND trim(coalesce(membership_order.status, '')) IN ('تم التسليم', 'DELIVERED')
         AND (
-          coalesce(usage.free_shipping_completed, 0) = 0
+          coalesce(usage.free_shipping_used, 0) = 0
           OR ps.actual_free_shipping_cost_total IS NOT NULL
         )
       ) AS financial_complete,
@@ -200,7 +205,7 @@ BEGIN
         WHEN ps.order_id IS NULL
           OR trim(coalesce(membership_order.status, '')) NOT IN ('تم التسليم', 'DELIVERED')
           THEN NULL
-        WHEN coalesce(usage.free_shipping_completed, 0) > 0
+        WHEN coalesce(usage.free_shipping_used, 0) > 0
           AND ps.actual_free_shipping_cost_total IS NULL
           THEN NULL
         ELSE round(
@@ -217,18 +222,7 @@ BEGIN
         count(*) FILTER (
           WHERE coalesce(o.prime, false) IS TRUE
             AND coalesce(o.prime_free_shipping, false) IS TRUE
-            AND (
-              (
-                o.payment_method IN ('card', 'vodafone_cash')
-                AND trim(coalesce(o.status, '')) IN (
-                  'طلب جديد', 'تم تأكيد الطلب', 'قيد التجهيز',
-                  'جاري التجهيز', 'تم الشحن', 'تم التسليم'
-                )
-              )
-              OR trim(coalesce(o.status, '')) = 'تم التسليم'
-            )
-            AND trim(coalesce(o.status, '')) NOT IN
-              ('ملغي', 'ملغى', 'CANCELLED', 'CANCELED', 'فشل الدفع', 'فشل إنشاء الدفع', 'FAILED')
+            AND trim(coalesce(o.status, '')) IN ('تم الشحن', 'تم التسليم', 'DELIVERED')
         )::integer AS free_shipping_used,
         count(*) FILTER (
           WHERE coalesce(o.prime, false) IS TRUE
@@ -246,9 +240,25 @@ BEGIN
         ), 0)::numeric AS prime_discount_pending
       FROM public.orders o
       WHERE ps.user_id IS NOT NULL
-        AND o.user_id = ps.user_id
+        AND (o.user_id = ps.user_id OR o.customer_user_id = ps.user_id)
         AND o.created_at >= coalesce(ps.started_at, ps.created_at)
         AND (ps.expires_at IS NULL OR o.created_at <= ps.expires_at)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.prime_subscriptions newer
+          WHERE newer.user_id = ps.user_id
+            AND newer.id <> ps.id
+            AND coalesce(newer.status, '') NOT IN ('failed', 'cancelled', 'inactive')
+            AND coalesce(newer.started_at, newer.created_at) <= o.created_at
+            AND (newer.expires_at IS NULL OR newer.expires_at >= o.created_at)
+            AND (
+              coalesce(newer.started_at, newer.created_at) > coalesce(ps.started_at, ps.created_at)
+              OR (
+                coalesce(newer.started_at, newer.created_at) = coalesce(ps.started_at, ps.created_at)
+                AND newer.created_at > ps.created_at
+              )
+            )
+        )
     ) usage ON true
   ),
   prime AS (
