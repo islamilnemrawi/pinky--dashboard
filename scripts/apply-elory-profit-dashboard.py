@@ -1391,9 +1391,9 @@ patch_file(panel_file,
                     modifier = Modifier.weight(1f)
                 )
             }
-        }
-        Text(
-            "الربح بعد الشحن يخصم كامل مستحق شركة التوصيل. لا يشمل رسوم الدفع أو التغليف أو المصاريف التشغيلية.",''',
+            }
+            Text(
+                "الربح بعد الشحن يخصم كامل مستحق شركة التوصيل. لا يشمل رسوم الدفع أو التغليف أو المصاريف التشغيلية.",''',
     "Store shipping and after-shipping profit cards")
 patch_file(panel_file,
     '''        DetailLine("هامش ربح المنتجات", Formatters.formatCurrencyEgp(day.productGrossMargin))
