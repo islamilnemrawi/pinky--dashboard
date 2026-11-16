@@ -699,10 +699,35 @@ def append_fields_to_class(source, class_name, fields):
     start = source.find("data class " + class_name + "(")
     if start < 0:
         raise SystemExit("Model class not found: " + class_name)
-    end = source.find("\n)", start)
-    if end < 0:
-        raise SystemExit("Model class terminator not found: " + class_name)
-    block = source[start:end]
+    open_paren = source.find("(", start)
+    if open_paren < 0:
+        raise SystemExit("Model constructor not found: " + class_name)
+    depth = 0
+    close_paren = -1
+    in_string = False
+    escaped = False
+    for index in range(open_paren, len(source)):
+        ch = source[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                close_paren = index
+                break
+    if close_paren < 0:
+        raise SystemExit("Model constructor terminator not found: " + class_name)
+    block = source[start:close_paren]
     missing = []
     for field in fields:
         match = re.search(r"\bval\s+(\w+)", field)
@@ -712,11 +737,11 @@ def append_fields_to_class(source, class_name, fields):
             missing.append(field)
     if not missing:
         return source
-    prefix = source[:end].rstrip()
+    prefix = source[:close_paren].rstrip()
     if not prefix.endswith(","):
         prefix += ","
     insertion = "\n" + "\n".join(missing)
-    return prefix + insertion + source[end:]
+    return prefix + insertion + source[close_paren:]
 
 model_text = append_fields_to_class(model_text, "SiteCustomizationConfig", [
     '    @Json(name = "productCards") val productCards: ProductCardsConfig? = null',
