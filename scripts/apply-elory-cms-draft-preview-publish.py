@@ -30,9 +30,6 @@ data class SiteCustomizationVersion(
 )
 '''
 
-print("CMS_MODEL_POST_CUSTOMIZATION_START")
-print(model_text)
-print("CMS_MODEL_POST_CUSTOMIZATION_END")
 model_path.write_text(model_text, encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
@@ -678,73 +675,56 @@ if desktop_path.is_file():
 # WebsiteConfig/site_customizations JSONB path; no duplicate tables or settings rows.
 model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
 
-def append_fields_to_class(source, class_name, fields):
-    start = source.find("data class " + class_name + "(")
-    if start < 0:
-        raise SystemExit("Model class not found: " + class_name)
-    open_paren = source.find("(", start)
-    if open_paren < 0:
-        raise SystemExit("Model constructor not found: " + class_name)
-    depth = 0
-    close_paren = -1
-    in_string = False
-    escaped = False
-    for index in range(open_paren, len(source)):
-        ch = source[index]
-        if in_string:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-            if depth == 0:
-                close_paren = index
-                break
-    if close_paren < 0:
-        raise SystemExit("Model constructor terminator not found: " + class_name)
-    block = source[start:close_paren]
-    missing = []
-    for field in fields:
-        match = re.search(r"\bval\s+(\w+)", field)
-        if not match:
-            raise SystemExit("Could not parse model field: " + field)
-        if not re.search(r"\bval\s+" + re.escape(match.group(1)) + r"\b", block):
-            missing.append(field)
-    if not missing:
+def append_fields_after_unique_anchor(source, anchor, fields, marker, label):
+    if marker in source:
         return source
-    prefix = source[:close_paren].rstrip()
-    if not prefix.endswith(","):
-        prefix += ","
-    insertion = "\n" + "\n".join(missing)
-    return prefix + insertion + source[close_paren:]
+    if source.count(anchor) != 1:
+        raise SystemExit(label + " anchor count " + str(source.count(anchor)))
+    return source.replace(anchor, anchor + ",\n" + "\n".join(fields), 1)
 
-model_text = append_fields_to_class(model_text, "SiteCustomizationConfig", [
-    '    @Json(name = "productCards") val productCards: ProductCardsConfig? = null',
-    '    @Json(name = "popup") val popup: SitePopupConfig? = null'
-])
-model_text = append_fields_to_class(model_text, "AnnouncementConfig", [
-    '    @Json(name = "actionUrl") val actionUrl: String = ""',
-    '    @Json(name = "rotationSeconds") val rotationSeconds: Int = 3'
-])
-model_text = append_fields_to_class(model_text, "GlobalConfig", [
-    '    @Json(name = "metaImage") val metaImage: String = ""',
-    '    @Json(name = "canonicalUrl") val canonicalUrl: String = ""',
-    '    @Json(name = "fontScale") val fontScale: Float = 1.0f',
-    '    @Json(name = "sectionSpacingDp") val sectionSpacingDp: Int = 24',
-    '    @Json(name = "buttonRadiusDp") val buttonRadiusDp: Int = 20',
-    '    @Json(name = "cardRadiusDp") val cardRadiusDp: Int = 18'
-])
-model_text = append_fields_to_class(model_text, "FooterConfig", [
-    '    @Json(name = "customLinks") val customLinks: List<SiteFooterLink> = emptyList()'
-])
+model_text = append_fields_after_unique_anchor(
+    model_text,
+    '    @Json(name = "customSections") val customSections: List<CustomSiteSectionConfig>? = null',
+    [
+        '    @Json(name = "productCards") val productCards: ProductCardsConfig? = null',
+        '    @Json(name = "popup") val popup: SitePopupConfig? = null'
+    ],
+    '@Json(name = "productCards")',
+    "SiteCustomizationConfig"
+)
+model_text = append_fields_after_unique_anchor(
+    model_text,
+    '    @Json(name = "textColor") val textColor: String = "#FFFFFF"',
+    [
+        '    @Json(name = "actionUrl") val actionUrl: String = ""',
+        '    @Json(name = "rotationSeconds") val rotationSeconds: Int = 3'
+    ],
+    '@Json(name = "rotationSeconds")',
+    "AnnouncementConfig"
+)
+model_text = append_fields_after_unique_anchor(
+    model_text,
+    '    @Json(name = "isStoreOpen") val isStoreOpen: Boolean = true',
+    [
+        '    @Json(name = "metaImage") val metaImage: String = ""',
+        '    @Json(name = "canonicalUrl") val canonicalUrl: String = ""',
+        '    @Json(name = "fontScale") val fontScale: Float = 1.0f',
+        '    @Json(name = "sectionSpacingDp") val sectionSpacingDp: Int = 24',
+        '    @Json(name = "buttonRadiusDp") val buttonRadiusDp: Int = 20',
+        '    @Json(name = "cardRadiusDp") val cardRadiusDp: Int = 18'
+    ],
+    '@Json(name = "canonicalUrl")',
+    "GlobalConfig"
+)
+model_text = append_fields_after_unique_anchor(
+    model_text,
+    '    @Json(name = "credits") val credits: String = "تم التطوير بواسطة Nemrawy"',
+    [
+        '    @Json(name = "customLinks") val customLinks: List<SiteFooterLink> = emptyList()'
+    ],
+    '@Json(name = "customLinks")',
+    "FooterConfig"
+)
 if "data class ProductCardsConfig(" not in model_text:
     model_text += '''
 
@@ -782,37 +762,39 @@ model_path.write_text(model_text, encoding="utf-8")
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
 store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
 
-print("CMS_MODEL_PRE_STOREMODELS_START")
-print("\n".join(f"{i+1}: {line}" for i, line in enumerate(store_model_text.splitlines()) if 130 <= i+1 <= 290))
-print("CMS_MODEL_PRE_STOREMODELS_END")
-
 if "val popupEnabled: Boolean" not in store_model_text:
-    store_model_text = append_fields_to_class(store_model_text, "WebsiteConfig", [
-        '    val announcementActionUrl: String = ""',
-        '    val announcementRotationSeconds: Int = 3',
-        '    val popupEnabled: Boolean = false',
-        '    val popupTitle: String = ""',
-        '    val popupMessage: String = ""',
-        '    val popupImageUrl: String = ""',
-        '    val popupButtonText: String = ""',
-        '    val popupButtonUrl: String = ""',
-        '    val popupDelaySeconds: Int = 5',
-        '    val popupCooldownDays: Int = 7',
-        '    val popupShowOnMobile: Boolean = true',
-        '    val popupShowOnDesktop: Boolean = true',
-        '    val productCardsMobileColumns: Int = 2',
-        '    val productCardsDesktopColumns: Int = 4',
-        '    val productCardsShowDiscountBadge: Boolean = true',
-        '    val productCardsShowOldPrice: Boolean = true',
-        '    val productCardsShowPrimePrice: Boolean = true',
-        '    val footerCustomLinks: List<SiteFooterLink> = emptyList()',
-        '    val seoOgImage: String = ""',
-        '    val canonicalUrl: String = ""',
-        '    val visualFontScale: Float = 1.0f',
-        '    val visualSectionSpacingDp: Int = 24',
-        '    val visualButtonRadiusDp: Int = 20',
-        '    val visualCardRadiusDp: Int = 18'
-    ])
+    store_model_text = append_fields_after_unique_anchor(
+        store_model_text,
+        '    val footerCredits: String = "تم التطوير بواسطة Nemrawy"',
+        [
+            '    val announcementActionUrl: String = ""',
+            '    val announcementRotationSeconds: Int = 3',
+            '    val popupEnabled: Boolean = false',
+            '    val popupTitle: String = ""',
+            '    val popupMessage: String = ""',
+            '    val popupImageUrl: String = ""',
+            '    val popupButtonText: String = ""',
+            '    val popupButtonUrl: String = ""',
+            '    val popupDelaySeconds: Int = 5',
+            '    val popupCooldownDays: Int = 7',
+            '    val popupShowOnMobile: Boolean = true',
+            '    val popupShowOnDesktop: Boolean = true',
+            '    val productCardsMobileColumns: Int = 2',
+            '    val productCardsDesktopColumns: Int = 4',
+            '    val productCardsShowDiscountBadge: Boolean = true',
+            '    val productCardsShowOldPrice: Boolean = true',
+            '    val productCardsShowPrimePrice: Boolean = true',
+            '    val footerCustomLinks: List<SiteFooterLink> = emptyList()',
+            '    val seoOgImage: String = ""',
+            '    val canonicalUrl: String = ""',
+            '    val visualFontScale: Float = 1.0f',
+            '    val visualSectionSpacingDp: Int = 24',
+            '    val visualButtonRadiusDp: Int = 20',
+            '    val visualCardRadiusDp: Int = 18'
+        ],
+        "val popupEnabled: Boolean",
+        "WebsiteConfig"
+    )
     store_model_path.write_text(store_model_text, encoding="utf-8")
 
 # Append the additional strongly typed fields to the already-centralized mapping.
