@@ -381,79 +381,43 @@ if a.count(oldCall)!=1: raise SystemExit("PinkyApp wiring anchor missing")
 app.write_text(a.replace(oldCall,newCall,1),encoding="utf-8")
 print("PASS hero manager app wiring")
 
-G(
- WEBSITE,
- '@Composable\nfun WebsiteEditorScreen(',
- '\n@Composable\nfun SectionCard(',
- '''@Composable
-fun WebsiteEditorScreen(
-    initialConfig: WebsiteConfig,
-    categories: List<Category>,
-    banners: List<Offer>,
-    onSaveConfig: (WebsiteConfig) -> Unit,
-    onSaveBanner: (Offer) -> Unit,
-    onDeleteBanner: (Offer) -> Unit,
-    onSaveCategory: (Category) -> Unit,
-    saveState: String = "idle",
-    modifier: Modifier = Modifier
-) {
-    var config by remember { mutableStateOf(initialConfig) }
-    LaunchedEffect(initialConfig) { config = initialConfig }
-    Scaffold(
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { onSaveConfig(config) },
-                containerColor = PinkPrimary,
-                contentColor = Color(0xFF381528),
-                icon = {
-                    if (saveState == "saving") CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF381528))
-                    else Icon(Icons.Outlined.Save, contentDescription = null)
-                },
-                text = { Text(if (saveState == "saving") "جارٍ حفظ الحالة..." else "حفظ حالة المتجر", fontWeight = FontWeight.Bold) }
-            )
-        },
-        modifier = modifier
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("حالة المتجر", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(
-                "هذه الصفحة لفتح المتجر أو إغلاقه بالكامل فقط. إدارة صور الهيرو والأزرار وترتيب الشرائح موجودة داخل «البنرات والعروض».",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(
-                        if (config.isStoreOpen) Icons.Outlined.Storefront else Icons.Outlined.Lock,
-                        contentDescription = null,
-                        tint = if (config.isStoreOpen) Color(0xFF16834A) else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(30.dp)
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(if (config.isStoreOpen) "المتجر مفتوح للزوار" else "المتجر مغلق مؤقتًا", fontWeight = FontWeight.Bold)
-                        Text(
-                            if (config.isStoreOpen) "العملاء يستطيعون تصفح المنتجات وإرسال الطلبات."
-                            else "سيظهر للزوار إشعار بأن المتجر مغلق مؤقتًا.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+R(WEBSITE,
+  '                    // Card 1: الشريط العلوي',
+  '''                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            border = CardDefaults.outlinedCardBorder(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    if (config.isStoreOpen) Icons.Outlined.Storefront else Icons.Outlined.Lock,
+                                    contentDescription = null,
+                                    tint = if (config.isStoreOpen) Color(0xFF16834A) else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(if (config.isStoreOpen) "المتجر مفتوح للزوار" else "المتجر مغلق مؤقتًا", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        if (config.isStoreOpen) "العملاء يستطيعون تصفح المنتجات وإرسال الطلبات."
+                                        else "سيظهر للزوار إشعار بأن المتجر مغلق مؤقتًا.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(checked = config.isStoreOpen, onCheckedChange = { config = config.copy(isStoreOpen = it) })
+                            }
+                        }
                     }
-                    Switch(checked = config.isStoreOpen, onCheckedChange = { config = config.copy(isStoreOpen = it) })
-                }
-            }
-            when (saveState) {
-                "saving" -> Text("جارٍ حفظ الحالة في قاعدة البيانات...", color = MaterialTheme.colorScheme.primary)
-                "success" -> Text("تم حفظ الحالة. سيتحدث الموقع تلقائيًا.", color = Color(0xFF16834A))
-                "error" -> Text("تعذّر الحفظ؛ لم تتغير حالة الموقع الفعلية.", color = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-}
-''',
- "simplify website editor"
-)
+
+                    // Card 1: الشريط العلوي''',
+  "preserve store availability toggle and all CMS editor sections")
+
 
 checks=[
  (MODEL,'val isStoreOpen: Boolean = true'),
@@ -463,7 +427,7 @@ checks=[
  (VM,'discountType = if (coupon.discountType == DiscountType.PERCENTAGE) "percent" else "fixed"'),
  (OFFERS,'UUID.randomUUID().toString()'),
  (OFFERS,'onSave: suspend (Coupon) -> Result<Unit>'),
- (WEBSITE,'حفظ حالة المتجر')
+ (WEBSITE,'Switch(checked = config.isStoreOpen')
 ]
 for rel,m in checks:
     if m not in F(rel).read_text(encoding="utf-8"): raise SystemExit("Missing verification "+m)
