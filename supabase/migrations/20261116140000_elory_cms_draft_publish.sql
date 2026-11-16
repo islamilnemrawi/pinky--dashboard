@@ -1,7 +1,8 @@
--- Keep unpublished CMS content out of the public site_customizations table.
--- The storefront continues reading only public.site_customizations.config.
+-- Unpublished CMS content is stored separately from the public site config.
+-- RLS keeps the draft limited to staff who already have website-edit permission.
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to authenticated;
 
 create table if not exists private.site_customization_drafts (
   id integer primary key check (id = 1),
@@ -9,12 +10,22 @@ create table if not exists private.site_customization_drafts (
   updated_at timestamptz not null default now()
 );
 
+alter table private.site_customization_drafts enable row level security;
 revoke all on table private.site_customization_drafts from public, anon, authenticated;
+grant select, insert, update, delete on table private.site_customization_drafts to authenticated;
+
+drop policy if exists "authorized staff manage CMS draft" on private.site_customization_drafts;
+create policy "authorized staff manage CMS draft"
+on private.site_customization_drafts
+for all
+to authenticated
+using (public.elory_can_edit_site())
+with check (public.elory_can_edit_site());
 
 create or replace function public.admin_save_site_customization_draft(p_config jsonb)
 returns boolean
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 begin
@@ -38,7 +49,7 @@ $function$;
 create or replace function public.admin_get_site_customization_draft()
 returns jsonb
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 declare
@@ -60,7 +71,7 @@ $function$;
 create or replace function public.admin_clear_site_customization_draft()
 returns boolean
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $function$
 begin
