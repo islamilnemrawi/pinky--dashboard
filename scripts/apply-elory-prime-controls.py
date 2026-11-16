@@ -114,3 +114,62 @@ for relative, markers in {
     missing = [marker for marker in markers if marker not in source]
     if missing: raise SystemExit(f"Prime settings verification failed in {relative}: {missing}")
 print("PASS: Prime controls and feature list are wired; store open/close remains intact.")
+
+
+patch(
+    MODEL,
+    '    val primeButtonText: String = "اشتركي الآن",\n    val primeIsVisible: Boolean = true,',
+    '    val primeButtonText: String = "اشتركي الآن",\n    val primeEnabled: Boolean = true,\n    val primeIsVisible: Boolean = true,',
+    "Prime purchase enable switch model"
+)
+patch(
+    JSON,
+    '    @Json(name = "buttonText") val buttonText: String = "اشتركي الآن",\n    @Json(name = "isVisible") val isVisible: Boolean = true',
+    '    @Json(name = "buttonText") val buttonText: String = "اشتركي الآن",\n    @Json(name = "enabled") val enabled: Boolean = true,\n    @Json(name = "isVisible") val isVisible: Boolean = true',
+    "Prime purchase enable JSON model"
+)
+patch(
+    VM,
+    '                        buttonText = config.primeButtonText,\n                        isVisible = config.primeIsVisible',
+    '                        buttonText = config.primeButtonText,\n                        enabled = config.primeEnabled,\n                        isVisible = config.primeIsVisible',
+    "persist Prime purchase enabled state"
+)
+patch(
+    VM,
+    '                            primeButtonText = cfgObj?.prime?.buttonText ?: currentConfig.primeButtonText,\n                            primeIsVisible = cfgObj?.prime?.isVisible ?: currentConfig.primeIsVisible,',
+    '                            primeButtonText = cfgObj?.prime?.buttonText ?: currentConfig.primeButtonText,\n                            primeEnabled = cfgObj?.prime?.enabled ?: currentConfig.primeEnabled,\n                            primeIsVisible = cfgObj?.prime?.isVisible ?: currentConfig.primeIsVisible,',
+    "restore Prime purchase enabled state"
+)
+patch(
+    EDITOR,
+    '''    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("عرض بنر اشتراك برايم في الصفحة الرئيسية", fontWeight = FontWeight.SemiBold)''',
+    '''    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("تفعيل اشتراكات Elory Prime", fontWeight = FontWeight.SemiBold)
+                Text("إيقاف البيع لا يلغي اشتراكات العملاء الحالية.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(
+                checked = config.primeEnabled,
+                onCheckedChange = { onUpdate(config.copy(primeEnabled = it)) }
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("عرض بنر اشتراك برايم في الصفحة الرئيسية", fontWeight = FontWeight.SemiBold)''',
+    "Prime purchase enable switch UI"
+)
