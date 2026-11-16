@@ -570,7 +570,13 @@ def append_fields_to_class(source, class_name, fields):
     if end < 0:
         raise SystemExit("Model class terminator not found: " + class_name)
     block = source[start:end]
-    missing = [field for field in fields if field.strip().split(" val ")[-1].split(":")[0] not in block]
+    missing = []
+    for field in fields:
+        match = re.search(r"\\bval\\s+(\\w+)", field)
+        if not match:
+            raise SystemExit("Could not parse model field: " + field)
+        if not re.search(r"\\bval\\s+" + re.escape(match.group(1)) + r"\\b", block):
+            missing.append(field)
     if not missing:
         return source
     prefix = source[:end].rstrip()
@@ -635,35 +641,32 @@ model_path.write_text(model_text, encoding="utf-8")
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
 store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
 if "val popupEnabled: Boolean" not in store_model_text:
-    anchor = '    val metaDescription: String = "",'
-    fields = '''    val metaDescription: String = "",
-    val announcementActionUrl: String = "",
-    val announcementRotationSeconds: Int = 3,
-    val popupEnabled: Boolean = false,
-    val popupTitle: String = "",
-    val popupMessage: String = "",
-    val popupImageUrl: String = "",
-    val popupButtonText: String = "",
-    val popupButtonUrl: String = "",
-    val popupDelaySeconds: Int = 5,
-    val popupCooldownDays: Int = 7,
-    val popupShowOnMobile: Boolean = true,
-    val popupShowOnDesktop: Boolean = true,
-    val productCardsMobileColumns: Int = 2,
-    val productCardsDesktopColumns: Int = 4,
-    val productCardsShowDiscountBadge: Boolean = true,
-    val productCardsShowOldPrice: Boolean = true,
-    val productCardsShowPrimePrice: Boolean = true,
-    val footerCustomLinks: List<SiteFooterLink> = emptyList(),
-    val seoOgImage: String = "",
-    val canonicalUrl: String = "",
-    val visualFontScale: Float = 1.0f,
-    val visualSectionSpacingDp: Int = 24,
-    val visualButtonRadiusDp: Int = 20,
-    val visualCardRadiusDp: Int = 18,'''
-    if store_model_text.count(anchor) != 1:
-        raise SystemExit("WebsiteConfig SEO anchor count " + str(store_model_text.count(anchor)))
-    store_model_text = store_model_text.replace(anchor, fields, 1)
+    store_model_text = append_fields_to_class(store_model_text, "WebsiteConfig", [
+        '    val announcementActionUrl: String = ""',
+        '    val announcementRotationSeconds: Int = 3',
+        '    val popupEnabled: Boolean = false',
+        '    val popupTitle: String = ""',
+        '    val popupMessage: String = ""',
+        '    val popupImageUrl: String = ""',
+        '    val popupButtonText: String = ""',
+        '    val popupButtonUrl: String = ""',
+        '    val popupDelaySeconds: Int = 5',
+        '    val popupCooldownDays: Int = 7',
+        '    val popupShowOnMobile: Boolean = true',
+        '    val popupShowOnDesktop: Boolean = true',
+        '    val productCardsMobileColumns: Int = 2',
+        '    val productCardsDesktopColumns: Int = 4',
+        '    val productCardsShowDiscountBadge: Boolean = true',
+        '    val productCardsShowOldPrice: Boolean = true',
+        '    val productCardsShowPrimePrice: Boolean = true',
+        '    val footerCustomLinks: List<SiteFooterLink> = emptyList()',
+        '    val seoOgImage: String = ""',
+        '    val canonicalUrl: String = ""',
+        '    val visualFontScale: Float = 1.0f',
+        '    val visualSectionSpacingDp: Int = 24',
+        '    val visualButtonRadiusDp: Int = 20',
+        '    val visualCardRadiusDp: Int = 18'
+    ])
     store_model_path.write_text(store_model_text, encoding="utf-8")
 
 # Append the additional strongly typed fields to the already-centralized mapping.
