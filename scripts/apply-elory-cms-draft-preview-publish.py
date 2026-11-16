@@ -563,7 +563,9 @@ if desktop_path.is_file():
 model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
 
 def add_model_field(source, anchor, replacement, label):
-    if replacement.splitlines()[0].strip() in source:
+    replacement_lines = [line.strip() for line in replacement.splitlines() if line.strip()]
+    marker = replacement_lines[1] if len(replacement_lines) > 1 else replacement_lines[0]
+    if marker in source:
         return source
     if source.count(anchor) != 1:
         raise SystemExit(label + " anchor count " + str(source.count(anchor)))
@@ -822,7 +824,7 @@ fun MarketingAppearanceForm(config: WebsiteConfig, onUpdate: (WebsiteConfig) -> 
             singleLine = true
         )
 
-        HorizontalDivider()
+        Divider()
         Text("النافذة الترويجية المنبثقة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
