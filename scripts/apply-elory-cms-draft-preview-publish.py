@@ -296,3 +296,152 @@ fun DesktopMockupView(config: WebsiteConfig, categories: List<Category>, banners
 }
 ''',encoding="utf-8")
 print("CMS draft/publish and responsive preview patch applied.")
+
+
+# 6) Give custom content sections first-class FAQ and trust layouts, and separate SEO title/description.
+model_path = root / "app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt"
+model_text = model_path.read_text(encoding="utf-8")
+custom_start = model_text.find("data class CustomSiteSectionConfig(")
+if custom_start < 0:
+    raise SystemExit("CustomSiteSectionConfig was not found")
+custom_end = model_text.find("\n)", custom_start)
+if custom_end < 0:
+    raise SystemExit("CustomSiteSectionConfig closing parenthesis was not found")
+custom_block = model_text[custom_start:custom_end+2]
+if '@Json(name = "sectionType")' not in custom_block:
+    custom_block = custom_block[:-2].rstrip()
+    if not custom_block.endswith(","):
+        custom_block += ","
+    custom_block += '''
+    @Json(name = "sectionType") val sectionType: String = "content",
+    @Json(name = "faqItems") val faqItems: List<SiteFaqEntry> = emptyList(),
+    @Json(name = "trustItems") val trustItems: List<SiteTrustEntry> = emptyList()
+)'''
+    model_text = model_text[:custom_start] + custom_block + model_text[custom_end+2:]
+if "data class SiteFaqEntry(" not in model_text:
+    model_text += '''
+
+@JsonClass(generateAdapter = true)
+data class SiteFaqEntry(
+    @Json(name = "question") val question: String = "",
+    @Json(name = "answer") val answer: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+data class SiteTrustEntry(
+    @Json(name = "icon") val icon: String = "✓",
+    @Json(name = "title") val title: String = "",
+    @Json(name = "description") val description: String = ""
+)
+'''
+model_path.write_text(model_text, encoding="utf-8")
+
+store_model_path = root / "app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt"
+store_model_text = store_model_path.read_text(encoding="utf-8")
+if "val metaTitle: String = \"\"" not in store_model_text:
+    store_model_text = once(
+        store_model_text,
+        '    val storeName: String = "Elory Store",',
+        '    val storeName: String = "Elory Store",\n    val metaTitle: String = "",\n    val metaDescription: String = "",',
+        "independent SEO fields"
+    )
+store_model_path.write_text(store_model_text, encoding="utf-8")
+
+vm_path = root / "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
+vm_text = vm_path.read_text(encoding="utf-8")
+vm_text = vm_text.replace("metaTitle = config.storeName,", "metaTitle = config.metaTitle.ifBlank { config.storeName },", 1)
+vm_text = vm_text.replace("metaDescription = config.aboutText,", "metaDescription = config.metaDescription.ifBlank { config.aboutText },", 1)
+load_anchor = "                            isStoreOpen = cfgObj?.global?.isStoreOpen ?: currentConfig.isStoreOpen,"
+if load_anchor in vm_text and "metaTitle = cfgObj?.global?.metaTitle" not in vm_text:
+    vm_text = once(
+        vm_text,
+        load_anchor,
+        load_anchor + '''
+                            metaTitle = cfgObj?.global?.metaTitle ?: currentConfig.metaTitle,
+                            metaDescription = cfgObj?.global?.metaDescription ?: currentConfig.metaDescription,''',
+        "load separate SEO metadata"
+    )
+vm_path.write_text(vm_text, encoding="utf-8")
+
+editor_path = root / "app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"
+editor_text = editor_path.read_text(encoding="utf-8")
+seo_title_old = '''            value = config.storeName, // Bind or use helper
+            onValueChange = { onUpdate(config.copy(storeName = it)) },
+            label = { Text("عنوان السيو الترويجي (Meta Title)") },'''
+seo_title_new = '''            value = config.metaTitle,
+            onValueChange = { onUpdate(config.copy(metaTitle = it)) },
+            label = { Text("عنوان السيو (Meta Title)") },'''
+if seo_title_old in editor_text:
+    editor_text = once(editor_text, seo_title_old, seo_title_new, "independent SEO title editor")
+seo_desc_old = '''            value = config.aboutText,
+            onValueChange = { onUpdate(config.copy(aboutText = it)) },
+            label = { Text("الوصف لمحركات البحث (Meta Description)") },'''
+seo_desc_new = '''            value = config.metaDescription,
+            onValueChange = { onUpdate(config.copy(metaDescription = it)) },
+            label = { Text("الوصف لمحركات البحث (Meta Description)") },'''
+if seo_desc_old in editor_text:
+    editor_text = once(editor_text, seo_desc_old, seo_desc_new, "independent SEO description editor")
+
+# The custom-section editor can switch between generic content, FAQ accordions and trust cards.
+custom_title_field = '''                    OutlinedTextField(local.title, { local=local.copy(title=it) }, label={ Text("عنوان القسم") }, modifier=Modifier.fillMaxWidth())'''
+if custom_title_field in editor_text and "اختيار نوع القسم" not in editor_text:
+    section_type_controls = custom_title_field + '''
+                    Text("نوع القسم", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("content" to "محتوى", "faq" to "أسئلة شائعة", "trust" to "عناصر ثقة").forEach { (kind, label) ->
+                            if (local.sectionType == kind) {
+                                Button(onClick = { local = local.copy(sectionType = kind) }, modifier = Modifier.weight(1f)) { Text(label) }
+                            } else {
+                                OutlinedButton(onClick = { local = local.copy(sectionType = kind) }, modifier = Modifier.weight(1f)) { Text(label) }
+                            }
+                        }
+                    }
+                    if (local.sectionType == "faq") {
+                        Text("الأسئلة والأجوبة", fontWeight = FontWeight.SemiBold)
+                        local.faqItems.forEachIndexed { index, entry ->
+                            OutlinedTextField(
+                                value = entry.question,
+                                onValueChange = { value -> local = local.copy(faqItems = local.faqItems.mapIndexed { i, old -> if (i == index) old.copy(question = value) else old }) },
+                                label = { Text("السؤال " + (index + 1)) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = entry.answer,
+                                onValueChange = { value -> local = local.copy(faqItems = local.faqItems.mapIndexed { i, old -> if (i == index) old.copy(answer = value) else old }) },
+                                label = { Text("الإجابة") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 2
+                            )
+                            TextButton(onClick = { local = local.copy(faqItems = local.faqItems.filterIndexed { i, _ -> i != index }) }) { Text("حذف السؤال") }
+                        }
+                        OutlinedButton(onClick = { local = local.copy(faqItems = local.faqItems + SiteFaqEntry()) }, modifier = Modifier.fillMaxWidth()) { Text("إضافة سؤال جديد") }
+                    } else if (local.sectionType == "trust") {
+                        Text("عناصر الثقة", fontWeight = FontWeight.SemiBold)
+                        local.trustItems.forEachIndexed { index, entry ->
+                            OutlinedTextField(
+                                value = entry.icon,
+                                onValueChange = { value -> local = local.copy(trustItems = local.trustItems.mapIndexed { i, old -> if (i == index) old.copy(icon = value) else old }) },
+                                label = { Text("الرمز أو الأيقونة") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = entry.title,
+                                onValueChange = { value -> local = local.copy(trustItems = local.trustItems.mapIndexed { i, old -> if (i == index) old.copy(title = value) else old }) },
+                                label = { Text("عنوان عنصر الثقة") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = entry.description,
+                                onValueChange = { value -> local = local.copy(trustItems = local.trustItems.mapIndexed { i, old -> if (i == index) old.copy(description = value) else old }) },
+                                label = { Text("وصف عنصر الثقة") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 2
+                            )
+                            TextButton(onClick = { local = local.copy(trustItems = local.trustItems.filterIndexed { i, _ -> i != index }) }) { Text("حذف العنصر") }
+                        }
+                        OutlinedButton(onClick = { local = local.copy(trustItems = local.trustItems + SiteTrustEntry()) }, modifier = Modifier.fillMaxWidth()) { Text("إضافة عنصر ثقة") }
+                    }'''
+    editor_text = once(editor_text, custom_title_field, section_type_controls, "FAQ and trust editor controls")
+editor_path.write_text(editor_text, encoding="utf-8")
+
+print("FAQ/trust section models, editors and independent SEO fields applied.")
