@@ -10,31 +10,7 @@ def once(s,a,b,label):
     return s.replace(a,b,1)
 
 
-def dump_data_class(source, class_name):
-    start = source.find("data class " + class_name + "(")
-    if start < 0:
-        print("CMS_MODEL_DEBUG missing " + class_name)
-        return
-    line_start = source.rfind("\n", 0, start) + 1
-    depth = 0
-    opened = False
-    for i in range(start, len(source)):
-        ch = source[i]
-        if ch == "(":
-            depth += 1
-            opened = True
-        elif ch == ")":
-            depth -= 1
-            if opened and depth == 0:
-                print("CMS_MODEL_DEBUG " + class_name + ":\n" + source[line_start:i+1])
-                return
-    print("CMS_MODEL_DEBUG unterminated " + class_name)
-
 model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
-dump_data_class(model_text, 'SiteCustomizationConfig')
-dump_data_class(model_text, 'AnnouncementConfig')
-dump_data_class(model_text, 'GlobalConfig')
-dump_data_class(model_text, 'FooterConfig')
 if "data class SiteCustomizationDraftRequest(" not in model_text:
     model_text += '''
 
@@ -506,23 +482,21 @@ if "createSiteCustomizationSnapshot(" not in publish:
                 val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)'''
     publish = once(publish,snapshot_anchor,snapshot_code,"pre-publish snapshot")
 if "restoreSiteCustomizationVersion(" not in publish:
-    failure_anchor = '''                    _websiteSaveState.value = "error"
-                    return@launch
-                }
-                _websiteConfig.value = config'''
-    failure_replacement = '''                    val rollbackResponse = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to snapshotId))
+    failure_marker = "Website configuration was not fully saved"
+    failure_pos = publish.find(failure_marker)
+    if failure_pos < 0:
+        raise SystemExit("Website publish error message missing for automatic rollback")
+    return_pos = publish.find("return@launch", failure_pos)
+    if return_pos < 0:
+        raise SystemExit("Website publish failure return missing for automatic rollback")
+    rollback_code = '''                    val rollbackResponse = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to snapshotId))
                     if (!rollbackResponse.isSuccessful || rollbackResponse.body() != true) {
                         android.util.Log.e("EloryWebsite", "Publish failed and automatic rollback also failed: " + rollbackResponse.code())
                     } else {
                         android.util.Log.w("EloryWebsite", "Partial publish was rolled back to the pre-publish snapshot.")
                     }
-                    _websiteSaveState.value = "error"
-                    return@launch
-                }
-                _websiteConfig.value = config'''
-    if failure_anchor not in publish:
-        raise SystemExit("Website publish failure anchor missing for automatic rollback")
-    publish = publish.replace(failure_anchor,failure_replacement,1)
+'''
+    publish = publish[:return_pos] + rollback_code + publish[return_pos:]
 vm_text = vm_text[:publish_start] + publish + vm_text[publish_end:]
 
 vm_path.write_text(vm_text, encoding="utf-8")
@@ -798,7 +772,6 @@ model_path.write_text(model_text, encoding="utf-8")
 
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
 store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
-dump_data_class(store_model_text, "WebsiteConfig")
 if "val popupEnabled: Boolean" not in store_model_text:
     store_model_text = append_fields_to_class(store_model_text, "WebsiteConfig", [
         '    val announcementActionUrl: String = ""',
