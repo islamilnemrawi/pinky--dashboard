@@ -53,6 +53,7 @@ data class ProfitDailyDto(
     @Json(name = "delivered_sales") val deliveredSales: Double = 0.0,
     @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,
     @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,
+    @Json(name = "open_missing_profit_orders") val openMissingProfitOrders: Int = 0,
     @Json(name = "requested_orders") val requestedOrders: Int = 0
 )
 @JsonClass(generateAdapter = true)
@@ -223,6 +224,8 @@ print("PASS: app connected to the financial dashboard.")
 
 panel = r'''package com.pinky.dashboard.ui.screens.reports
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -233,6 +236,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -379,16 +383,25 @@ fun ProfitDashboardPanel(
                 EmptyLine("لا توجد طلبات في الفترة المحددة.")
             } else {
                 data.daily.forEach { metric ->
+                    val selected = selectedDay == metric.day
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (selected) PinkPrimary.copy(alpha = 0.10f)
+                                else MaterialTheme.colorScheme.surface
+                            )
+                            .clickable { selectedDay = metric.day }
+                            .padding(horizontal = 10.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(metric.day, fontWeight = FontWeight.SemiBold)
                             Text(
-                                metric.deliveredOrders.toString() + " طلب مسلّم • " +
-                                    metric.requestedOrders + " طلب غير ملغى",
+                                metric.deliveredOrders.toString() + " مسلّم • " +
+                                    (metric.requestedOrders - metric.deliveredOrders).coerceAtLeast(0) + " مفتوح",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -400,9 +413,16 @@ fun ProfitDashboardPanel(
                                 color = PinkPrimary
                             )
                             Text(
-                                metric.missingProfitOrders.toString() + " هامش ناقص",
+                                metric.missingProfitOrders.toString() + " مسلّم بلا هامش",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (metric.missingProfitOrders > 0)
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                metric.openMissingProfitOrders.toString() + " مفتوح بلا هامش",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (metric.openMissingProfitOrders > 0)
                                     MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -410,38 +430,30 @@ fun ProfitDashboardPanel(
                     }
                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 }
-                Text(
-                    "اضغط على اليوم لعرض تفاصيله:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    data.daily.forEach { day ->
-                        FilterChip(selected = selectedDay == day.day,
-                            onClick = { selectedDay = day.day },
-                            label = { Text(day.day) })
-                    }
-                }
                 val day = data.daily.firstOrNull { it.day == selectedDay } ?: data.daily.last()
                 DailyProfitDetails(day)
             }
         }
 
-        SectionCard(title = "أكثر المنتجات طلبًا") {
+        SectionCard(title = "أعلى 10 منتجات طلبًا") {
             if (data.products.isEmpty()) EmptyLine("لا توجد منتجات مسجلة في هذه الفترة.")
             else {
-                Text("الترتيب حسب عدد القطع المطلوبة من الطلبات غير الملغاة، مع فصل المسلّم عن المفتوح.",
+                Text("نعرض أعلى 10 منتجات فقط، مرتبة حسب عدد القطع المطلوبة، مع فصل المسلّم عن المفتوح.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 data.products.forEachIndexed { index, product -> ProductDemandRow(index + 1, product) }
             }
         }
 
-        SectionCard(title = "أكثر المحافظات طلبًا") {
+        SectionCard(title = "أعلى 10 محافظات طلبًا") {
             if (data.governorates.isEmpty()) EmptyLine("لا توجد بيانات محافظات في الفترة المحددة.")
-            else data.governorates.forEachIndexed { index, governorate ->
-                GovernorateDemandRow(index + 1, governorate)
+            else {
+                Text("نعرض أعلى 10 محافظات فقط، مرتبة حسب عدد الطلبات، مع قيمة الطلبات وعدد الطلبات المسلّمة.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                data.governorates.forEachIndexed { index, governorate ->
+                    GovernorateDemandRow(index + 1, governorate)
+                }
             }
         }
 
@@ -500,7 +512,8 @@ private fun DailyProfitDetails(day: ProfitDailyDto) {
         DetailLine("طلبات تم تسليمها", day.deliveredOrders.toString())
         DetailLine("قيمة الطلبات المسلّمة", Formatters.formatCurrencyEgp(day.deliveredSales))
         DetailLine("هامش ربح المنتجات", Formatters.formatCurrencyEgp(day.productGrossMargin))
-        DetailLine("طلبات بيانات ربحها ناقصة", day.missingProfitOrders.toString())
+        DetailLine("طلبات مسلّمة هامشها ناقص", day.missingProfitOrders.toString())
+        DetailLine("طلبات مفتوحة هامشها ناقص", day.openMissingProfitOrders.toString())
         DetailLine("طلبات غير ملغاة تم تسجيلها", day.requestedOrders.toString())
         if (day.missingProfitOrders > 0) {
             Text("الرقم المعروض لا يتضمن هامش الطلبات الناقصة.",
@@ -600,12 +613,13 @@ private fun PrimeProfitRow(
             }
             DetailLine("الشحن المجاني المستهلك",
                 row.freeShippingUsed.toString() + " من " + row.freeShippingLimit + " • المتبقي " + row.freeShippingRemaining)
-            DetailLine("شحنات مجانية تم تسليمها", row.freeShippingCompleted.toString())
+            DetailLine("شحنات مجانية أُرسلت/سُلّمت", row.freeShippingUsed.toString())
+            DetailLine("منها تم تسليمها", row.freeShippingCompleted.toString())
             if (row.actualFreeShippingCostTotal != null) {
-                DetailLine("التكلفة الفعلية للشحن المجاني",
+                DetailLine("إجمالي تكلفة الشحن الفعلية",
                     Formatters.formatCurrencyEgp(row.actualFreeShippingCostTotal))
-            } else if (row.freeShippingCompleted > 0) {
-                Text("أدخل إجمالي تكلفة الشحن الفعلية للشحنات المجانية التي تم تسليمها.",
+            } else if (row.freeShippingUsed > 0) {
+                Text("أدخل إجمالي تكلفة الشحن الفعلية للشحنات المجانية التي تم إرسالها أو تسليمها.",
                     color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             } else {
                 DetailLine("تكلفة الشحن المجاني", "لا توجد شحنات مجانية مسلّمة بعد")
@@ -616,7 +630,7 @@ private fun PrimeProfitRow(
                 Text("لا يمكن تثبيت ربح أو خسارة هذا الاشتراك قبل اكتمال إيراد العضوية وتكلفة الشحن المطلوبة.",
                     color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
-            if (canManagePrime && (row.freeShippingCompleted > 0 || row.actualFreeShippingCostTotal != null)) {
+            if (canManagePrime && (row.freeShippingUsed > 0 || row.actualFreeShippingCostTotal != null)) {
                 OutlinedTextField(
                     value = shippingCostText,
                     onValueChange = { shippingCostText = it },
