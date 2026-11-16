@@ -665,42 +665,356 @@ private fun EmptyLine(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 '''
+
+def panel_replace_once(old: str, new: str, label: str) -> None:
+    global panel
+    count = panel.count(old)
+    if count != 1:
+        raise SystemExit("Expected one panel insertion point for " + label + "; found " + str(count))
+    panel = panel.replace(old, new, 1)
+
+panel_replace_once(
+    """import androidx.compose.ui.unit.sp
+""",
+    """import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
+""",
+    "report tile icon import"
+)
+panel_replace_once(
+    """    var selectedDay by remember(data?.daily) {
+        mutableStateOf(data?.daily?.lastOrNull()?.day)
+    }
+""",
+    """    var selectedDay by remember(data?.daily) {
+        mutableStateOf(data?.daily?.lastOrNull()?.day)
+    }
+    var selectedSection by remember { mutableIntStateOf(0) }
+""",
+    "selected report section state"
+)
+
+summary_start = panel.find('        Text("ملخص الفترة", fontWeight = FontWeight.Bold, fontSize = 16.sp)')
+daily_start = panel.find('        SectionCard(title = "الأرباح حسب اليوم")', summary_start)
+if summary_start < 0 or daily_start < 0:
+    raise SystemExit("Could not isolate the existing financial summary block.")
+summary_block = panel[summary_start:daily_start]
+panel = panel[:summary_start] + panel[daily_start:]
+
+tile_grid = """        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "الأرباح اليومية",
+                subtitle = "تفاصيل الربح حسب اليوم",
+                icon = Icons.Outlined.DateRange,
+                selected = selectedSection == 0,
+                onClick = { selectedSection = 0 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "أكثر المنتجات",
+                subtitle = "أعلى 10 منتجات طلبًا",
+                icon = Icons.Outlined.Inventory2,
+                selected = selectedSection == 1,
+                onClick = { selectedSection = 1 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "أعلى المحافظات",
+                subtitle = "أعلى 10 محافظات طلبًا",
+                icon = Icons.Outlined.LocationOn,
+                selected = selectedSection == 2,
+                onClick = { selectedSection = 2 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "Elory Prime",
+                subtitle = "ربح وخسارة الاشتراكات",
+                icon = Icons.Outlined.Star,
+                selected = selectedSection == 3,
+                onClick = { selectedSection = 3 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+"""
+panel_replace_once(
+    """        val summary = data.summary
+""",
+    """        val summary = data.summary
+""" + tile_grid,
+    "four report selector cards"
+)
+summary_indented = "".join(("    " + line if line.strip() else line) for line in summary_block.splitlines(keepends=True))
+panel_replace_once(
+    """        SectionCard(title = "الأرباح حسب اليوم") {
+""",
+    """        if (selectedSection == 0) {
+""" + summary_indented + """            SectionCard(title = "الأرباح حسب اليوم") {
+""",
+    "daily report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "أعلى 10 منتجات طلبًا") {
+""",
+    """        }
+        if (selectedSection == 1) {
+            SectionCard(title = "أعلى 10 منتجات طلبًا") {
+""",
+    "product report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "أعلى 10 محافظات طلبًا") {
+""",
+    """        }
+        if (selectedSection == 2) {
+            SectionCard(title = "أعلى 10 محافظات طلبًا") {
+""",
+    "governorate report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "ربحية اشتراكات Elory Prime") {
+""",
+    """        }
+        if (selectedSection == 3) {
+            SectionCard(title = "ربحية اشتراكات Elory Prime") {
+""",
+    "Prime report conditional"
+)
+panel_replace_once(
+    """        }
+    }
+}
+
+@Composable
+private fun SectionCard""",
+    """            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSectionTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) PinkPrimary.copy(alpha = 0.12f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = CardDefaults.outlinedCardBorder()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = PinkPrimary, modifier = Modifier.size(22.dp))
+            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionCard""",
+    "close single report content and add selector tile"
+)
+
+
+def panel_replace_once(old: str, new: str, label: str) -> None:
+    global panel
+    count = panel.count(old)
+    if count != 1:
+        raise SystemExit("Expected one panel insertion point for " + label + "; found " + str(count))
+    panel = panel.replace(old, new, 1)
+
+panel_replace_once(
+    """import androidx.compose.ui.unit.sp
+""",
+    """import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
+""",
+    "report tile icon import"
+)
+panel_replace_once(
+    """    var selectedDay by remember(data?.daily) {
+        mutableStateOf(data?.daily?.lastOrNull()?.day)
+    }
+""",
+    """    var selectedDay by remember(data?.daily) {
+        mutableStateOf(data?.daily?.lastOrNull()?.day)
+    }
+    var selectedSection by remember { mutableIntStateOf(0) }
+""",
+    "selected report section state"
+)
+
+summary_start = panel.find('        Text("ملخص الفترة", fontWeight = FontWeight.Bold, fontSize = 16.sp)')
+daily_start = panel.find('        SectionCard(title = "الأرباح حسب اليوم")', summary_start)
+if summary_start < 0 or daily_start < 0:
+    raise SystemExit("Could not isolate the existing financial summary block.")
+summary_block = panel[summary_start:daily_start]
+panel = panel[:summary_start] + panel[daily_start:]
+
+tile_grid = """        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "الأرباح اليومية",
+                subtitle = "تفاصيل الربح حسب اليوم",
+                icon = Icons.Outlined.DateRange,
+                selected = selectedSection == 0,
+                onClick = { selectedSection = 0 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "أكثر المنتجات",
+                subtitle = "أعلى 10 منتجات طلبًا",
+                icon = Icons.Outlined.Inventory2,
+                selected = selectedSection == 1,
+                onClick = { selectedSection = 1 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "أعلى المحافظات",
+                subtitle = "أعلى 10 محافظات طلبًا",
+                icon = Icons.Outlined.LocationOn,
+                selected = selectedSection == 2,
+                onClick = { selectedSection = 2 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "Elory Prime",
+                subtitle = "ربح وخسارة الاشتراكات",
+                icon = Icons.Outlined.Star,
+                selected = selectedSection == 3,
+                onClick = { selectedSection = 3 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+"""
+panel_replace_once(
+    """        val summary = data.summary
+""",
+    """        val summary = data.summary
+""" + tile_grid,
+    "four report selector cards"
+)
+summary_indented = "".join(("    " + line if line.strip() else line) for line in summary_block.splitlines(keepends=True))
+panel_replace_once(
+    """        SectionCard(title = "الأرباح حسب اليوم") {
+""",
+    """        if (selectedSection == 0) {
+""" + summary_indented + """            SectionCard(title = "الأرباح حسب اليوم") {
+""",
+    "daily report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "أعلى 10 منتجات طلبًا") {
+""",
+    """        }
+        if (selectedSection == 1) {
+            SectionCard(title = "أعلى 10 منتجات طلبًا") {
+""",
+    "product report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "أعلى 10 محافظات طلبًا") {
+""",
+    """        }
+        if (selectedSection == 2) {
+            SectionCard(title = "أعلى 10 محافظات طلبًا") {
+""",
+    "governorate report conditional"
+)
+panel_replace_once(
+    """        SectionCard(title = "ربحية اشتراكات Elory Prime") {
+""",
+    """        }
+        if (selectedSection == 3) {
+            SectionCard(title = "ربحية اشتراكات Elory Prime") {
+""",
+    "Prime report conditional"
+)
+panel_replace_once(
+    """        }
+    }
+}
+
+@Composable
+private fun SectionCard""",
+    """            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSectionTile(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) PinkPrimary.copy(alpha = 0.12f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = CardDefaults.outlinedCardBorder()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = PinkPrimary, modifier = Modifier.size(22.dp))
+            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionCard""",
+    "close single report content and add selector tile"
+)
+
 write("app/src/main/java/com/pinky/dashboard/ui/screens/reports/ProfitDashboardPanel.kt", panel)
 
 reports = "app/src/main/java/com/pinky/dashboard/ui/screens/reports/ReportsScreen.kt"
 source = read(reports)
-print("ELORY_REPORTS_SOURCE_BEGIN")
-print(source)
-print("ELORY_REPORTS_SOURCE_END")
-print("ELORY_NAV_MATCHES_BEGIN")
-for candidate in sorted(PROJECT.rglob("*.kt")):
-    lines = candidate.read_text(encoding="utf-8").splitlines()
-    matched = [i for i, line in enumerate(lines) if any(term in line.lower() for term in (
-        "المنتجات", "المخزون", "الشحن", "التوصيل", "productscreen", "shippingscreen",
-        "inventoryscreen", "selectednavigation", "bottomnavigation", "navigationitem",
-        "currentdestination", "selectedscreen", "route."
-    ))]
-    if matched:
-        print("FILE:", candidate.relative_to(PROJECT))
-        emitted = set()
-        for i in matched:
-            for j in range(max(0, i - 3), min(len(lines), i + 5)):
-                if j not in emitted:
-                    print(f"{j + 1}: {lines[j]}")
-                    emitted.add(j)
-        print("END FILE")
-print("ELORY_NAV_MATCHES_END")
-print("ELORY_SCREEN_SOURCE_BEGIN")
-for relative, start, end in (
-    ("app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt", 250, 315),
-    ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt", 1, 520),
-    ("app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt", 1, 240),
-):
-    lines = read(relative).splitlines()
-    print("SOURCE:", relative)
-    for i in range(max(0, start - 1), min(len(lines), end)):
-        print(f"{i + 1}: {lines[i]}")
-print("ELORY_SCREEN_SOURCE_END")
 source = replace_once(source,
     "import com.pinky.dashboard.core.util.Formatters\n",
     "import com.pinky.dashboard.core.util.Formatters\nimport com.pinky.dashboard.data.remote.ProfitDashboardDto\n",
@@ -772,7 +1086,9 @@ checks = {
     "DTO and endpoint": (remote, ("admin_get_profit_dashboard", "ProfitDashboardDto", "admin_set_prime_actual_shipping_cost")),
     "ViewModel actions": (viewmodel, ("loadProfitDashboard", "savePrimeActualShippingCost", "_profitDashboard")),
     "app state bindings": (app, ("profitDashboard = profitDashboard", "onSavePrimeActualShippingCost")),
-    "financial tab integration": (reports, ("ProfitDashboardPanel(", "onProfitDashboardDaysChange")),
+    "financial tab integration": (reports, ("ProfitDashboardPanel(", "onProfitDashboardDaysChange", "التقارير والأرباح")),
+    "inventory report relocation": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt", ("ملخص المخزون", "إجمالي القطع", "منخفض / نافد")),
+    "delivery report relocation": ("app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt", ("كفاءة الشحن والتوصيل", "معدل التسليم", "orders: List<Order>")),
     "Prime cost editor": ("app/src/main/java/com/pinky/dashboard/ui/screens/reports/ProfitDashboardPanel.kt",
                           ("onSavePrimeShippingCost", "primeDiscountTotal", "freeShippingRemaining"))
 }
