@@ -412,15 +412,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Temporary source artifact to inspect the generated editor layout before restructuring tabs.
-      - name: Export generated website editor source for review
-        uses: actions/upload-artifact@v4
-        with:
-          name: elory-editor-source-review
-          path: ${{ env.PROJECT_DIR }}/app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Remove temporary Firebase configuration
         if: always()
         shell: bash
