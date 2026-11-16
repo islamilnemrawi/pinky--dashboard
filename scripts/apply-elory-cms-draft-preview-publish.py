@@ -30,6 +30,23 @@ data class SiteCustomizationVersion(
 )
 '''
 
+
+def print_kotlin_class(source, class_name):
+    start = source.find("data class " + class_name + "(")
+    if start < 0:
+        print("GENERATED_MODEL_MISSING " + class_name)
+        return
+    end = source.find("\n)", start)
+    if end < 0:
+        print("GENERATED_MODEL_NO_END " + class_name)
+        return
+    print("GENERATED_MODEL_START " + class_name)
+    print(source[start:end+2])
+    print("GENERATED_MODEL_END " + class_name)
+
+for model_name in ["SiteCustomizationConfig", "AnnouncementConfig", "GlobalConfig", "FooterConfig"]:
+    print_kotlin_class(model_text, model_name)
+
 model_path.write_text(model_text, encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
@@ -795,6 +812,9 @@ if "val popupEnabled: Boolean" not in store_model_text:
         "val popupEnabled: Boolean",
         "WebsiteConfig"
     )
+
+    print_kotlin_class(store_model_text, "WebsiteConfig")
+
     store_model_path.write_text(store_model_text, encoding="utf-8")
 
 # Append the additional strongly typed fields to the already-centralized mapping.
