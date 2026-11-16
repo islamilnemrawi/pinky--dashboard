@@ -1163,4 +1163,31 @@ for label, (relative, needles) in checks.items():
     if missing:
         raise SystemExit("Verification failed for " + label + ": " + str(missing))
     print("PASS: " + label)
+
+# Temporary diagnostic: inspect the exact website editor code from the build archive.
+for candidate in sorted(PROJECT.rglob("WebsiteEditorScreen.kt")):
+    print("WEBSITE_EDITOR_REVIEW_BEGIN")
+    lines = candidate.read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(lines):
+        print(f"{index + 1}: {line}")
+    print("WEBSITE_EDITOR_REVIEW_END")
+for candidate in sorted(PROJECT.rglob("WebsiteCustomizationConfig.kt")):
+    print("WEBSITE_CONFIG_REVIEW_BEGIN")
+    lines = candidate.read_text(encoding="utf-8").splitlines()
+    for index, line in enumerate(lines):
+        print(f"{index + 1}: {line}")
+    print("WEBSITE_CONFIG_REVIEW_END")
+for candidate in sorted(PROJECT.rglob("PinkyViewModel.kt")):
+    lines = candidate.read_text(encoding="utf-8").splitlines()
+    indices = [i for i,line in enumerate(lines) if "websiteConfig" in line or "updateWebsiteConfig" in line or "saveWebsiteConfig" in line]
+    if indices:
+        print("WEBSITE_VIEWMODEL_REVIEW_BEGIN")
+        emitted = set()
+        for i in indices:
+            for j in range(max(0,i-3),min(len(lines),i+9)):
+                if j not in emitted:
+                    print(f"{j+1}: {lines[j]}")
+                    emitted.add(j)
+        print("WEBSITE_VIEWMODEL_REVIEW_END")
+
 print("Elory profit dashboard patch completed.")
