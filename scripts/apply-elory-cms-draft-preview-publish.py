@@ -29,6 +29,10 @@ data class SiteCustomizationVersion(
     @Json(name = "createdAt") val createdAt: String
 )
 '''
+
+print("CMS_MODEL_POST_CUSTOMIZATION_START")
+print(model_text)
+print("CMS_MODEL_POST_CUSTOMIZATION_END")
 model_path.write_text(model_text, encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
@@ -777,6 +781,11 @@ model_path.write_text(model_text, encoding="utf-8")
 
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
 store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
+
+print("CMS_MODEL_PRE_STOREMODELS_START")
+print("\n".join(f"{i+1}: {line}" for i, line in enumerate(store_model_text.splitlines()) if 130 <= i+1 <= 290))
+print("CMS_MODEL_PRE_STOREMODELS_END")
+
 if "val popupEnabled: Boolean" not in store_model_text:
     store_model_text = append_fields_to_class(store_model_text, "WebsiteConfig", [
         '    val announcementActionUrl: String = ""',
