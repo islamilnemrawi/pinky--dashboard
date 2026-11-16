@@ -17,8 +17,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: elory-dashboard-apk
-  cancel-in-progress: false
+  group: elory-dashboard-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
