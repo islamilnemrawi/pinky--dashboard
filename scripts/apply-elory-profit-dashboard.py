@@ -1372,9 +1372,9 @@ patch_file(order_dto,
     "Prime courier cost DTO")
 
 patch_file(panel_file,
-    '''        }
-        Text(
-            "هامش ربح المنتجات ليس صافي ربح المتجر؛ فهو لا يشمل تكلفة الشحن الفعلية أو التغليف أو رسوم الدفع أو المصاريف التشغيلية.",''',
+    '''            }
+            Text(
+                "هامش ربح المنتجات ليس صافي ربح المتجر؛ فهو لا يشمل تكلفة الشحن الفعلية أو التغليف أو رسوم الدفع أو المصاريف التشغيلية.",''',
     '''            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PinkyStatCard(
                     title = "تكلفة شركة الشحن",
