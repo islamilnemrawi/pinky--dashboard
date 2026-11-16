@@ -1359,8 +1359,8 @@ patch_file(order_detail,
 
 # Financial DTOs: no shipping charge is treated as store revenue.
 patch_file(order_dto,
-    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,',
-    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "delivered_shipping_cost") val deliveredShippingCost: Double = 0.0,\n    @Json(name = "delivered_net_profit") val deliveredNetProfit: Double? = null,\n    @Json(name = "missing_shipping_cost_orders") val missingShippingCostOrders: Int = 0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,',
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,\n    @Json(name = "open_orders") val openOrders: Int = 0,',
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "delivered_shipping_cost") val deliveredShippingCost: Double = 0.0,\n    @Json(name = "delivered_net_profit") val deliveredNetProfit: Double? = null,\n    @Json(name = "missing_shipping_cost_orders") val missingShippingCostOrders: Int = 0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,\n    @Json(name = "open_orders") val openOrders: Int = 0,',
     "Summary courier cost DTO")
 patch_file(order_dto,
     '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,\n    @Json(name = "open_missing_profit_orders") val openMissingProfitOrders: Int = 0,',
