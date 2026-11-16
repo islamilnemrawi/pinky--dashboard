@@ -25,6 +25,9 @@ if "fun saveSiteCustomizationDraft(" not in s:
     @POST("rest/v1/rpc/admin_save_site_customization_draft")
     suspend fun saveSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Unit>
 
+    @POST("rest/v1/rpc/admin_get_site_customization_draft")
+    suspend fun getSiteCustomizationDraft(@Body params: Map<String, Any>): Response<com.pinky.dashboard.domain.model.SiteCustomizationConfig>
+
     @POST("rest/v1/rpc/admin_clear_site_customization_draft")
     suspend fun clearSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Unit>
 '''+s[en:]
@@ -44,6 +47,23 @@ if "private fun buildWebsiteSiteConfig" not in s:
     b=s.find("\n\n                val customizationsDto =",a)
     if a<0 or b<0: raise SystemExit("mapping refind failed")
     s=s[:a]+"                val siteConfigObj = buildWebsiteSiteConfig(config)"+s[b:]
+# Load the saved CMS draft before the published config, so it survives app restarts.
+import re
+cfg_matches = list(re.finditer(r'(?m)^(\s*)val cfgObj\s*=', s))
+if len(cfg_matches) == 1 and "getSiteCustomizationDraft" not in s:
+    match = cfg_matches[0]
+    indent = match.group(1)
+    prelude = (
+        indent + "val draftConfig: com.pinky.dashboard.domain.model.SiteCustomizationConfig? = try {\n" +
+        indent + "    val draftResponse = SupabaseClient.service.getSiteCustomizationDraft(emptyMap())\n" +
+        indent + "    if (draftResponse.isSuccessful) draftResponse.body() else null\n" +
+        indent + "} catch (_: Exception) { null }\n"
+    )
+    s = s[:match.start()] + prelude + s[match.start():]
+    s = re.sub(r'(?m)^(\s*)val cfgObj\s*=', r'\1val cfgObj = draftConfig ?: ', s, count=1)
+elif "getSiteCustomizationDraft" not in s:
+    raise SystemExit("Could not uniquely locate CMS config loader for saved draft restoration")
+
 state='''    private val _websiteConfig = MutableStateFlow(WebsiteConfig())
     val websiteConfig: StateFlow<WebsiteConfig> = _websiteConfig.asStateFlow()'''
 if state in s and "_websiteDraftSaveState" not in s:
@@ -399,6 +419,11 @@ if "fun SectionsLayoutForm(" not in editor_text:
 
 # The custom-section editor can switch between generic content, FAQ accordions and trust cards.
 custom_title_field = '''                    OutlinedTextField(local.title, { local=local.copy(title=it) }, label={ Text("عنوان القسم") }, modifier=Modifier.fillMaxWidth())'''
+editor_text = editor_text.replace(
+        "الحفظ ينشر الإعدادات إلى الموقع.",
+        "حفظ المسودة لا يغير الموقع؛ راجع المعاينة ثم اختر نشر التعديلات.",
+        1
+    )
 if custom_title_field in editor_text and "اختيار نوع القسم" not in editor_text:
     section_type_controls = custom_title_field + '''
                     Text("نوع القسم", fontWeight = FontWeight.SemiBold)
