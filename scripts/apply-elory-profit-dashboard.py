@@ -690,6 +690,17 @@ for candidate in sorted(PROJECT.rglob("*.kt")):
                     emitted.add(j)
         print("END FILE")
 print("ELORY_NAV_MATCHES_END")
+print("ELORY_SCREEN_SOURCE_BEGIN")
+for relative, start, end in (
+    ("app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt", 250, 315),
+    ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt", 1, 520),
+    ("app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt", 1, 240),
+):
+    lines = read(relative).splitlines()
+    print("SOURCE:", relative)
+    for i in range(max(0, start - 1), min(len(lines), end)):
+        print(f"{i + 1}: {lines[i]}")
+print("ELORY_SCREEN_SOURCE_END")
 source = replace_once(source,
     "import com.pinky.dashboard.core.util.Formatters\n",
     "import com.pinky.dashboard.core.util.Formatters\nimport com.pinky.dashboard.data.remote.ProfitDashboardDto\n",
