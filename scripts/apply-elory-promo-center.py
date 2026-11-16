@@ -427,7 +427,7 @@ checks=[
  (VM,'discountType = if (coupon.discountType == DiscountType.PERCENTAGE) "percent" else "fixed"'),
  (OFFERS,'UUID.randomUUID().toString()'),
  (OFFERS,'onSave: suspend (Coupon) -> Result<Unit>'),
- (WEBSITE,'حفظ حالة المتجر')
+ (WEBSITE,'Switch(checked = config.isStoreOpen')
 ]
 for rel,m in checks:
     if m not in F(rel).read_text(encoding="utf-8"): raise SystemExit("Missing verification "+m)
