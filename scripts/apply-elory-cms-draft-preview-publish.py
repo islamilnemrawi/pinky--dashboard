@@ -31,21 +31,39 @@ data class SiteCustomizationVersion(
 '''
 
 
-def print_kotlin_class(source, class_name):
-    start = source.find("data class " + class_name + "(")
-    if start < 0:
-        print("GENERATED_MODEL_MISSING " + class_name)
-        return
-    end = source.find("\n)", start)
-    if end < 0:
-        print("GENERATED_MODEL_NO_END " + class_name)
-        return
-    print("GENERATED_MODEL_START " + class_name)
-    print(source[start:end+2])
-    print("GENERATED_MODEL_END " + class_name)
 
-for model_name in ["SiteCustomizationConfig", "AnnouncementConfig", "GlobalConfig", "FooterConfig"]:
-    print_kotlin_class(model_text, model_name)
+expected_models = {
+    "SiteCustomizationConfig": ["productCards", "popup"],
+    "AnnouncementConfig": ["actionUrl", "rotationSeconds"],
+    "GlobalConfig": ["metaImage", "canonicalUrl", "fontScale", "sectionSpacingDp", "buttonRadiusDp", "cardRadiusDp"],
+    "FooterConfig": ["customLinks"]
+}
+for model_name, property_names in expected_models.items():
+    start = model_text.find("data class " + model_name + "(")
+    end = model_text.find("\n)", start)
+    if start < 0 or end < 0:
+        raise SystemExit("CMS Kotlin model is incomplete: " + model_name)
+    block = model_text[start:end]
+    for property_name in property_names:
+        if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", block):
+            raise SystemExit("CMS Kotlin property missing from " + model_name + ": " + property_name)
+
+website_start = store_model_text.find("data class WebsiteConfig(")
+website_end = store_model_text.find("\n)", website_start)
+if website_start < 0 or website_end < 0:
+    raise SystemExit("WebsiteConfig model is incomplete")
+website_block = store_model_text[website_start:website_end]
+for property_name in [
+    "announcementActionUrl", "announcementRotationSeconds", "popupEnabled", "popupTitle",
+    "popupMessage", "popupImageUrl", "popupButtonText", "popupButtonUrl",
+    "popupDelaySeconds", "popupCooldownDays", "popupShowOnMobile", "popupShowOnDesktop",
+    "productCardsMobileColumns", "productCardsDesktopColumns", "productCardsShowDiscountBadge",
+    "productCardsShowOldPrice", "productCardsShowPrimePrice", "footerCustomLinks",
+    "seoOgImage", "canonicalUrl", "visualFontScale", "visualSectionSpacingDp",
+    "visualButtonRadiusDp", "visualCardRadiusDp"
+]:
+    if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", website_block):
+        raise SystemExit("WebsiteConfig property missing: " + property_name)
 
 model_path.write_text(model_text, encoding="utf-8")
 
@@ -702,7 +720,7 @@ def append_fields_after_unique_anchor(source, class_name, anchor, fields, marker
     class_block = source[class_start:class_end]
     marker_exists = marker in class_block
     anchor_count = source.count(anchor)
-    print("CMS_FIELD_DEBUG", label, "marker_in_class=", marker_exists, "anchor_count=", anchor_count, "anchor_in_class=", anchor in class_block)
+
     if marker_exists:
         for field in fields:
             property_match = re.search(r"\bval\s+(\w+)", field)
@@ -711,7 +729,7 @@ def append_fields_after_unique_anchor(source, class_name, anchor, fields, marker
         return source
     if anchor_count != 1:
         raise SystemExit(label + " anchor count " + str(anchor_count))
-    updated = source.replace(anchor, anchor + ",\n" + "\n".join(fields), 1)
+    updated = source.replace(anchor, anchor + ",\n" + ",\n".join(fields), 1)
     updated_start = updated.find("data class " + class_name + "(")
     updated_end = updated.find("\n)", updated_start)
     if updated_end < 0:
@@ -842,7 +860,6 @@ if "val popupEnabled: Boolean" not in store_model_text:
         "WebsiteConfig"
     )
 
-    print_kotlin_class(store_model_text, "WebsiteConfig")
 
     store_model_path.write_text(store_model_text, encoding="utf-8")
 
