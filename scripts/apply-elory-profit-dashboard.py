@@ -378,6 +378,43 @@ fun ProfitDashboardPanel(
             if (data.daily.isEmpty()) {
                 EmptyLine("لا توجد طلبات في الفترة المحددة.")
             } else {
+                data.daily.forEach { metric ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(metric.day, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                metric.deliveredOrders.toString() + " طلب مسلّم • " +
+                                    metric.requestedOrders + " طلب غير ملغى",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                Formatters.formatCurrencyEgp(metric.productGrossMargin),
+                                fontWeight = FontWeight.Bold,
+                                color = PinkPrimary
+                            )
+                            Text(
+                                metric.missingProfitOrders.toString() + " هامش ناقص",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (metric.missingProfitOrders > 0)
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                }
+                Text(
+                    "اضغط على اليوم لعرض تفاصيله:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     data.daily.forEach { day ->
