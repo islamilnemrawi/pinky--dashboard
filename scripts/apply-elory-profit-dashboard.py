@@ -1266,3 +1266,225 @@ elif prime_note_new not in panel_source:
 panel_path.write_text(panel_source, encoding="utf-8")
 
 print("Elory profit dashboard patch completed.")
+
+
+# --- Courier shipping cost snapshots and profit accounting (Elory) ---
+def patch_file(relative: str, old: str, new: str, label: str) -> None:
+    path = PROJECT / relative
+    if not path.is_file():
+        raise SystemExit("Missing source file for " + label + ": " + relative)
+    source = path.read_text(encoding="utf-8")
+    count = source.count(old)
+    if count == 0 and new in source:
+        print("Already applied: " + label)
+        return
+    if count != 1:
+        raise SystemExit("Expected exactly one anchor for " + label + "; found " + str(count))
+    path.write_text(source.replace(old, new, 1), encoding="utf-8")
+    print("PASS: " + label)
+
+order_model = "app/src/main/java/com/pinky/dashboard/domain/model/Order.kt"
+order_dto = "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt"
+entities = "app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt"
+database = "app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt"
+repository = "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
+order_detail = "app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt"
+panel_file = "app/src/main/java/com/pinky/dashboard/ui/screens/reports/ProfitDashboardPanel.kt"
+
+patch_file(order_model,
+    '    val primePackaging: Boolean = false,\n    val profit: Double = 0.0,',
+    '    val primePackaging: Boolean = false,\n    val carrierShippingCost: Double? = null,\n    val profit: Double = 0.0,',
+    "Courier cost order model")
+patch_file(order_dto,
+    '    @Json(name = "prime_packaging") val primePackaging: Boolean? = null,\n    @Json(name = "profit") val profit: Double? = null,',
+    '    @Json(name = "prime_packaging") val primePackaging: Boolean? = null,\n    @Json(name = "carrier_shipping_cost") val carrierShippingCost: Double? = null,\n    @Json(name = "profit") val profit: Double? = null,',
+    "Courier cost order DTO")
+patch_file(entities,
+    '    @ColumnInfo(defaultValue = "0") val primePackaging: Boolean = false,\n    val profit: Double = 0.0,',
+    '    @ColumnInfo(defaultValue = "0") val primePackaging: Boolean = false,\n    val carrierShippingCost: Double? = null,\n    val profit: Double = 0.0,',
+    "Courier cost local entity")
+patch_file(database, '    version = 7,', '    version = 8,', "Room schema version 8")
+patch_file(database,
+    '''        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN primePackaging INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+''',
+    '''        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN primePackaging INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE orders ADD COLUMN carrierShippingCost REAL")
+            }
+        }
+''',
+    "Room migration 7 to 8")
+patch_file(database,
+    '.addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)',
+    '.addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)',
+    "Register Room migration 7 to 8")
+patch_file(repository,
+    '                    primePackaging = entity.primePackaging,\n                    profit = entity.profit,',
+    '                    primePackaging = entity.primePackaging,\n                    carrierShippingCost = entity.carrierShippingCost,\n                    profit = entity.profit,',
+    "Courier cost from cached order list")
+patch_file(repository,
+    '                    primePackaging = entity.primePackaging,\n            profit = entity.profit,',
+    '                    primePackaging = entity.primePackaging,\n            carrierShippingCost = entity.carrierShippingCost,\n            profit = entity.profit,',
+    "Courier cost from cached order detail")
+patch_file(repository,
+    '                        primePackaging = dto.primePackaging ?: false,\n                        profit = dto.profit ?: 0.0,',
+    '                        primePackaging = dto.primePackaging ?: false,\n                        carrierShippingCost = dto.carrierShippingCost,\n                        profit = dto.profit ?: 0.0,',
+    "Courier cost from Supabase")
+patch_file(repository,
+    '                primePackaging = order.primePackaging\n            )',
+    '                primePackaging = order.primePackaging,\n                carrierShippingCost = order.carrierShippingCost\n            )',
+    "Courier cost in local cache")
+patch_file(order_detail,
+    '                                    if (order.primePackaging) {',
+    '''                                    if (order.carrierShippingCost != null) {
+                                        Text(
+                                            "تكلفة شركة الشحن: " + order.carrierShippingCost + " ج.م",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    if (order.primePackaging) {''',
+    "Show courier cost in order detail")
+
+# Financial DTOs: no shipping charge is treated as store revenue.
+patch_file(order_dto,
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,',
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "delivered_shipping_cost") val deliveredShippingCost: Double = 0.0,\n    @Json(name = "delivered_net_profit") val deliveredNetProfit: Double? = null,\n    @Json(name = "missing_shipping_cost_orders") val missingShippingCostOrders: Int = 0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,',
+    "Summary courier cost DTO")
+patch_file(order_dto,
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,\n    @Json(name = "open_missing_profit_orders") val openMissingProfitOrders: Int = 0,',
+    '    @Json(name = "product_gross_margin") val productGrossMargin: Double = 0.0,\n    @Json(name = "delivered_shipping_cost") val deliveredShippingCost: Double = 0.0,\n    @Json(name = "delivered_net_profit") val deliveredNetProfit: Double? = null,\n    @Json(name = "missing_shipping_cost_orders") val missingShippingCostOrders: Int = 0,\n    @Json(name = "missing_profit_orders") val missingProfitOrders: Int = 0,\n    @Json(name = "open_missing_profit_orders") val openMissingProfitOrders: Int = 0,',
+    "Daily courier cost DTO")
+patch_file(order_dto,
+    '    @Json(name = "actual_free_shipping_cost_total") val actualFreeShippingCostTotal: Double? = null,',
+    '    @Json(name = "free_shipping_cost_total") val freeShippingCostTotal: Double? = null,\n    @Json(name = "missing_free_shipping_costs") val missingFreeShippingCosts: Int = 0,',
+    "Prime courier cost DTO")
+
+patch_file(panel_file,
+    '''        }
+        Text(
+            "هامش ربح المنتجات ليس صافي ربح المتجر؛ فهو لا يشمل تكلفة الشحن الفعلية أو التغليف أو رسوم الدفع أو المصاريف التشغيلية.",''',
+    '''            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PinkyStatCard(
+                    title = "تكلفة شركة الشحن",
+                    value = Formatters.formatCurrencyEgp(summary.deliveredShippingCost),
+                    subtitle = "مبلغ مستحق بالكامل لشركة التوصيل",
+                    icon = Icons.Outlined.LocalShipping,
+                    modifier = Modifier.weight(1f)
+                )
+                PinkyStatCard(
+                    title = "الربح بعد الشحن",
+                    value = summary.deliveredNetProfit?.let { Formatters.formatCurrencyEgp(it) } ?: "غير مكتمل",
+                    subtitle = "هامش المنتجات بعد خصم تكلفة التوصيل",
+                    icon = Icons.Outlined.TrendingUp,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Text(
+            "الربح بعد الشحن يخصم كامل مستحق شركة التوصيل. لا يشمل رسوم الدفع أو التغليف أو المصاريف التشغيلية.",''',
+    "Store shipping and after-shipping profit cards")
+patch_file(panel_file,
+    '''        DetailLine("هامش ربح المنتجات", Formatters.formatCurrencyEgp(day.productGrossMargin))
+        DetailLine("طلبات مسلّمة هامشها ناقص", day.missingProfitOrders.toString())''',
+    '''        DetailLine("هامش ربح المنتجات", Formatters.formatCurrencyEgp(day.productGrossMargin))
+        DetailLine("تكلفة شركة الشحن", Formatters.formatCurrencyEgp(day.deliveredShippingCost))
+        DetailLine("الربح بعد الشحن",
+            day.deliveredNetProfit?.let { Formatters.formatCurrencyEgp(it) } ?: "غير مكتمل")
+        DetailLine("طلبات مسلّمة تكلفتها غير مسجلة", day.missingShippingCostOrders.toString())
+        DetailLine("طلبات مسلّمة هامشها ناقص", day.missingProfitOrders.toString())''',
+    "Daily shipping cost and profit detail")
+
+patch_file(panel_file,
+    '''            if (row.actualFreeShippingCostTotal != null) {
+                DetailLine("إجمالي تكلفة الشحن الفعلية",
+                    Formatters.formatCurrencyEgp(row.actualFreeShippingCostTotal))
+            } else if (row.freeShippingUsed > 0) {
+                Text("أدخل إجمالي تكلفة الشحن الفعلية للشحنات المجانية التي تم إرسالها أو تسليمها.",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            } else {
+                DetailLine("تكلفة الشحن المجاني", "لا توجد شحنات مجانية مسلّمة بعد")
+            }''',
+    '''            if (row.freeShippingCostTotal != null) {
+                DetailLine("تكلفة شركة الشحن على Prime",
+                    Formatters.formatCurrencyEgp(row.freeShippingCostTotal))
+            } else if (row.freeShippingUsed > 0) {
+                Text("تكلفة شحنة أو أكثر غير مسجلة تاريخيًا؛ لا يمكن تأكيد ربحية الاشتراك.",
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            } else {
+                DetailLine("تكلفة الشحن المجاني", "لا توجد شحنات مجانية مستخدمة")
+            }
+            if (row.missingFreeShippingCosts > 0) {
+                Text("عدد الشحنات التي لا تتوفر لها تكلفة محفوظة: " + row.missingFreeShippingCosts,
+                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }''',
+    "Prime shipping cost from order snapshots")
+
+patch_file(panel_file,
+    '''    var shippingCostText by remember(row.id, row.actualFreeShippingCostTotal) {
+        mutableStateOf(row.actualFreeShippingCostTotal?.toString().orEmpty())
+    }
+    val parsedCost = shippingCostText.trim().toDoubleOrNull()
+''',
+    '',
+    "Remove manual Prime shipping-cost entry state")
+patch_file(panel_file,
+    '''            if (canManagePrime && (row.freeShippingUsed > 0 || row.actualFreeShippingCostTotal != null)) {
+                OutlinedTextField(
+                    value = shippingCostText,
+                    onValueChange = { shippingCostText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("إجمالي تكلفة الشحن الفعلية (ج.م)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                Button(
+                    onClick = { parsedCost?.let { onSavePrimeShippingCost(row.id, it) } },
+                    enabled = parsedCost != null && parsedCost >= 0.0,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary)
+                ) { Text("حفظ تكلفة الشحن وإعادة الحساب") }
+            }
+''',
+    '',
+    "Remove manual Prime cost editor")
+patch_file(panel_file,
+    '''private fun PrimeProfitRow(
+    row: PrimeProfitDto,
+    canManagePrime: Boolean,
+    onSavePrimeShippingCost: (String, Double) -> Unit
+)''',
+    '''private fun PrimeProfitRow(row: PrimeProfitDto)''',
+    "Prime row uses automatic courier costs")
+patch_file(panel_file,
+    'data.prime.forEach { row -> PrimeProfitRow(row, canManagePrime, onSavePrimeShippingCost) }',
+    'data.prime.forEach { row -> PrimeProfitRow(row) }',
+    "Render Prime rows without manual cost input")
+
+# Keep the old manual total only as a legacy fallback for subscriptions predating order snapshots.
+for relative, markers in {
+    order_model: ("carrierShippingCost: Double?",),
+    order_dto: ('@Json(name = "carrier_shipping_cost")', '@Json(name = "delivered_net_profit")', '@Json(name = "free_shipping_cost_total")'),
+    entities: ("carrierShippingCost: Double?",),
+    database: ("version = 8", "MIGRATION_7_8", "carrierShippingCost REAL"),
+    repository: ("carrierShippingCost = dto.carrierShippingCost", "carrierShippingCost = entity.carrierShippingCost", "carrierShippingCost = order.carrierShippingCost"),
+    order_detail: ("تكلفة شركة الشحن:",),
+    panel_file: ("summary.deliveredShippingCost", "summary.deliveredNetProfit", "row.freeShippingCostTotal", "row.missingFreeShippingCosts", "PrimeProfitRow(row)")
+}.items():
+    source = (PROJECT / relative).read_text(encoding="utf-8")
+    missing = [marker for marker in markers if marker not in source]
+    if missing:
+        raise SystemExit("Courier-cost integration verification failed in " + relative + ": " + str(missing))
+print("PASS: courier shipping snapshots, order detail, daily/store profit, and Prime profitability are wired.")
