@@ -572,10 +572,10 @@ def append_fields_to_class(source, class_name, fields):
     block = source[start:end]
     missing = []
     for field in fields:
-        match = re.search(r"\\bval\\s+(\\w+)", field)
+        match = re.search(r"\bval\s+(\w+)", field)
         if not match:
             raise SystemExit("Could not parse model field: " + field)
-        if not re.search(r"\\bval\\s+" + re.escape(match.group(1)) + r"\\b", block):
+        if not re.search(r"\bval\s+" + re.escape(match.group(1)) + r"\b", block):
             missing.append(field)
     if not missing:
         return source
