@@ -700,10 +700,17 @@ def append_fields_after_unique_anchor(source, class_name, anchor, fields, marker
     if class_end < 0:
         raise SystemExit(label + " model class terminator missing")
     class_block = source[class_start:class_end]
-    if marker in class_block:
+    marker_exists = marker in class_block
+    anchor_count = source.count(anchor)
+    print("CMS_FIELD_DEBUG", label, "marker_in_class=", marker_exists, "anchor_count=", anchor_count, "anchor_in_class=", anchor in class_block)
+    if marker_exists:
+        for field in fields:
+            property_match = re.search(r"\bval\s+(\w+)", field)
+            if property_match and not re.search(r"\bval\s+" + re.escape(property_match.group(1)) + r"\b", class_block):
+                raise SystemExit(label + " marker matched but property missing: " + property_match.group(1))
         return source
-    if source.count(anchor) != 1:
-        raise SystemExit(label + " anchor count " + str(source.count(anchor)))
+    if anchor_count != 1:
+        raise SystemExit(label + " anchor count " + str(anchor_count))
     updated = source.replace(anchor, anchor + ",\n" + "\n".join(fields), 1)
     updated_start = updated.find("data class " + class_name + "(")
     updated_end = updated.find("\n)", updated_start)
