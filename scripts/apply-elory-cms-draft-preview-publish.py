@@ -174,12 +174,29 @@ if "websiteDraftSaveState" not in s:
 if "onSaveDraft = { viewModel.saveWebsiteDraft(it) }" not in s:
     s=once(s,"                                    onSaveConfig = { viewModel.updateWebsiteConfig(it) },",
         "                                    onSaveConfig = { viewModel.updateWebsiteConfig(it) },\n                                    onSaveDraft = { viewModel.saveWebsiteDraft(it) },\n                                    draftSaveState = websiteDraftSaveState,","draft callback")
+if "websiteVersions by viewModel.websiteVersions.collectAsStateWithLifecycle()" not in s:
+    s=once(s,"    val websiteDraftSaveState by viewModel.websiteDraftSaveState.collectAsStateWithLifecycle()",
+        "    val websiteDraftSaveState by viewModel.websiteDraftSaveState.collectAsStateWithLifecycle()\n    val websiteVersions by viewModel.websiteVersions.collectAsStateWithLifecycle()\n    val websiteVersionsLoadState by viewModel.websiteVersionsLoadState.collectAsStateWithLifecycle()\n    val websiteVersionRestoreState by viewModel.websiteVersionRestoreState.collectAsStateWithLifecycle()","website versions state collect")
+if "onRefreshWebsiteVersions = { viewModel.refreshWebsiteVersions() }" not in s:
+    s=once(s,"                                    draftSaveState = websiteDraftSaveState,",
+        "                                    draftSaveState = websiteDraftSaveState,\n                                    websiteVersions = websiteVersions,\n                                    websiteVersionsLoadState = websiteVersionsLoadState,\n                                    websiteVersionRestoreState = websiteVersionRestoreState,\n                                    onRefreshWebsiteVersions = { viewModel.refreshWebsiteVersions() },\n                                    onRestoreWebsiteVersion = { viewModel.restoreWebsiteVersion(it) },","website version callbacks")
+
 p.write_text(s,encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt")
 s=s.replace("    saveState: String = \"idle\",\n    modifier: Modifier = Modifier",
-    "    saveState: String = \"idle\",\n    onSaveDraft: (WebsiteConfig) -> Unit = {},\n    draftSaveState: String = \"idle\",\n    modifier: Modifier = Modifier",1)
+    "    saveState: String = \"idle\",\n    onSaveDraft: (WebsiteConfig) -> Unit = {},\n    draftSaveState: String = \"idle\",\n    websiteVersions: List<SiteCustomizationVersion> = emptyList(),\n    websiteVersionsLoadState: String = \"idle\",\n    websiteVersionRestoreState: String = \"idle\",\n    onRefreshWebsiteVersions: () -> Unit = {},\n    onRestoreWebsiteVersion: (Long) -> Unit = {},\n    modifier: Modifier = Modifier",1)
 s=s.replace("1-11 = section dialog index","1-12 = section dialog index",1)
+if "onRefreshWebsiteVersions()" not in s:
+    s=once(s,'''    LaunchedEffect(initialConfig) {
+        config = initialConfig
+    }''','''    LaunchedEffect(initialConfig) {
+        config = initialConfig
+    }
+
+    LaunchedEffect(Unit) {
+        onRefreshWebsiteVersions()
+    }''',"load version history on screen entry")
 card='''                    // Card 11: الإعدادات العامة والألوان
                     item {
                         SectionCard(
@@ -1233,7 +1250,7 @@ tabs_source = """                    item {
                                 contentColor = PinkPrimary,
                                 modifier = Modifier.testTag("website_editor_category_tabs")
                             ) {
-                                listOf("الهيدر والبانرات", "الأقسام والمنتجات", "الصور والتذييل", "الهوية والتسويق")
+                                listOf("الهيدر والبانرات", "الأقسام والمنتجات", "الصور والتذييل", "الهوية والتسويق", "النسخ والاستعادة")
                                     .forEachIndexed { index, label ->
                                         Tab(
                                             selected = selectedEditorCategory == index,
@@ -1247,7 +1264,8 @@ tabs_source = """                    item {
                                     0 -> "الإعلانات العلوية والهيدر وروابط التنقل والبنرات الرئيسية"
                                     1 -> "الأقسام والمنتجات وPrime ومميزات المتجر"
                                     2 -> "معرض الصور وتذييل المتجر وبيانات التواصل"
-                                    else -> "هوية الموقع وترتيب الأقسام وأدوات التسويق"
+                                    3 -> "هوية الموقع وترتيب الأقسام وأدوات التسويق"
+                                    else -> "عرض النسخ المحفوظة واستعادة إعدادات الموقع بأمان"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1292,6 +1310,113 @@ if "if (selectedEditorCategory == 0)" not in editor_text:
         editor_text = wrap_editor_card(editor_text, dialog_index, tab_index)
 
 
+
+# Add the live backup and restore panel as the fifth editor tab.
+if "WebsiteVersionsPanel(" not in editor_text:
+    versions_spacer = '''                    item {
+                        Spacer(modifier = Modifier.height(80.dp))
+                    }'''
+    versions_item = '''                    if (selectedEditorCategory == 4) {
+                        item {
+                            WebsiteVersionsPanel(
+                                versions = websiteVersions,
+                                loadState = websiteVersionsLoadState,
+                                restoreState = websiteVersionRestoreState,
+                                onRefresh = onRefreshWebsiteVersions,
+                                onRestore = onRestoreWebsiteVersion
+                            )
+                        }
+                    }
+
+'''
+    if editor_text.count(versions_spacer) != 1:
+        raise SystemExit("Website editor end spacer anchor missing or duplicated for version history")
+    editor_text = editor_text.replace(versions_spacer, versions_item + versions_spacer, 1)
+
+    editor_text += '''
+
+@Composable
+fun WebsiteVersionsPanel(
+    versions: List<SiteCustomizationVersion>,
+    loadState: String,
+    restoreState: String,
+    onRefresh: () -> Unit,
+    onRestore: (Long) -> Unit
+) {
+    var pendingRestoreId by remember { mutableStateOf<Long?>(null) }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("نسخ إعدادات الموقع", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Text(
+            "يتم إنشاء نسخة تلقائيًا قبل النشر. الاستعادة تعيد إعدادات الموقع المنشورة ولا تغيّر مفتاح فتح/قفل المتجر الحالي.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(onClick = onRefresh, enabled = loadState != "loading") {
+                Icon(Icons.Outlined.Refresh, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (loadState == "loading") "جارٍ التحديث..." else "تحديث السجل")
+            }
+            Text(
+                when (loadState) {
+                    "loading" -> "جارٍ تحميل النسخ"
+                    "error" -> "تعذر تحميل سجل النسخ"
+                    "success" -> "عدد النسخ: " + versions.size
+                    else -> "سجل النسخ"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (loadState == "error") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (versions.isEmpty() && loadState == "success") {
+            Text("لا توجد نسخ احتياطية محفوظة حتى الآن.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        versions.take(30).forEach { version ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                border = CardDefaults.outlinedCardBorder(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(version.label.ifBlank { "نسخة محفوظة" }, fontWeight = FontWeight.SemiBold)
+                    Text("التاريخ: " + version.createdAt, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        OutlinedButton(
+                            onClick = { pendingRestoreId = version.id },
+                            enabled = restoreState != "saving"
+                        ) { Text(if (restoreState == "saving") "جارٍ الاستعادة..." else "استعادة هذه النسخة") }
+                    }
+                }
+            }
+        }
+        when (restoreState) {
+            "success" -> Text("تمت الاستعادة وتحديث بيانات المحرر.", color = MaterialTheme.colorScheme.primary)
+            "error" -> Text("تعذرت الاستعادة بالكامل. راجع الاتصال والصلاحيات ثم حدّث السجل.", color = MaterialTheme.colorScheme.error)
+        }
+    }
+    pendingRestoreId?.let { versionId ->
+        AlertDialog(
+            onDismissRequest = { pendingRestoreId = null },
+            title = { Text("تأكيد استعادة النسخة") },
+            text = { Text("سيتم استبدال إعدادات الموقع المنشورة بهذه النسخة. لن تتغير حالة مفتاح فتح/قفل المتجر. هل تريد المتابعة؟") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingRestoreId = null
+                    onRestore(versionId)
+                }) { Text("استعادة النسخة") }
+            },
+            dismissButton = { TextButton(onClick = { pendingRestoreId = null }) { Text("إلغاء") } }
+        )
+    }
+}
+'''
 editor_path.write_text(editor_text, encoding="utf-8")
 
 print("Integrated marketing, product-card, footer and appearance controls added.")
