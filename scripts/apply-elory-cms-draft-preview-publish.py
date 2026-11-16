@@ -802,7 +802,21 @@ if "val popupEnabled: Boolean" not in store_model_text:
     store_model_path.write_text(store_model_text, encoding="utf-8")
 
 # Append the additional strongly typed fields to the already-centralized mapping.
+
 vm_path, vm_text = read("app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt")
+needed_model_imports = [
+    "import com.pinky.dashboard.domain.model.ProductCardsConfig",
+    "import com.pinky.dashboard.domain.model.SitePopupConfig",
+    "import com.pinky.dashboard.domain.model.SiteFooterLink"
+]
+missing_model_imports = [line for line in needed_model_imports if line not in vm_text]
+if missing_model_imports:
+    import_matches = list(re.finditer(r"(?m)^import [^\n]+$", vm_text))
+    if import_matches:
+        insert_at = import_matches[-1].end()
+    else:
+        insert_at = vm_text.find("\n") + 1
+    vm_text = vm_text[:insert_at] + "\n" + "\n".join(missing_model_imports) + vm_text[insert_at:]
 helper_start = vm_text.find("private fun buildWebsiteSiteConfig(config: WebsiteConfig)")
 if helper_start < 0:
     raise SystemExit("Central website config mapping helper was not found")
