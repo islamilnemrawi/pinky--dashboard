@@ -692,15 +692,33 @@ if desktop_path.is_file():
 # WebsiteConfig/site_customizations JSONB path; no duplicate tables or settings rows.
 model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
 
-def append_fields_after_unique_anchor(source, anchor, fields, marker, label):
-    if marker in source:
+def append_fields_after_unique_anchor(source, class_name, anchor, fields, marker, label):
+    class_start = source.find("data class " + class_name + "(")
+    if class_start < 0:
+        raise SystemExit(label + " model class missing")
+    class_end = source.find("\n)", class_start)
+    if class_end < 0:
+        raise SystemExit(label + " model class terminator missing")
+    class_block = source[class_start:class_end]
+    if marker in class_block:
         return source
     if source.count(anchor) != 1:
         raise SystemExit(label + " anchor count " + str(source.count(anchor)))
-    return source.replace(anchor, anchor + ",\n" + "\n".join(fields), 1)
+    updated = source.replace(anchor, anchor + ",\n" + "\n".join(fields), 1)
+    updated_start = updated.find("data class " + class_name + "(")
+    updated_end = updated.find("\n)", updated_start)
+    if updated_end < 0:
+        raise SystemExit(label + " updated model terminator missing")
+    updated_block = updated[updated_start:updated_end]
+    for field in fields:
+        property_match = re.search(r"\bval\s+(\w+)", field)
+        if not property_match or not re.search(r"\bval\s+" + re.escape(property_match.group(1)) + r"\b", updated_block):
+            raise SystemExit(label + " field was not inserted: " + field)
+    return updated
 
 model_text = append_fields_after_unique_anchor(
     model_text,
+    "SiteCustomizationConfig",
     '    @Json(name = "customSections") val customSections: List<CustomSiteSectionConfig>? = null',
     [
         '    @Json(name = "productCards") val productCards: ProductCardsConfig? = null',
@@ -711,6 +729,7 @@ model_text = append_fields_after_unique_anchor(
 )
 model_text = append_fields_after_unique_anchor(
     model_text,
+    "AnnouncementConfig",
     '    @Json(name = "textColor") val textColor: String = "#FFFFFF"',
     [
         '    @Json(name = "actionUrl") val actionUrl: String = ""',
@@ -721,6 +740,7 @@ model_text = append_fields_after_unique_anchor(
 )
 model_text = append_fields_after_unique_anchor(
     model_text,
+    "GlobalConfig",
     '    @Json(name = "isStoreOpen") val isStoreOpen: Boolean = true',
     [
         '    @Json(name = "metaImage") val metaImage: String = ""',
@@ -735,6 +755,7 @@ model_text = append_fields_after_unique_anchor(
 )
 model_text = append_fields_after_unique_anchor(
     model_text,
+    "FooterConfig",
     '    @Json(name = "credits") val credits: String = "تم التطوير بواسطة Nemrawy"',
     [
         '    @Json(name = "customLinks") val customLinks: List<SiteFooterLink> = emptyList()'
@@ -782,6 +803,7 @@ store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard
 if "val popupEnabled: Boolean" not in store_model_text:
     store_model_text = append_fields_after_unique_anchor(
         store_model_text,
+        "WebsiteConfig",
         '    val footerCredits: String = "تم التطوير بواسطة Nemrawy"',
         [
             '    val announcementActionUrl: String = ""',
