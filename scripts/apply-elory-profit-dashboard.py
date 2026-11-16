@@ -1082,6 +1082,243 @@ source = replace_once(source, effect_anchor,
 write(reports, source)
 print("PASS: the financial tab now uses the structured profit dashboard.")
 
+# Reports is intentionally financial-only. Inventory and delivery operations live
+# in their dedicated product and shipping screens below.
+source = read(reports)
+source = replace_once(
+    source,
+    'text = "التقارير المالية والتشغيلية",',
+    'text = "التقارير والأرباح",',
+    "financial-only reports title"
+)
+source = replace_once(
+    source,
+    'text = "تحليلات الأرباح، أداء الشحن، حركة المخزون، وحساب هوامش الربح التقديرية",',
+    'text = "أربعة تقارير مالية واضحة: الأرباح اليومية، المنتجات، المحافظات، وربحية Elory Prime.",',
+    "financial-only reports subtitle"
+)
+source = replace_once(
+    source,
+    '    var selectedReportType by remember { mutableIntStateOf(0) } // 0 = Financial/Profit, 1 = Products/Inventory, 2 = Shipping\n',
+    '',
+    "remove legacy report category state"
+)
+tab_start = source.find("            // Report Sub-Tabs\n")
+lazy_start = source.find("            LazyColumn(", tab_start)
+if tab_start < 0 or lazy_start < 0:
+    raise SystemExit("Could not locate the reports tab row for removal.")
+source = source[:tab_start] + source[lazy_start:]
+
+branch_start = source.find("                if (selectedReportType == 0) {")
+branch_end = source.find("\n            }\n        )", branch_start)
+if branch_start < 0 or branch_end < 0:
+    raise SystemExit("Could not locate the entire legacy inventory/shipping report block.")
+financial_only = """                item {
+                    if (currentUser?.canViewProfit == true) {
+                        ProfitDashboardPanel(
+                            data = profitDashboard,
+                            loading = profitDashboardLoading,
+                            error = profitDashboardError,
+                            selectedDays = profitDashboardDays,
+                            canManagePrime = currentUser.hasPermission(Permission.MANAGE_PRIME),
+                            onDaysChange = onProfitDashboardDaysChange,
+                            onRefresh = onRefreshProfitDashboard,
+                            onSavePrimeShippingCost = onSavePrimeActualShippingCost
+                        )
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(Icons.Outlined.Lock, contentDescription = null, tint = PinkPrimary, modifier = Modifier.size(48.dp))
+                                Text("تقارير الأرباح وهوامش التكلفة محجوبة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(
+                                    "تحتاج هذه البيانات إلى صلاحية مشاهدة الأرباح.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }"""
+source = source[:branch_start] + financial_only + source[branch_end:]
+
+source = replace_once(
+    source,
+    """    LaunchedEffect(selectedReportType, currentUser?.canViewProfit) {
+        if (selectedReportType == 0 && currentUser?.canViewProfit == true) onRefreshProfitDashboard()
+    }
+""",
+    """    LaunchedEffect(currentUser?.canViewProfit) {
+        if (currentUser?.canViewProfit == true) onRefreshProfitDashboard()
+    }
+""",
+    "financial dashboard refresh without legacy tabs"
+)
+write(reports, source)
+print("PASS: reports page contains only the four selectable financial reports.")
+
+# Move the inventory overview into the dedicated Products screen.
+products_screen = "app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt"
+source = read(products_screen)
+products_anchor = """        ) {
+            // Header: Search, Bulk Mode, Import Excel
+"""
+products_block = """        ) {
+            if (products.isNotEmpty()) {
+                val totalStockUnits = products.sumOf { it.stock.coerceAtLeast(0) }
+                val lowStockCount = products.count { it.stock in 1..5 }
+                val outOfStockCount = products.count { it.stock <= 0 }
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = CardDefaults.outlinedCardBorder()
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("ملخص المخزون", fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("عدد الأصناف", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(products.size.toString(), fontWeight = FontWeight.Bold)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("إجمالي القطع", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(totalStockUnits.toString(), fontWeight = FontWeight.Bold)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("منخفض / نافد", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("$lowStockCount / $outOfStockCount", fontWeight = FontWeight.Bold,
+                                    color = if (outOfStockCount > 0) StatusCancelled else MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+            // Header: Search, Bulk Mode, Import Excel
+"""
+source = replace_once(source, products_anchor, products_block, "ProductsScreen inventory overview")
+write(products_screen, source)
+print("PASS: inventory overview moved into Products screen.")
+
+# Move delivery performance into the existing shipping/governorates screen.
+shipping_screen = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
+source = read(shipping_screen)
+source = replace_once(
+    source,
+    "import com.pinky.dashboard.domain.model.ShippingGovernorate\n",
+    "import com.pinky.dashboard.domain.model.ShippingGovernorate\nimport com.pinky.dashboard.domain.model.Order\nimport com.pinky.dashboard.domain.model.OrderStatus\n",
+    "shipping order model imports"
+)
+source = replace_once(
+    source,
+    "    shippingCenters: List<ShippingCenter>,\n",
+    "    shippingCenters: List<ShippingCenter>,\n    orders: List<Order>,\n",
+    "ShippingScreen orders input"
+)
+shipping_header_anchor = """                        Text(
+                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+"""
+shipping_performance = """                        Text(
+                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val dispatchedOrders = remember(orders) {
+                            orders.count { it.status == OrderStatus.SHIPPED || it.status == OrderStatus.DELIVERED }
+                        }
+                        val deliveredCount = remember(orders) {
+                            orders.count { it.status == OrderStatus.DELIVERED }
+                        }
+                        val inTransitCount = (dispatchedOrders - deliveredCount).coerceAtLeast(0)
+                        val deliveryRate = if (dispatchedOrders > 0) deliveredCount * 100 / dispatchedOrders else null
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("كفاءة الشحن والتوصيل", fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("شحنات خرجت", style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(dispatchedOrders.toString(), fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text("تم تسليمها", style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(deliveredCount.toString(), fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text("قيد التوصيل", style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(inTransitCount.toString(), fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text("معدل التسليم", style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(deliveryRate?.let { "$it%" } ?: "—", fontWeight = FontWeight.Bold,
+                                            color = PinkPrimary)
+                                    }
+                                }
+                                if (dispatchedOrders == 0) {
+                                    Text("لا توجد شحنات خرجت للتوصيل خلال البيانات المتاحة بعد.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+"""
+source = replace_once(source, shipping_header_anchor, shipping_performance, "ShippingScreen delivery performance summary")
+write(shipping_screen, source)
+print("PASS: delivery performance moved into Shipping screen.")
+
+# Pass live order statuses to the shipping screen; no order data is changed.
+pinky_app = "app/src/main/java/com/pinky/dashboard/ui/PinkyApp.kt"
+source = read(pinky_app)
+source = replace_once(
+    source,
+    """                                ShippingScreen(
+                                    governorates = governorates,
+                                    shippingCenters = shippingCenters,
+""",
+    """                                ShippingScreen(
+                                    governorates = governorates,
+                                    shippingCenters = shippingCenters,
+                                    orders = orders,
+""",
+    "PinkyApp ShippingScreen orders binding"
+)
+write(pinky_app, source)
+print("PASS: Shipping screen receives the existing order list.")
+
+
 checks = {
     "DTO and endpoint": (remote, ("admin_get_profit_dashboard", "ProfitDashboardDto", "admin_set_prime_actual_shipping_cost")),
     "ViewModel actions": (viewmodel, ("loadProfitDashboard", "savePrimeActualShippingCost", "_profitDashboard")),
