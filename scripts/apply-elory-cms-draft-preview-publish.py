@@ -9,6 +9,17 @@ def once(s,a,b,label):
     if s.count(a)!=1: raise SystemExit(label+" anchor count "+str(s.count(a)))
     return s.replace(a,b,1)
 
+model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
+if "data class SiteCustomizationDraftRequest(" not in model_text:
+    model_text += '''
+
+@JsonClass(generateAdapter = true)
+data class SiteCustomizationDraftRequest(
+    @Json(name = "p_config") val config: SiteCustomizationConfig
+)
+'''
+    model_path.write_text(model_text, encoding="utf-8")
+
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
 if "import retrofit2.http.POST" not in s:
     s=s.replace("import retrofit2.http.PUT\n","import retrofit2.http.PUT\nimport retrofit2.http.POST\n",1)
@@ -23,7 +34,7 @@ if "fun saveSiteCustomizationDraft(" not in s:
     if en<0: raise SystemExit("SupabaseService end missing")
     s=s[:en]+'''
     @POST("rest/v1/rpc/admin_save_site_customization_draft")
-    suspend fun saveSiteCustomizationDraft(@Body params: Map<String, Any>): Response<Boolean>
+    suspend fun saveSiteCustomizationDraft(@Body params: com.pinky.dashboard.domain.model.SiteCustomizationDraftRequest): Response<Boolean>
 
     @POST("rest/v1/rpc/admin_get_site_customization_draft")
     suspend fun getSiteCustomizationDraft(@Body params: Map<String, Any>): Response<com.pinky.dashboard.domain.model.SiteCustomizationConfig>
@@ -77,7 +88,7 @@ if "fun saveWebsiteDraft(config: WebsiteConfig)" not in s:
             _websiteDraftSaveState.value = "saving"
             try {
                 val siteConfigObj = buildWebsiteSiteConfig(config)
-                val response = SupabaseClient.service.saveSiteCustomizationDraft(mapOf("p_config" to siteConfigObj))
+                val response = SupabaseClient.service.saveSiteCustomizationDraft(com.pinky.dashboard.domain.model.SiteCustomizationDraftRequest(siteConfigObj))
                 if (!response.isSuccessful) {
                     android.util.Log.e("EloryWebsite", "Draft save failed: " + response.code())
                     _websiteDraftSaveState.value = "error"
