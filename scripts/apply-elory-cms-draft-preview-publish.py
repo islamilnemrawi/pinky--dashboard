@@ -151,10 +151,13 @@ if "saveSiteCustomizationDraft" not in pub:
 '''                val draftResponse = SupabaseClient.service.saveSiteCustomizationDraft(com.pinky.dashboard.domain.model.SiteCustomizationDraftRequest(siteConfigObj))
                 if (!draftResponse.isSuccessful) {
                     android.util.Log.e("EloryWebsite", "Publish checkpoint failed: " + draftResponse.code())
+                    _websiteSaveState.value = "error"
                     return@launch
                 }
                 val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)
                 val customizationsResponse = SupabaseClient.service.upsertSiteCustomizations(customizationsDto)''',"publish checkpoint")
+    pub=once(pub,'                _websiteSaveState.value = "success"', '''                _websiteSaveState.value = "success"
+                refreshWebsiteVersions()''',"refresh version history after publish")
     pub=once(pub,"                _websiteConfig.value = config",'''
                 val clearDraftResponse = SupabaseClient.service.clearSiteCustomizationDraft(emptyMap())
                 if (!clearDraftResponse.isSuccessful) {
@@ -433,16 +436,27 @@ if "fun refreshWebsiteVersions()" not in vm_text:
     val websiteDraftSaveState: StateFlow<String> = _websiteDraftSaveState.asStateFlow()'''
     state_add = state_anchor + '''
     private val _websiteVersions = MutableStateFlow<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>>(emptyList())
-    val websiteVersions: StateFlow<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>> = _websiteVersions.asStateFlow()'''
+    val websiteVersions: StateFlow<List<com.pinky.dashboard.domain.model.SiteCustomizationVersion>> = _websiteVersions.asStateFlow()
+    private val _websiteVersionsLoadState = MutableStateFlow("idle")
+    val websiteVersionsLoadState: StateFlow<String> = _websiteVersionsLoadState.asStateFlow()
+    private val _websiteVersionRestoreState = MutableStateFlow("idle")
+    val websiteVersionRestoreState: StateFlow<String> = _websiteVersionRestoreState.asStateFlow()'''
     vm_text = once(vm_text,state_anchor,state_add,"website version state")
     methods = '''
     fun refreshWebsiteVersions() {
         viewModelScope.launch {
+            _websiteVersionsLoadState.value = "loading"
             try {
                 val response = SupabaseClient.service.listSiteCustomizationVersions(emptyMap())
-                if (response.isSuccessful) _websiteVersions.value = response.body().orEmpty()
-                else android.util.Log.e("EloryWebsite", "Version history load failed: " + response.code())
+                if (response.isSuccessful) {
+                    _websiteVersions.value = response.body().orEmpty()
+                    _websiteVersionsLoadState.value = "success"
+                } else {
+                    _websiteVersionsLoadState.value = "error"
+                    android.util.Log.e("EloryWebsite", "Version history load failed: " + response.code())
+                }
             } catch (e: Exception) {
+                _websiteVersionsLoadState.value = "error"
                 android.util.Log.e("EloryWebsite", "Version history load failed", e)
             }
         }
@@ -450,16 +464,25 @@ if "fun refreshWebsiteVersions()" not in vm_text:
 
     fun restoreWebsiteVersion(versionId: Long) {
         viewModelScope.launch {
+            _websiteVersionRestoreState.value = "saving"
             try {
                 val response = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to versionId))
                 if (!response.isSuccessful || response.body() != true) {
+                    _websiteVersionRestoreState.value = "error"
                     android.util.Log.e("EloryWebsite", "Website version restore failed: " + response.code())
                     return@launch
                 }
+                val clearDraftResponse = SupabaseClient.service.clearSiteCustomizationDraft(emptyMap())
+                if (!clearDraftResponse.isSuccessful) {
+                    _websiteVersionRestoreState.value = "error"
+                    android.util.Log.e("EloryWebsite", "Version restored but draft cleanup failed: " + clearDraftResponse.code())
+                    return@launch
+                }
+                syncRemainingSupabaseData()
                 refreshWebsiteVersions()
-                // The published storefront refreshes from Supabase realtime; reopening this editor
-                // reloads the restored config through the normal dashboard loader.
+                _websiteVersionRestoreState.value = "success"
             } catch (e: Exception) {
+                _websiteVersionRestoreState.value = "error"
                 android.util.Log.e("EloryWebsite", "Website version restore failed", e)
             }
         }
