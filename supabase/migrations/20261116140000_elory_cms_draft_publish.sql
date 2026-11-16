@@ -1,22 +1,22 @@
 -- Unpublished CMS content is stored separately from the public site config.
 -- RLS keeps the draft limited to staff who already have website-edit permission.
-create schema if not exists private;
-revoke all on schema private from public, anon, authenticated;
-grant usage on schema private to authenticated;
+create schema if not exists elory_cms_private;
+revoke all on schema elory_cms_private from public, anon, authenticated;
+grant usage on schema elory_cms_private to authenticated;
 
-create table if not exists private.site_customization_drafts (
+create table if not exists elory_cms_private.site_customization_drafts (
   id integer primary key check (id = 1),
   draft_config jsonb not null check (jsonb_typeof(draft_config) = 'object'),
   updated_at timestamptz not null default now()
 );
 
-alter table private.site_customization_drafts enable row level security;
-revoke all on table private.site_customization_drafts from public, anon, authenticated;
-grant select, insert, update, delete on table private.site_customization_drafts to authenticated;
+alter table elory_cms_private.site_customization_drafts enable row level security;
+revoke all on table elory_cms_private.site_customization_drafts from public, anon, authenticated;
+grant select, insert, update, delete on table elory_cms_private.site_customization_drafts to authenticated;
 
-drop policy if exists "authorized staff manage CMS draft" on private.site_customization_drafts;
+drop policy if exists "authorized staff manage CMS draft" on elory_cms_private.site_customization_drafts;
 create policy "authorized staff manage CMS draft"
-on private.site_customization_drafts
+on elory_cms_private.site_customization_drafts
 for all
 to authenticated
 using (public.elory_can_edit_site())
@@ -36,7 +36,7 @@ begin
     raise exception 'invalid_site_config' using errcode = '22023';
   end if;
 
-  insert into private.site_customization_drafts (id, draft_config, updated_at)
+  insert into elory_cms_private.site_customization_drafts (id, draft_config, updated_at)
   values (1, p_config, now())
   on conflict (id) do update
     set draft_config = excluded.draft_config,
@@ -61,7 +61,7 @@ begin
 
   select draft_config
     into v_draft
-    from private.site_customization_drafts
+    from elory_cms_private.site_customization_drafts
    where id = 1;
 
   return v_draft;
@@ -79,7 +79,7 @@ begin
     raise exception 'not_authorized' using errcode = '42501';
   end if;
 
-  delete from private.site_customization_drafts where id = 1;
+  delete from elory_cms_private.site_customization_drafts where id = 1;
   return true;
 end;
 $function$;
