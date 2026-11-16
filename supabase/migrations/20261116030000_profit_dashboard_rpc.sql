@@ -44,6 +44,11 @@ BEGIN
         WHERE trim(coalesce(status, '')) NOT IN
           ('تم التسليم', 'DELIVERED', 'ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
       )::integer AS open_orders,
+      count(*) FILTER (
+        WHERE trim(coalesce(status, '')) NOT IN
+          ('تم التسليم', 'DELIVERED', 'ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
+          AND profit IS NULL
+      )::integer AS open_missing_profit_orders,
       coalesce(sum(total) FILTER (
         WHERE trim(coalesce(status, '')) NOT IN
           ('تم التسليم', 'DELIVERED', 'ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
@@ -79,6 +84,7 @@ BEGIN
             ('ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
         )::integer AS requested_orders
       FROM scoped_orders
+      WHERE trim(coalesce(status, '')) NOT IN ('ملغي', 'ملغى', 'CANCELLED', 'CANCELED')
       GROUP BY 1
     ) d
   ),
