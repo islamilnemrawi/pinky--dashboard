@@ -1110,9 +1110,9 @@ if tab_start < 0 or lazy_start < 0:
 source = source[:tab_start] + source[lazy_start:]
 
 branch_start = source.find("                if (selectedReportType == 0) {")
-branch_end = source.find("\n            }\n        )", branch_start)
+branch_end = source.find("\n            }\n        }\n    }\n}", branch_start)
 if branch_start < 0 or branch_end < 0:
-    raise SystemExit("Could not locate the entire legacy inventory/shipping report block.")
+    raise SystemExit("Could not locate the complete reports LazyColumn and screen closing boundary.")
 financial_only = """                item {
                     if (currentUser?.canViewProfit == true) {
                         ProfitDashboardPanel(
