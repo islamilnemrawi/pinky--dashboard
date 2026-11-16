@@ -18,6 +18,9 @@ if "data class SiteCustomizationDraftRequest(" not in model_text:
 data class SiteCustomizationDraftRequest(
     @Json(name = "p_config") val config: SiteCustomizationConfig
 )
+'''
+if "data class SiteCustomizationVersion(" not in model_text:
+    model_text += '''
 
 @JsonClass(generateAdapter = true)
 data class SiteCustomizationVersion(
@@ -26,7 +29,7 @@ data class SiteCustomizationVersion(
     @Json(name = "createdAt") val createdAt: String
 )
 '''
-    model_path.write_text(model_text, encoding="utf-8")
+model_path.write_text(model_text, encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
 if "import retrofit2.http.POST" not in s:
@@ -482,11 +485,13 @@ if "createSiteCustomizationSnapshot(" not in publish:
                 val settingsResponse = SupabaseClient.service.upsertStoreSettings(settingsDto)'''
     publish = once(publish,snapshot_anchor,snapshot_code,"pre-publish snapshot")
 if "restoreSiteCustomizationVersion(" not in publish:
-    failure_marker = "Website configuration was not fully saved"
-    failure_pos = publish.find(failure_marker)
-    if failure_pos < 0:
-        raise SystemExit("Website publish error message missing for automatic rollback")
-    return_pos = publish.find("return@launch", failure_pos)
+    failure_match = re.search(
+        r"if\s*\([^)]*settingsResponse\.isSuccessful[^)]*customizationsResponse\.isSuccessful[^)]*\)\s*\{",
+        publish
+    )
+    if failure_match is None:
+        raise SystemExit("Website publish response-check block missing for automatic rollback")
+    return_pos = publish.find("return@launch", failure_match.start())
     if return_pos < 0:
         raise SystemExit("Website publish failure return missing for automatic rollback")
     rollback_code = '''                    val rollbackResponse = SupabaseClient.service.restoreSiteCustomizationVersion(mapOf("p_version_id" to snapshotId))
