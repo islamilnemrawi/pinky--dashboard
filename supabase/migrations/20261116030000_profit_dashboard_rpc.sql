@@ -217,6 +217,16 @@ BEGIN
         count(*) FILTER (
           WHERE coalesce(o.prime, false) IS TRUE
             AND coalesce(o.prime_free_shipping, false) IS TRUE
+            AND (
+              (
+                o.payment_method IN ('card', 'vodafone_cash')
+                AND trim(coalesce(o.status, '')) IN (
+                  'طلب جديد', 'تم تأكيد الطلب', 'قيد التجهيز',
+                  'جاري التجهيز', 'تم الشحن', 'تم التسليم'
+                )
+              )
+              OR trim(coalesce(o.status, '')) = 'تم التسليم'
+            )
             AND trim(coalesce(o.status, '')) NOT IN
               ('ملغي', 'ملغى', 'CANCELLED', 'CANCELED', 'فشل الدفع', 'فشل إنشاء الدفع', 'FAILED')
         )::integer AS free_shipping_used,
