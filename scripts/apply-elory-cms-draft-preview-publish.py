@@ -1184,6 +1184,91 @@ fun MarketingAppearanceForm(config: WebsiteConfig, onUpdate: (WebsiteConfig) -> 
     }
 }
 '''
+# Organize the existing editor cards into four mobile-friendly tabs.
+# The store availability card is intentionally untouched and remains before this tab bar.
+if "selectedEditorCategory" not in editor_text:
+    state_anchor = "    var selectedPreviewDevice by remember { mutableIntStateOf(0) }"
+    if editor_text.count(state_anchor) != 1:
+        raise SystemExit("Website editor preview state anchor missing or duplicated")
+    editor_text = editor_text.replace(
+        state_anchor,
+        state_anchor + "\n    var selectedEditorCategory by remember { mutableIntStateOf(0) }",
+        1
+    )
+
+tabs_anchor = "                    // Card 1: الشريط العلوي"
+tabs_source = """                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("أقسام محرر الموقع", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                            ScrollableTabRow(
+                                selectedTabIndex = selectedEditorCategory,
+                                edgePadding = 0.dp,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = PinkPrimary,
+                                modifier = Modifier.testTag("website_editor_category_tabs")
+                            ) {
+                                listOf("الهيدر والبانرات", "الأقسام والمنتجات", "الصور والتذييل", "الهوية والتسويق")
+                                    .forEachIndexed { index, label ->
+                                        Tab(
+                                            selected = selectedEditorCategory == index,
+                                            onClick = { selectedEditorCategory = index },
+                                            text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                        )
+                                    }
+                            }
+                            Text(
+                                when (selectedEditorCategory) {
+                                    0 -> "الإعلانات العلوية والهيدر وروابط التنقل والبنرات الرئيسية"
+                                    1 -> "الأقسام والمنتجات وPrime ومميزات المتجر"
+                                    2 -> "معرض الصور وتذييل المتجر وبيانات التواصل"
+                                    else -> "هوية الموقع وترتيب الأقسام وأدوات التسويق"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+"""
+if "website_editor_category_tabs" not in editor_text:
+    if editor_text.count(tabs_anchor) != 1:
+        raise SystemExit("Website editor card 1 insertion anchor missing or duplicated")
+    editor_text = editor_text.replace(tabs_anchor, tabs_source + tabs_anchor, 1)
+
+def wrap_editor_card(source, dialog_index, tab_index):
+    click = "onClick = { activeEditingDialog = " + str(dialog_index) + " }"
+    if source.count(click) != 1:
+        raise SystemExit("Expected exactly one editor card for dialog " + str(dialog_index) + ", found " + str(source.count(click)))
+    click_at = source.find(click)
+    start = source.rfind("                    item {", 0, click_at)
+    if start < 0:
+        raise SystemExit("Could not locate item block for editor dialog " + str(dialog_index))
+    end_marker = "\n                    }\n"
+    end = source.find(end_marker, click_at)
+    if end < 0:
+        raise SystemExit("Could not locate end of editor item for dialog " + str(dialog_index))
+    block_end = end + len("\n                    }")
+    block = source[start:block_end]
+    if not block.lstrip().startswith("item {"):
+        raise SystemExit("Unexpected editor item structure for dialog " + str(dialog_index))
+    indented = "\n".join(("    " + line if line else line) for line in block.split("\n"))
+    wrapped = "                    if (selectedEditorCategory == " + str(tab_index) + ") {\n" + indented + "\n                    }"
+    return source[:start] + wrapped + source[block_end:]
+
+if "if (selectedEditorCategory == 0)" not in editor_text:
+    category_by_dialog = {
+        1: 0, 2: 0, 3: 0, 4: 0,
+        5: 1, 6: 1, 7: 1, 8: 1,
+        9: 2, 10: 2,
+        11: 3, 12: 3, 13: 3
+    }
+    for dialog_index, tab_index in category_by_dialog.items():
+        editor_text = wrap_editor_card(editor_text, dialog_index, tab_index)
+
+
 editor_path.write_text(editor_text, encoding="utf-8")
 
 print("Integrated marketing, product-card, footer and appearance controls added.")
