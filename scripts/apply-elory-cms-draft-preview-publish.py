@@ -32,39 +32,6 @@ data class SiteCustomizationVersion(
 
 
 
-expected_models = {
-    "SiteCustomizationConfig": ["productCards", "popup"],
-    "AnnouncementConfig": ["actionUrl", "rotationSeconds"],
-    "GlobalConfig": ["metaImage", "canonicalUrl", "fontScale", "sectionSpacingDp", "buttonRadiusDp", "cardRadiusDp"],
-    "FooterConfig": ["customLinks"]
-}
-for model_name, property_names in expected_models.items():
-    start = model_text.find("data class " + model_name + "(")
-    end = model_text.find("\n)", start)
-    if start < 0 or end < 0:
-        raise SystemExit("CMS Kotlin model is incomplete: " + model_name)
-    block = model_text[start:end]
-    for property_name in property_names:
-        if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", block):
-            raise SystemExit("CMS Kotlin property missing from " + model_name + ": " + property_name)
-
-website_start = store_model_text.find("data class WebsiteConfig(")
-website_end = store_model_text.find("\n)", website_start)
-if website_start < 0 or website_end < 0:
-    raise SystemExit("WebsiteConfig model is incomplete")
-website_block = store_model_text[website_start:website_end]
-for property_name in [
-    "announcementActionUrl", "announcementRotationSeconds", "popupEnabled", "popupTitle",
-    "popupMessage", "popupImageUrl", "popupButtonText", "popupButtonUrl",
-    "popupDelaySeconds", "popupCooldownDays", "popupShowOnMobile", "popupShowOnDesktop",
-    "productCardsMobileColumns", "productCardsDesktopColumns", "productCardsShowDiscountBadge",
-    "productCardsShowOldPrice", "productCardsShowPrimePrice", "footerCustomLinks",
-    "seoOgImage", "canonicalUrl", "visualFontScale", "visualSectionSpacingDp",
-    "visualButtonRadiusDp", "visualCardRadiusDp"
-]:
-    if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", website_block):
-        raise SystemExit("WebsiteConfig property missing: " + property_name)
-
 model_path.write_text(model_text, encoding="utf-8")
 
 p,s=read("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt")
@@ -820,6 +787,23 @@ data class SiteFooterLink(
     @Json(name = "url") val url: String = ""
 )
 '''
+
+expected_models = {
+    "SiteCustomizationConfig": ["productCards", "popup"],
+    "AnnouncementConfig": ["actionUrl", "rotationSeconds"],
+    "GlobalConfig": ["metaImage", "canonicalUrl", "fontScale", "sectionSpacingDp", "buttonRadiusDp", "cardRadiusDp"],
+    "FooterConfig": ["customLinks"]
+}
+for model_name, property_names in expected_models.items():
+    start = model_text.find("data class " + model_name + "(")
+    end = model_text.find("\n)", start)
+    if start < 0 or end < 0:
+        raise SystemExit("CMS Kotlin model is incomplete: " + model_name)
+    block = model_text[start:end]
+    for property_name in property_names:
+        if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", block):
+            raise SystemExit("CMS Kotlin property missing from " + model_name + ": " + property_name)
+
 model_path.write_text(model_text, encoding="utf-8")
 
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
@@ -861,7 +845,25 @@ if "val popupEnabled: Boolean" not in store_model_text:
     )
 
 
-    store_model_path.write_text(store_model_text, encoding="utf-8")
+    
+website_start = store_model_text.find("data class WebsiteConfig(")
+website_end = store_model_text.find("\n)", website_start)
+if website_start < 0 or website_end < 0:
+    raise SystemExit("WebsiteConfig model is incomplete")
+website_block = store_model_text[website_start:website_end]
+for property_name in [
+    "announcementActionUrl", "announcementRotationSeconds", "popupEnabled", "popupTitle",
+    "popupMessage", "popupImageUrl", "popupButtonText", "popupButtonUrl",
+    "popupDelaySeconds", "popupCooldownDays", "popupShowOnMobile", "popupShowOnDesktop",
+    "productCardsMobileColumns", "productCardsDesktopColumns", "productCardsShowDiscountBadge",
+    "productCardsShowOldPrice", "productCardsShowPrimePrice", "footerCustomLinks",
+    "seoOgImage", "canonicalUrl", "visualFontScale", "visualSectionSpacingDp",
+    "visualButtonRadiusDp", "visualCardRadiusDp"
+]:
+    if not re.search(r"\bval\s+" + re.escape(property_name) + r"\b", website_block):
+        raise SystemExit("WebsiteConfig property missing: " + property_name)
+
+store_model_path.write_text(store_model_text, encoding="utf-8")
 
 # Append the additional strongly typed fields to the already-centralized mapping.
 
