@@ -9,7 +9,32 @@ def once(s,a,b,label):
     if s.count(a)!=1: raise SystemExit(label+" anchor count "+str(s.count(a)))
     return s.replace(a,b,1)
 
+
+def dump_data_class(source, class_name):
+    start = source.find("data class " + class_name + "(")
+    if start < 0:
+        print("CMS_MODEL_DEBUG missing " + class_name)
+        return
+    line_start = source.rfind("\n", 0, start) + 1
+    depth = 0
+    opened = False
+    for i in range(start, len(source)):
+        ch = source[i]
+        if ch == "(":
+            depth += 1
+            opened = True
+        elif ch == ")":
+            depth -= 1
+            if opened and depth == 0:
+                print("CMS_MODEL_DEBUG " + class_name + ":\n" + source[line_start:i+1])
+                return
+    print("CMS_MODEL_DEBUG unterminated " + class_name)
+
 model_path, model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt")
+dump_data_class(model_text, 'SiteCustomizationConfig')
+dump_data_class(model_text, 'AnnouncementConfig')
+dump_data_class(model_text, 'GlobalConfig')
+dump_data_class(model_text, 'FooterConfig')
 if "data class SiteCustomizationDraftRequest(" not in model_text:
     model_text += '''
 
@@ -748,6 +773,7 @@ model_path.write_text(model_text, encoding="utf-8")
 
 # Extend the existing WebsiteConfig model with fields used by the dashboard form.
 store_model_path, store_model_text = read("app/src/main/java/com/pinky/dashboard/domain/model/StoreModels.kt")
+dump_data_class(store_model_text, "WebsiteConfig")
 if "val popupEnabled: Boolean" not in store_model_text:
     store_model_text = append_fields_to_class(store_model_text, "WebsiteConfig", [
         '    val announcementActionUrl: String = ""',
