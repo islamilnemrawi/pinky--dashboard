@@ -670,7 +670,7 @@ new_branch = """                if (selectedReportType == 0) {
 source = source[:start] + new_branch + source[end:]
 effect_anchor = "    var showExportToast by remember { mutableStateOf(false) }\n"
 source = replace_once(source, effect_anchor,
-    effect_anchor + "\n    LaunchedEffect(selectedReportType) {\n        if (selectedReportType == 0) onRefreshProfitDashboard()\n    }\n",
+    effect_anchor + "\n    LaunchedEffect(selectedReportType, currentUser?.canViewProfit) {\n        if (selectedReportType == 0 && currentUser?.canViewProfit == true) onRefreshProfitDashboard()\n    }\n",
     "profit dashboard refresh effect")
 write(reports, source)
 print("PASS: the financial tab now uses the structured profit dashboard.")
