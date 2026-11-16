@@ -261,6 +261,30 @@ jobs:
           fi
           echo 'Previously reported getProducts() parameters are present.'
 
+      - name: Export sanitized patched source for coordinated review
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SNAPSHOT="$RUNNER_TEMP/Elory-Dashboard-Source-Snapshot.tar.gz"
+          tar -czf "$SNAPSHOT" \
+            --exclude='google-services.json' \
+            --exclude='.env' \
+            --exclude='*.keystore' \
+            --exclude='*.jks' \
+            --exclude='local.properties' \
+            --exclude='secrets.properties' \
+            --exclude='.gradle' \
+            --exclude='build' \
+            -C "$PROJECT_DIR" .
+          test -s "$SNAPSHOT"
+      - name: Upload sanitized source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elory-Dashboard-Source-Snapshot
+          path: ${{ runner.temp }}/Elory-Dashboard-Source-Snapshot.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
