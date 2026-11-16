@@ -1234,4 +1234,96 @@ for relative in (
                             emitted.add(j)
                 print("WEBSITE_REPOSITORY_SAVE_END")
 
+
+# Keep all four report selectors in one compact, horizontally swipeable row on phones.
+panel_path = PROJECT / "app/src/main/java/com/pinky/dashboard/ui/screens/reports/ProfitDashboardPanel.kt"
+panel_source = panel_path.read_text(encoding="utf-8")
+old_report_tiles = """        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "الأرباح اليومية",
+                subtitle = "تفاصيل الربح حسب اليوم",
+                icon = Icons.Outlined.DateRange,
+                selected = selectedSection == 0,
+                onClick = { selectedSection = 0 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "أكثر المنتجات",
+                subtitle = "أعلى 10 منتجات طلبًا",
+                icon = Icons.Outlined.Inventory2,
+                selected = selectedSection == 1,
+                onClick = { selectedSection = 1 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ReportSectionTile(
+                title = "أعلى المحافظات",
+                subtitle = "أعلى 10 محافظات طلبًا",
+                icon = Icons.Outlined.LocationOn,
+                selected = selectedSection == 2,
+                onClick = { selectedSection = 2 },
+                modifier = Modifier.weight(1f)
+            )
+            ReportSectionTile(
+                title = "Elory Prime",
+                subtitle = "ربح وخسارة الاشتراكات",
+                icon = Icons.Outlined.Star,
+                selected = selectedSection == 3,
+                onClick = { selectedSection = 3 },
+                modifier = Modifier.weight(1f)
+            )
+        }
+"""
+new_report_tiles = """        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ReportSectionTile(
+                title = "الأرباح اليومية",
+                subtitle = "تفاصيل الربح حسب اليوم",
+                icon = Icons.Outlined.DateRange,
+                selected = selectedSection == 0,
+                onClick = { selectedSection = 0 },
+                modifier = Modifier.width(154.dp)
+            )
+            ReportSectionTile(
+                title = "أكثر المنتجات",
+                subtitle = "أعلى 10 منتجات طلبًا",
+                icon = Icons.Outlined.Inventory2,
+                selected = selectedSection == 1,
+                onClick = { selectedSection = 1 },
+                modifier = Modifier.width(154.dp)
+            )
+            ReportSectionTile(
+                title = "أعلى المحافظات",
+                subtitle = "أعلى 10 محافظات طلبًا",
+                icon = Icons.Outlined.LocationOn,
+                selected = selectedSection == 2,
+                onClick = { selectedSection = 2 },
+                modifier = Modifier.width(154.dp)
+            )
+            ReportSectionTile(
+                title = "Elory Prime",
+                subtitle = "ربح وخسارة الاشتراكات",
+                icon = Icons.Outlined.Star,
+                selected = selectedSection == 3,
+                onClick = { selectedSection = 3 },
+                modifier = Modifier.width(154.dp)
+            )
+        }
+"""
+if old_report_tiles in panel_source:
+    panel_source = panel_source.replace(old_report_tiles, new_report_tiles, 1)
+elif new_report_tiles not in panel_source:
+    raise SystemExit("Report selector layout did not match the expected two-row or one-row version.")
+panel_path.write_text(panel_source, encoding="utf-8")
+print("PASS: Four report selectors now share one horizontally scrollable row.")
+
 print("Elory profit dashboard patch completed.")
