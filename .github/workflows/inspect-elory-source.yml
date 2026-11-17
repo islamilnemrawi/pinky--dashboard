@@ -56,14 +56,19 @@ jobs:
               if "Repository" in p.name or "Dao" in p.name:
                   print(p.relative_to(root / "app/src/main/java"))
           print("=== REPOSITORY SYNC METHODS ===")
-          for p in sorted((root / "app/src/main/java/com/pinky/dashboard").rglob("*.kt")):
-              if "Repository" in p.name:
-                  lines=p.read_text(encoding="utf-8").splitlines()
-                  hits=[i for i,line in enumerate(lines) if re.search(r"fun syncOrders|fun syncCustomers|fun getOrdersFlow|fun getCustomersFlow|fun delete.*Order|fun delete.*Customer|fun clear",line)]
-                  if hits:
-                      print(f"--- {p.relative_to(root / 'app/src/main/java')} ---")
-                      for i in hits:
-                          for n in range(max(0,i-2),min(len(lines),i+14)): print(f"{n+1}: {lines[n]}")
+          repo_file = root / "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
+          repo_lines=repo_file.read_text(encoding="utf-8").splitlines()
+          for i,line in enumerate(repo_lines):
+              if re.search(r"syncOrders|syncCustomers|getOrdersFlow|getCustomersFlow|delete.*Order|delete.*Customer|clearAll|deleteAll",line,re.I):
+                  print(f"{i+1}: {line[:300]}")
+                  for n in range(max(0,i-2),min(len(repo_lines),i+16)):
+                      print(f"{n+1}: {repo_lines[n]}")
+          print("=== DAO SYNC METHODS ===")
+          dao=root / "app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt"
+          dao_lines=dao.read_text(encoding="utf-8").splitlines()
+          for i,line in enumerate(dao_lines):
+              if re.search(r"deleteAll|deleteBy|delete.*Order|delete.*Customer|clear",line,re.I):
+                  print(f"{i+1}: {line[:300]}")
           print("=== VIEWMODEL DATA METHODS ===")
           vm = src / "com/pinky/dashboard/ui/PinkyViewModel.kt"
           vm_lines=vm.read_text(encoding="utf-8").splitlines()
