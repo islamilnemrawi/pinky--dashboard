@@ -97,7 +97,7 @@ def patch_repository(source):
                     )
                 )
                 if (!bannerResponse.isSuccessful) {
-                    return@withContext Result.failure(Exception("فشل حفظ البانر على Supabase (HTTP \${bannerResponse.code()})."))
+                    return@withContext Result.failure(Exception("فشل حفظ البانر على Supabase (HTTP ${bannerResponse.code()})."))
                 }
                 bannerResponse.body()?.firstOrNull()?.id
             } else {
@@ -118,7 +118,7 @@ def patch_repository(source):
                     )
                 )
                 if (!offerResponse.isSuccessful) {
-                    return@withContext Result.failure(Exception("فشل حفظ العرض على Supabase (HTTP \${offerResponse.code()})."))
+                    return@withContext Result.failure(Exception("فشل حفظ العرض على Supabase (HTTP ${offerResponse.code()})."))
                 }
                 offerResponse.body()?.firstOrNull()?.id
             }
@@ -129,6 +129,15 @@ def patch_repository(source):
             val savedId = if (isBanner) "ban_$persistedId" else persistedId
             val savedOffer = offer.copy(id = savedId)
 
+"""
+        block = block[:upsert_start] + new_upsert + block[entity_start:]
+        old_entity = """            val entity = OfferEntity(
+                id = offer.id,"""
+        new_entity = """            val entity = OfferEntity(
+                id = savedId,"""
+        if block.count(old_entity) != 1:
+            raise SystemExit("Offer cache entity ID anchor missing or duplicated")
+        block = block.replace(old_entity, new_entity, 1)
         if block.count("Result.success(offer)") != 1: raise SystemExit("Offer save result anchor missing or duplicated")
         block = block.replace("Result.success(offer)", "Result.success(savedOffer)", 1)
     source = source[:save_start] + block + source[save_end:]
@@ -172,11 +181,11 @@ def patch_view_model(source):
             if (result.isSuccess) {
                 val syncResult = offerRepository.syncOffers()
                 _syncError.value = syncResult.exceptionOrNull()?.let {
-                    "تم حفظ العرض، لكن تعذرت مزامنة القائمة: \${it.localizedMessage ?: "خطأ غير معروف"}"
+                    "تم حفظ العرض، لكن تعذرت مزامنة القائمة: ${it.localizedMessage ?: "خطأ غير معروف"}"
                 }
             } else {
                 val error = result.exceptionOrNull()
-                _syncError.value = "تعذر حفظ العرض: \${error?.localizedMessage ?: "خطأ غير معروف"}"
+                _syncError.value = "تعذر حفظ العرض: ${error?.localizedMessage ?: "خطأ غير معروف"}"
                 android.util.Log.e("EloryOffers", "Offer save failed.", error)
             }
         }
@@ -196,11 +205,11 @@ def patch_view_model(source):
             if (result.isSuccess) {
                 val syncResult = offerRepository.syncOffers()
                 _syncError.value = syncResult.exceptionOrNull()?.let {
-                    "تم حذف العرض، لكن تعذرت مزامنة القائمة: \${it.localizedMessage ?: "خطأ غير معروف"}"
+                    "تم حذف العرض، لكن تعذرت مزامنة القائمة: ${it.localizedMessage ?: "خطأ غير معروف"}"
                 }
             } else {
                 val error = result.exceptionOrNull()
-                _syncError.value = "تعذر حذف العرض: \${error?.localizedMessage ?: "خطأ غير معروف"}"
+                _syncError.value = "تعذر حذف العرض: ${error?.localizedMessage ?: "خطأ غير معروف"}"
                 android.util.Log.e("EloryOffers", "Offer delete failed.", error)
             }
         }
