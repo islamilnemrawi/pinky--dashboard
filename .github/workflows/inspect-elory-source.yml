@@ -30,30 +30,27 @@ jobs:
           src = root / "app/src/main/java"
           terms = ("order", "customer", "coupon", "website", "pinkapp")
           print("=== SCREEN FILE CANDIDATES ===")
+          for p in sorted((src / "ui/screens").rglob("*.kt")):
+              print(p.relative_to(src))
+          def show(path, start, end):
+              p = src / path
+              if not p.exists():
+                  print(f"--- MISSING {path} ---"); return
+              lines = p.read_text(encoding="utf-8").splitlines()
+              print(f"--- {path} lines {start}-{min(end,len(lines))} of {len(lines)} ---")
+              for n in range(start-1, min(end,len(lines))):
+                  print(f"{n+1}: {lines[n]}")
+          show(Path("com/pinky/dashboard/ui/screens/customers/CustomersScreen.kt"), 1, 115)
+          show(Path("com/pinky/dashboard/ui/screens/orders/OrdersScreen.kt"), 1, 175)
+          show(Path("com/pinky/dashboard/ui/PinkyApp.kt"), 195, 335)
+          show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 1, 350)
+          show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 1400, 1490)
+          print("=== COUPON / OFFER COMPOSABLES ===")
           for p in sorted(src.rglob("*.kt")):
-              if any(t in p.name.lower() or t in str(p.parent).lower() for t in terms):
-                  print(p.relative_to(src))
-          print("=== SCREEN COMPOSABLE SIGNATURES ===")
-          for p in sorted(src.rglob("*.kt")):
-              if any(t in p.name.lower() for t in ("order", "customer", "coupon", "website")):
-                  lines = p.read_text(encoding="utf-8").splitlines()
-                  hits = [i for i, line in enumerate(lines) if "@Composable" in line or re.search(r"^\\s*(?:private\\s+)?fun\\s+\\w+.*Screen", line)]
-                  if hits:
-                      print(f"--- {p.relative_to(src)} ({len(lines)} lines) ---")
-                      for i in hits[:25]:
-                          lo=max(0,i-1); hi=min(len(lines),i+5)
-                          for n in range(lo,hi): print(f"{n+1}: {lines[n]}")
-          print("=== PINKY APP SCREEN ROUTING ===")
-          app = next(src.rglob("PinkyApp.kt"), None)
-          if app:
-              lines=app.read_text(encoding="utf-8").splitlines()
-              for i,line in enumerate(lines):
-                  if re.search(r"(Orders|Customers|Coupon|WebsiteEditor|Reports)Screen|selectedTab|currentScreen|Screen\(", line, re.I):
-                      print(f"{i+1}: {line[:300]}")
-          print("=== WEBSITE EDITOR COMPOSABLES ===")
-          for p in src.rglob("WebsiteEditorScreen.kt"):
               lines=p.read_text(encoding="utf-8").splitlines()
-              for i,line in enumerate(lines):
-                  if re.search(r"^\\s*(?:private\\s+)?fun\\s+\\w+", line):
-                      print(f"{i+1}: {line[:300]}")
+              hits=[i for i,line in enumerate(lines) if re.search(r"coupon|كوبون|promo|offer|عرض",line,re.I)]
+              if hits and ("ui/screens" in str(p) or "PinkyApp.kt" in p.name):
+                  print(f"--- {p.relative_to(src)} ({len(lines)} lines) ---")
+                  for i in hits[:35]:
+                      print(f"{i+1}: {lines[i][:300]}")
           PY
