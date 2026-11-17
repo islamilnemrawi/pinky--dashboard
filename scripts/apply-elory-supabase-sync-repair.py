@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import re
 
 PROJECT = Path(os.environ["PROJECT_DIR"]).resolve()
 
@@ -157,41 +158,47 @@ if block.count(old_header) != 1:
     raise SystemExit("Unexpected syncRemainingSupabaseData() wrapper")
 block = block.replace(old_header, new_header, 1)
 
-# Surface unsuccessful HTTP responses rather than silently keeping stale dashboard state.
-response_checks = [
-    (
-        "val response = SupabaseClient.service.getCoupons()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getCoupons()\n                if (!response.isSuccessful) errors.add(\"الكوبونات: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
-    ),
-    (
-        "val response = SupabaseClient.service.getPrimeSubscriptions()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getPrimeSubscriptions()\n                if (!response.isSuccessful) errors.add(\"اشتراكات Prime: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
-    ),
-    (
-        "val response = SupabaseClient.service.getStaffProfiles()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getStaffProfiles()\n                if (!response.isSuccessful) errors.add(\"الموظفون: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
-    ),
+# Surface unsuccessful HTTP responses regardless of the local response variable names.
+response_methods = [
+    ("getCoupons", "الكوبونات"),
+    ("getPrimeSubscriptions", "اشتراكات Prime"),
+    ("getStaffProfiles", "الموظفون"),
 ]
-for old, new in response_checks:
-    if block.count(old) != 1:
-        raise SystemExit("Missing or duplicated Supabase read anchor: " + old.splitlines()[0])
-    block = block.replace(old, new, 1)
+for method, label in response_methods:
+    pattern = re.compile(
+        r"(?m)^([ \t]*)val[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*SupabaseClient\.service\."
+        + re.escape(method)
+        + r"\(\)[ \t]*\n([ \t]*)if[ \t]*\([ \t]*\2\.isSuccessful[ \t]*\)[ \t]*\{"
+    )
+    matches = list(pattern.finditer(block))
+    if len(matches) != 1:
+        raise SystemExit("Missing or duplicated Supabase read anchor: " + method)
+    match = matches[0]
+    indent = match.group(3)
+    variable = match.group(2)
+    check = (
+        'if (!' + variable + '.isSuccessful) errors.add("' + label
+        + ': HTTP ${' + variable + '.code()}")\n'
+        + indent + 'if (' + variable + '.isSuccessful) {'
+    )
+    old_if = indent + 'if (' + variable + '.isSuccessful) {'
+    block = block[:match.start()] + match.group(0).replace(old_if, check, 1) + block[match.end():]
 
-settings_anchor = (
-    "val settingsResponse = SupabaseClient.service.getStoreSettings()\n"
-    "                val customizationsResponse = SupabaseClient.service.getSiteCustomizations()\n\n"
-    "                var currentConfig = _websiteConfig.value"
+settings_pattern = re.compile(
+    r"(?m)^([ \t]*)val[ \t]+settingsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getStoreSettings\(\)[ \t]*\n"
+    r"([ \t]*)val[ \t]+customizationsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getSiteCustomizations\(\)[ \t]*\n"
 )
-settings_replacement = (
-    "val settingsResponse = SupabaseClient.service.getStoreSettings()\n"
-    "                val customizationsResponse = SupabaseClient.service.getSiteCustomizations()\n"
-    "                if (!settingsResponse.isSuccessful) errors.add(\"إعدادات المتجر: HTTP ${settingsResponse.code()}\")\n"
-    "                if (!customizationsResponse.isSuccessful) errors.add(\"تخصيصات الموقع: HTTP ${customizationsResponse.code()}\")\n\n"
-    "                var currentConfig = _websiteConfig.value"
-)
-if block.count(settings_anchor) != 1:
+settings_matches = list(settings_pattern.finditer(block))
+if len(settings_matches) != 1:
     raise SystemExit("Missing or duplicated store/site settings read anchor")
-block = block.replace(settings_anchor, settings_replacement, 1)
+settings_match = settings_matches[0]
+settings_indent = settings_match.group(2)
+settings_add = (
+    settings_match.group(0)
+    + settings_indent + 'if (!settingsResponse.isSuccessful) errors.add("إعدادات المتجر: HTTP ${settingsResponse.code()}")\n'
+    + settings_indent + 'if (!customizationsResponse.isSuccessful) errors.add("تخصيصات الموقع: HTTP ${customizationsResponse.code()}")\n'
+)
+block = block[:settings_match.start()] + settings_add + block[settings_match.end():]
 
 # Keep each read independent: a failed section reports its own error and does not cancel the other reads.
 catch_sections = [
