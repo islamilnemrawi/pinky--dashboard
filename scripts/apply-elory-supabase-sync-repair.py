@@ -135,21 +135,15 @@ source = read(view_model_path)
 function_start = source.find("    private fun syncRemainingSupabaseData() {")
 if function_start < 0:
     raise SystemExit("Could not locate syncRemainingSupabaseData()")
-open_brace = source.find("{", function_start)
-if open_brace < 0:
-    raise SystemExit("Could not locate syncRemainingSupabaseData() body")
-depth = 0
-function_end = -1
-for index in range(open_brace, len(source)):
-    if source[index] == "{":
-        depth += 1
-    elif source[index] == "}":
-        depth -= 1
-        if depth == 0:
-            function_end = index + 1
-            break
-if function_end < 0:
-    raise SystemExit("Could not find end of syncRemainingSupabaseData()")
+function_header = "    private fun syncRemainingSupabaseData() {"
+next_method = re.search(
+    r"(?m)^    (?:private[ \t]+)?(?:suspend[ \t]+)?fun[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*\(",
+    source[function_start + len(function_header):],
+)
+if next_method is None:
+    raise SystemExit("Could not locate the next ViewModel method after syncRemainingSupabaseData()")
+function_end = function_start + len(function_header) + next_method.start()
+
 block = source[function_start:function_end]
 
 old_header = "    private fun syncRemainingSupabaseData() {\n        viewModelScope.launch {\n"
