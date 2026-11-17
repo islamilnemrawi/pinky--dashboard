@@ -1,4 +1,5 @@
 name: Elory source inspection export
+# Export the exact input archive for reproducible source-level review.
 on:
   push:
     branches:
