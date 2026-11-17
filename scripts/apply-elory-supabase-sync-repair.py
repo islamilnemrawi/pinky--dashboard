@@ -62,54 +62,71 @@ category = category.replace(
     'Text("يتم ضغط الصورة تلقائيًا قبل رفعها", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)',
 )
 
-# The dashboard must preview the SVG category assets used by the storefront.
-if "import coil.decode.SvgDecoder" not in category:
-    async_import = "import coil.compose.AsyncImage\n"
-    if category.count(async_import) != 1:
-        raise SystemExit("Category AsyncImage import anchor is missing or duplicated")
+# Preview the compact embedded JPEG category images without requiring Coil data-URI support.
+package_anchor = "package com.pinky.dashboard.ui.screens.categories\n\n"
+if "import android.graphics.BitmapFactory\n" not in category:
+    if category.count(package_anchor) != 1:
+        raise SystemExit("Category package anchor is missing or duplicated")
     category = category.replace(
-        async_import,
-        async_import + "import coil.decode.SvgDecoder\nimport coil.request.ImageRequest\n",
+        package_anchor,
+        package_anchor
+        + "import android.graphics.BitmapFactory\n"
+        + "import android.util.Base64\n"
+        + "import androidx.compose.foundation.Image\n"
+        + "import androidx.compose.ui.graphics.asImageBitmap\n",
         1,
     )
-image_model_old = "model = selectedImageUri ?: imageUrl,"
-image_model_new = """model = selectedImageUri ?: if (imageUrl.substringBefore("?").endsWith(".svg", ignoreCase = true)) {
-                    ImageRequest.Builder(context)
-                        .data(imageUrl)
-                        .decoderFactory(SvgDecoder.Factory())
-                        .build()
-                } else imageUrl,"""
-if category.count(image_model_old) != 1:
-    raise SystemExit("Category image preview model anchor is missing or duplicated")
-category = category.replace(image_model_old, image_model_new, 1)
-category = category.replace(
-    'uploadError = "عذرًا، حدث خطأ غير متوقع: ${e.localizedMessage}"',
-    'uploadError = e.message ?: "تعذر رفع صورة القسم. تحقق من الاتصال وصلاحية الحساب."',
-)
+context_anchor = "    val context = LocalContext.current\n"
+bitmap_state = """    val storedImageBitmap = remember(imageUrl) {
+        if (imageUrl.startsWith("data:image/") && ";base64," in imageUrl) {
+            runCatching {
+                val encoded = imageUrl.substringAfter(";base64,")
+                val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        } else null
+    }
+"""
+if "val storedImageBitmap = remember(imageUrl)" not in category:
+    if category.count(context_anchor) != 1:
+        raise SystemExit("Category dialog context anchor is missing or duplicated")
+    category = category.replace(context_anchor, context_anchor + bitmap_state, 1)
+image_block_old = """AsyncImage(
+                    model = selectedImageUri ?: imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )"""
+image_block_new = """if (selectedImageUri != null) {
+                    AsyncImage(
+                        model = selectedImageUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (storedImageBitmap != null) {
+                    Image(
+                        bitmap = storedImageBitmap,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }"""
+if image_block_old in category:
+    category = category.replace(image_block_old,image_block_new,1)
+elif "storedImageBitmap != null" not in category:
+    raise SystemExit("Category image preview block is missing or duplicated")
 if "SupabaseStorageUploader.uploadProductImage" not in category or "uploadStorageFile(" in category:
     raise SystemExit("Category image upload did not switch to the shared uploader")
 write(category_path, category)
 print("PASS: category images use compressed, uniquely named WebP uploads")
-
-# Add Coil's SVG decoder so the Android dashboard can preview the same hosted category images.
-versions = read("gradle/libs.versions.toml")
-coil_compose_line = 'coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }'
-coil_svg_line = 'coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coilCompose" }'
-if coil_svg_line not in versions:
-    if versions.count(coil_compose_line) != 1:
-        raise SystemExit("Coil version catalog anchor is missing or duplicated")
-    versions = versions.replace(coil_compose_line, coil_compose_line + "\n" + coil_svg_line, 1)
-write("gradle/libs.versions.toml", versions)
-
-app_gradle = read("app/build.gradle.kts")
-if "implementation(libs.coil.svg)" not in app_gradle:
-    coil_dependency = "  implementation(libs.coil.compose)"
-    if app_gradle.count(coil_dependency) != 1:
-        raise SystemExit("Coil Gradle dependency anchor is missing or duplicated")
-    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\n  implementation(libs.coil.svg)", 1)
-write("app/build.gradle.kts", app_gradle)
-print("PASS: Coil SVG decoding is configured for category image previews")
-
 
 # 2) Make the secondary Supabase reads awaited and report failures to the sync UI.
 view_model_path = "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
