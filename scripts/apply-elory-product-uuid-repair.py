@@ -23,16 +23,23 @@ def patch_remote(source):
     end = source.find("\n)", start)
     if end < 0:
         raise SystemExit("SupabaseProductAdminDto closing delimiter not found")
-    block = source[start:end]
-    old = '@Json(name = "id") val id: String,'
-    if block.count(old) != 1:
-        raise SystemExit("Product DTO id field missing or duplicated")
-    block = block.replace(old, '@Json(name = "id") val id: String? = null,', 1)
-    source = source[:start] + block + source[end:]
+    admin_block = source[start:end + 2]
+    if source.count("data class SupabaseProductUpsertDto(") != 0:
+        raise SystemExit("SupabaseProductUpsertDto already exists; refusing duplicate insertion")
+    upsert_block = admin_block.replace(
+        "data class SupabaseProductAdminDto(",
+        "data class SupabaseProductUpsertDto(",
+        1
+    )
+    old_id = '@Json(name = "id") val id: String,'
+    if upsert_block.count(old_id) != 1:
+        raise SystemExit("Product admin DTO id field missing or duplicated")
+    upsert_block = upsert_block.replace(old_id, '@Json(name = "id") val id: String? = null,', 1)
+    source = source[:end + 2] + "\n\n@JsonClass(generateAdapter = true)\n" + upsert_block + source[end + 2:]
 
     old_method = """    @POST("rest/v1/products")
     suspend fun upsertAdminProduct(
-        @Body product: SupabaseProductAdminDto,
+        @Body product: SupabaseProductUpsertDto,
         @Header("Prefer") prefer: String = "resolution=merge-duplicates"
     ): Response<Unit>"""
     new_method = """    @POST("rest/v1/products")
@@ -77,7 +84,7 @@ def patch_repository(source):
             val remoteProductId = product.id.takeIf(::isCanonicalProductUuid)
 
             // 1. Save to Supabase and request the persisted row so newly generated IDs are returned.
-            val dto = SupabaseProductAdminDto(
+            val dto = SupabaseProductUpsertDto(
                 id = remoteProductId,"""
     if source.count(old) != 1:
         raise SystemExit("Product save DTO construction anchor missing or duplicated")
