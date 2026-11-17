@@ -61,6 +61,27 @@ category = category.replace(
     'Text("صيغة JPG أو PNG", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)',
     'Text("يتم ضغط الصورة تلقائيًا قبل رفعها", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)',
 )
+
+# The dashboard must preview the SVG category assets used by the storefront.
+if "import coil.decode.SvgDecoder" not in category:
+    async_import = "import coil.compose.AsyncImage\\n"
+    if category.count(async_import) != 1:
+        raise SystemExit("Category AsyncImage import anchor is missing or duplicated")
+    category = category.replace(
+        async_import,
+        async_import + "import coil.decode.SvgDecoder\\nimport coil.request.ImageRequest\\n",
+        1,
+    )
+image_model_old = "model = selectedImageUri ?: imageUrl,"
+image_model_new = """model = selectedImageUri ?: if (imageUrl.substringBefore("?").endsWith(".svg", ignoreCase = true)) {
+                    ImageRequest.Builder(context)
+                        .data(imageUrl)
+                        .decoderFactory(SvgDecoder.Factory())
+                        .build()
+                } else imageUrl,"""
+if category.count(image_model_old) != 1:
+    raise SystemExit("Category image preview model anchor is missing or duplicated")
+category = category.replace(image_model_old, image_model_new, 1)
 category = category.replace(
     'uploadError = "عذرًا، حدث خطأ غير متوقع: ${e.localizedMessage}"',
     'uploadError = e.message ?: "تعذر رفع صورة القسم. تحقق من الاتصال وصلاحية الحساب."',
@@ -69,6 +90,25 @@ if "SupabaseStorageUploader.uploadProductImage" not in category or "uploadStorag
     raise SystemExit("Category image upload did not switch to the shared uploader")
 write(category_path, category)
 print("PASS: category images use compressed, uniquely named WebP uploads")
+
+# Add Coil's SVG decoder so the Android dashboard can preview the same hosted category images.
+versions = read("gradle/libs.versions.toml")
+coil_compose_line = 'coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }'
+coil_svg_line = 'coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coilCompose" }'
+if coil_svg_line not in versions:
+    if versions.count(coil_compose_line) != 1:
+        raise SystemExit("Coil version catalog anchor is missing or duplicated")
+    versions = versions.replace(coil_compose_line, coil_compose_line + "\\n" + coil_svg_line, 1)
+write("gradle/libs.versions.toml", versions)
+
+app_gradle = read("app/build.gradle.kts")
+if "implementation(libs.coil.svg)" not in app_gradle:
+    coil_dependency = "    implementation(libs.coil.compose)"
+    if app_gradle.count(coil_dependency) != 1:
+        raise SystemExit("Coil Gradle dependency anchor is missing or duplicated")
+    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\\n    implementation(libs.coil.svg)", 1)
+write("app/build.gradle.kts", app_gradle)
+print("PASS: Coil SVG decoding is configured for category image previews")
 
 
 # 2) Make the secondary Supabase reads awaited and report failures to the sync UI.
