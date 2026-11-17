@@ -63,12 +63,26 @@ jobs:
                   print(f"{i+1}: {line[:300]}")
                   for n in range(max(0,i-2),min(len(repo_lines),i+16)):
                       print(f"{n+1}: {repo_lines[n]}")
-          print("=== DAO SYNC METHODS ===")
+          print("=== DAO DEFINITIONS ===")
           dao=root / "app/src/main/java/com/pinky/dashboard/data/local/dao/Daos.kt"
           dao_lines=dao.read_text(encoding="utf-8").splitlines()
           for i,line in enumerate(dao_lines):
-              if re.search(r"deleteAll|deleteBy|delete.*Order|delete.*Customer|clear",line,re.I):
+              if re.search(r"interface .*Dao|deleteAll|deleteBy|delete.*Order|delete.*Customer|clear",line,re.I):
                   print(f"{i+1}: {line[:300]}")
+          print("=== REPOSITORY ORDER/CUSTOMER SYNC CONTEXT ===")
+          for pattern in ("syncOrders", "syncCustomers", "class CustomerRepositoryImpl"):
+              for i,line in enumerate(repo_lines):
+                  if pattern in line:
+                      print(f"--- {pattern} at {i+1} ---")
+                      for n in range(max(0,i-4),min(len(repo_lines),i+70)):
+                          print(f"{n+1}: {repo_lines[n]}")
+          print("=== ADMIN USER MODEL ===")
+          for p in sorted((root / "app/src/main/java").rglob("*.kt")):
+              lines=p.read_text(encoding="utf-8").splitlines()
+              for i,line in enumerate(lines):
+                  if "data class AdminUser" in line:
+                      print(f"--- {p.relative_to(root / 'app/src/main/java')} ---")
+                      for n in range(i,min(len(lines),i+35)): print(f"{n+1}: {lines[n]}")
           print("=== VIEWMODEL DATA METHODS ===")
           vm = src / "com/pinky/dashboard/ui/PinkyViewModel.kt"
           vm_lines=vm.read_text(encoding="utf-8").splitlines()
