@@ -422,7 +422,7 @@ fun OwnerDataResetControls(
                         coroutineScope.launch {
                             busy = true
                             errorMessage = null
-                            val ids = if (allSelected) null else selectedIds
+                            val ids = selectedIds
                             val result = onDeleteSelected(ids, enteredPin)
                             busy = false
                             if (result.isSuccess) {
@@ -528,7 +528,7 @@ if "OwnerDataResetControls" not in orders:
 write(orders_file, orders)
 add_selection_screen(
     orders_file, "OrdersScreen", "selectedOrderIds", "orders",
-    "OrderCardItem", "الطلبات", "        LazyColumn("
+    "OrderCardItem", "الطلبات", "            LazyColumn("
 )
 
 # Coupons
