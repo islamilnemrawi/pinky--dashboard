@@ -84,6 +84,14 @@ jobs:
           echo 'Project files:'
           ls -lah "$PROJECT_DIR"
 
+      - name: Export source archive for source-level diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elory-Dashboard-Source-Archive
+          path: Elory_Dashboard_Build_Ready.zip
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Apply Elory CMS updates
         # CMS patch includes hero visibility, custom-section image uploads, and safe section ordering.
         # Adds the live phone preview component missing from the source archive.
@@ -136,11 +144,25 @@ jobs:
           python3 scripts/apply-elory-profit-dashboard.py
           python3 scripts/apply-elory-cms-draft-preview-publish.py
 
+      - name: Diagnose source sync method before repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          SOURCE_FILE="$PROJECT_DIR/app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
+          echo '--- syncRemainingSupabaseData method source ---'
+          grep -n -A400 -B5 '^    private fun syncRemainingSupabaseData' "$SOURCE_FILE" || true
+
       - name: Repair awaited Supabase sync and category image uploads
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 scripts/apply-elory-supabase-sync-repair.py
+
+      - name: Align Supabase DTOs with the live Elory schema
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-schema-contract-fixes.py
 
       - name: Prepare project configuration
         shell: bash

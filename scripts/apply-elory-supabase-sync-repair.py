@@ -136,13 +136,13 @@ function_start = source.find("    private fun syncRemainingSupabaseData() {")
 if function_start < 0:
     raise SystemExit("Could not locate syncRemainingSupabaseData()")
 function_header = "    private fun syncRemainingSupabaseData() {"
-next_method = re.search(
-    r"(?m)^    (?:private[ \t]+)?(?:suspend[ \t]+)?fun[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*\(",
-    source[function_start + len(function_header):],
-)
-if next_method is None:
-    raise SystemExit("Could not locate the next ViewModel method after syncRemainingSupabaseData()")
-function_end = function_start + len(function_header) + next_method.start()
+# The patched ViewModel implementation is the final method and owns one launch block.
+# Locate its final two closing braces explicitly; nested method braces use deeper indentation.
+function_end_marker = "\n        }\n    }"
+function_end_position = source.find(function_end_marker, function_start)
+if function_end_position < 0:
+    raise SystemExit("Could not locate the end of syncRemainingSupabaseData()")
+function_end = function_end_position + len(function_end_marker)
 
 block = source[function_start:function_end]
 
@@ -155,9 +155,12 @@ block = block.replace(old_header, new_header, 1)
 # Surface unsuccessful HTTP responses regardless of local variable names or blank lines.
 response_methods = [
     ("getCoupons", "الكوبونات"),
-    ("getPrimeSubscriptions", "اشتراكات Prime"),
     ("getStaffProfiles", "الموظفون"),
 ]
+# Prime reads are already routed through the schema-safe admin RPC by the
+# operations patch; accept that implementation instead of requiring the legacy table DTO.
+if "getPrimeSubscriptions()" not in block and "refreshPrimeSubscribers()" not in block:
+    raise SystemExit("Missing Prime subscription read (legacy REST or schema-safe RPC)")
 for method, label in response_methods:
     call_pattern = re.compile(
         r"(?m)^([ \t]*)val[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*SupabaseClient\.service\."
@@ -206,7 +209,6 @@ for variable, pattern, label in [
 # Keep each read independent: a failed section reports its own error and does not cancel the other reads.
 catch_sections = [
     ("// Fetch Coupons", "الكوبونات"),
-    ("// Fetch Prime Subscriptions", "اشتراكات Prime"),
     ("// Fetch Staff Profiles", "الموظفون"),
     ("// Fetch Store Settings and Site Customizations", "إعدادات الموقع"),
 ]
