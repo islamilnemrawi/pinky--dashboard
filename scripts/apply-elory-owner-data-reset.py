@@ -417,10 +417,13 @@ fun OwnerDataResetControls(
                         coroutineScope.launch {
                             busy = true
                             errorMessage = null
-                            val result = onSetPin(newPin)
+                            val result = runCatching { onSetPin(newPin) }
+                                .getOrElse { Result.failure(it) }
                             busy = false
                             if (result.isSuccess) {
                                 showPinSetup = false
+                                newPin = ""
+                                confirmPin = ""
                                 feedback = "تم حفظ رمز الحذف بأمان"
                             } else errorMessage = result.exceptionOrNull()?.message ?: "تعذر حفظ الرمز"
                         }
@@ -460,11 +463,13 @@ fun OwnerDataResetControls(
                             busy = true
                             errorMessage = null
                             val ids = selectedIds
-                            val result = onDeleteSelected(ids, enteredPin)
+                            val result = runCatching { onDeleteSelected(ids, enteredPin) }
+                                .getOrElse { Result.failure(it) }
                             busy = false
                             if (result.isSuccess) {
                                 val count = result.getOrNull() ?: 0
                                 showDeleteDialog = false
+                                enteredPin = ""
                                 onDeleteComplete()
                                 feedback = "تم حذف $count سجل من $scopeLabel"
                             } else errorMessage = result.exceptionOrNull()?.message ?: "تعذر تنفيذ الحذف"
@@ -636,6 +641,10 @@ new_delete = '''                                            if (isPrimaryOwner &
                                                         selectedCouponIds = if (checked) selectedCouponIds + coupon.id else selectedCouponIds - coupon.id
                                                     }
                                                 )
+                                            } else {
+                                                IconButton(onClick = { couponToDelete = coupon }) {
+                                                    Icon(Icons.Outlined.Delete, contentDescription = "حذف", tint = StatusCancelled)
+                                                }
                                             }'''
 if old_delete in offers:
     offers = offers.replace(old_delete, new_delete, 1)
