@@ -92,7 +92,7 @@ for number, section in groups.items():
 
 # Keep global store status in the header tab only, and keep section ordering with categories/products.
 editor_start = text.find("// Editor Sections List")
-store_marker = "                    item {\n                        Card(\n                            modifier = Modifier.fillMaxWidth(),\n                            border = CardDefaults.outlinedCardBorder()"
+store_marker = "                    item {\n                            Card(\n                                modifier = Modifier.fillMaxWidth(),\n                                border = CardDefaults.outlinedCardBorder()"
 store_item = text.find(store_marker, editor_start)
 if editor_start < 0 or store_item < 0:
     raise RuntimeError("Could not locate the store open/close control")
@@ -130,7 +130,7 @@ prime_block = prime_block.replace(
     'description = "إظهار أو إخفاء قسم Prime في الموقع؛ الأسعار والمزايا التشغيلية تُدار من قسم Prime"'
 )
 prime_block = prime_block.replace("SectionCard(", "PrimeVisibilityCard(", 1)
-prime_block = prime_block.replace("            onClick = { }\n", "")
+prime_block = prime_block.replace("onClick = { }\n", "")
 text = text[:prime_item] + prime_block + text[prime_end+1:]
 
 # Replace the five free-form HEX text fields with a real hue wheel + saturation/brightness picker.
