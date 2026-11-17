@@ -103,10 +103,10 @@ write("gradle/libs.versions.toml", versions)
 
 app_gradle = read("app/build.gradle.kts")
 if "implementation(libs.coil.svg)" not in app_gradle:
-    coil_dependency = "    implementation(libs.coil.compose)"
+    coil_dependency = "  implementation(libs.coil.compose)"
     if app_gradle.count(coil_dependency) != 1:
         raise SystemExit("Coil Gradle dependency anchor is missing or duplicated")
-    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\n    implementation(libs.coil.svg)", 1)
+    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\n  implementation(libs.coil.svg)", 1)
 write("app/build.gradle.kts", app_gradle)
 print("PASS: Coil SVG decoding is configured for category image previews")
 
