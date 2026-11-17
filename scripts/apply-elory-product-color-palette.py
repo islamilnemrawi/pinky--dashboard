@@ -536,8 +536,11 @@ order_class_anchor = """class OrderRepositoryImpl(
     private val orderDao = database.orderDao()
 """
 order_class_new = order_class_anchor + """
-    private fun isUnconfirmedPaymentStatus(status: String): Boolean =
-        status.trim().lowercase() in setOf(
+    private fun isUnconfirmedPayment(order: OrderEntity): Boolean {
+        val status = order.status.trim().lowercase()
+        val method = order.paymentMethod.trim().lowercase()
+        val electronic = method in setOf("card", "visa", "paymob", "vodafone_cash", "vodafone cash")
+        val transientStatus = status in setOf(
             "جاري الدفع",
             "فشل الدفع",
             "فشل إنشاء الدفع",
@@ -547,6 +550,9 @@ order_class_new = order_class_anchor + """
             "failed payment",
             "failed to create payment"
         )
+        val electronicUnverifiedStatus = electronic && status in setOf("جديد", "جاري التأكيد", "pending", "new")
+        return transientStatus || electronicUnverifiedStatus
+    }
 """
 text = replace_once(text, order_class_anchor, order_class_new, "transient order visibility guard")
 import re
@@ -554,7 +560,7 @@ orders_pattern = re.compile(
     r"(return\s+orderDao\.getAllOrdersFlow\(\)\.map\s*\{\s*entities\s*->\s*)entities\.map\s*\{\s*entity\s*->"
 )
 text, order_matches = orders_pattern.subn(
-    r"\1entities.filterNot { isUnconfirmedPaymentStatus(it.status) }.map { entity ->",
+    r"\1entities.filterNot { isUnconfirmedPayment(it) }.map { entity ->",
     text,
     count=1
 )
@@ -566,7 +572,7 @@ detail_pattern = re.compile(
     r"(val entity = orderDao\.getOrderById\(orderId\) \?: return@withContext null\s*)val items = orderDao\.getOrderItems\(entity\.id\)\.map"
 )
 text, detail_matches = detail_pattern.subn(
-    r"\1if (isUnconfirmedPaymentStatus(entity.status)) return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map",
+    r"\1if (isUnconfirmedPayment(entity)) return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map",
     text,
     count=1
 )
