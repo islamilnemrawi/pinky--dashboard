@@ -158,47 +158,56 @@ if block.count(old_header) != 1:
     raise SystemExit("Unexpected syncRemainingSupabaseData() wrapper")
 block = block.replace(old_header, new_header, 1)
 
-# Surface unsuccessful HTTP responses regardless of the local response variable names.
+# Surface unsuccessful HTTP responses regardless of local variable names or blank lines.
 response_methods = [
     ("getCoupons", "الكوبونات"),
     ("getPrimeSubscriptions", "اشتراكات Prime"),
     ("getStaffProfiles", "الموظفون"),
 ]
 for method, label in response_methods:
-    pattern = re.compile(
+    call_pattern = re.compile(
         r"(?m)^([ \t]*)val[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*SupabaseClient\.service\."
-        + re.escape(method)
-        + r"\(\)[ \t]*\n([ \t]*)if[ \t]*\([ \t]*\2\.isSuccessful[ \t]*\)[ \t]*\{"
+        + re.escape(method) + r"\(\)"
     )
-    matches = list(pattern.finditer(block))
-    if len(matches) != 1:
-        raise SystemExit("Missing or duplicated Supabase read anchor: " + method)
-    match = matches[0]
-    indent = match.group(3)
-    variable = match.group(2)
+    call_matches = list(call_pattern.finditer(block))
+    if len(call_matches) != 1:
+        raise SystemExit("Missing or duplicated Supabase read call: " + method)
+    call_match = call_matches[0]
+    variable = call_match.group(2)
+    if_pattern = re.compile(
+        r"(?m)^([ \t]*)if[ \t]*\([ \t]*" + re.escape(variable) + r"\.isSuccessful[ \t]*\)[ \t]*\{"
+    )
+    if_match = if_pattern.search(block, call_match.end())
+    if if_match is None or if_match.start() - call_match.end() > 700:
+        raise SystemExit("Missing success branch for Supabase read: " + method)
+    indent = if_match.group(1)
     check = (
         'if (!' + variable + '.isSuccessful) errors.add("' + label
-        + ': HTTP ${' + variable + '.code()}")\n'
-        + indent + 'if (' + variable + '.isSuccessful) {'
+        + ': HTTP ${' + variable + '.code()}")\n' + indent
     )
-    old_if = indent + 'if (' + variable + '.isSuccessful) {'
-    block = block[:match.start()] + match.group(0).replace(old_if, check, 1) + block[match.end():]
+    block = block[:if_match.start()] + check + block[if_match.start():]
 
-settings_pattern = re.compile(
-    r"(?m)^([ \t]*)val[ \t]+settingsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getStoreSettings\(\)[ \t]*\n"
-    r"([ \t]*)val[ \t]+customizationsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getSiteCustomizations\(\)[ \t]*\n"
+settings_call = re.compile(
+    r"(?m)^([ \t]*)val[ \t]+settingsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getStoreSettings\(\)"
 )
-settings_matches = list(settings_pattern.finditer(block))
-if len(settings_matches) != 1:
-    raise SystemExit("Missing or duplicated store/site settings read anchor")
-settings_match = settings_matches[0]
-settings_indent = settings_match.group(2)
-settings_add = (
-    settings_match.group(0)
-    + settings_indent + 'if (!settingsResponse.isSuccessful) errors.add("إعدادات المتجر: HTTP ${settingsResponse.code()}")\n'
-    + settings_indent + 'if (!customizationsResponse.isSuccessful) errors.add("تخصيصات الموقع: HTTP ${customizationsResponse.code()}")\n'
+custom_call = re.compile(
+    r"(?m)^([ \t]*)val[ \t]+customizationsResponse[ \t]*=[ \t]*SupabaseClient\.service\.getSiteCustomizations\(\)"
 )
-block = block[:settings_match.start()] + settings_add + block[settings_match.end():]
+settings_matches = list(settings_call.finditer(block))
+custom_matches = list(custom_call.finditer(block))
+if len(settings_matches) != 1 or len(custom_matches) != 1:
+    raise SystemExit("Missing or duplicated store/site settings read calls")
+for variable, pattern, label in [
+    ("settingsResponse", settings_call, "إعدادات المتجر"),
+    ("customizationsResponse", custom_call, "تخصيصات الموقع"),
+]:
+    match = list(pattern.finditer(block))[0]
+    line_end = block.find("\n", match.end())
+    if line_end < 0:
+        raise SystemExit("Could not locate settings response line ending: " + variable)
+    indent = match.group(1)
+    check = '\n' + indent + 'if (!' + variable + '.isSuccessful) errors.add("' + label + ': HTTP ${' + variable + '.code()}")'
+    block = block[:line_end] + check + block[line_end:]
 
 # Keep each read independent: a failed section reports its own error and does not cancel the other reads.
 catch_sections = [
