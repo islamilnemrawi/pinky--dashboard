@@ -90,6 +90,33 @@ groups = {1:0, 2:0, 3:0, 4:1, 5:2, 6:2, 7:3, 8:3, 9:4, 10:4, 11:4}
 for number, section in groups.items():
     text = wrap_card(text, number, section)
 
+# Keep global store status in the header tab only, and keep section ordering with categories/products.
+editor_start = text.find("// Editor Sections List")
+store_marker = "                    item {\\n                        Card(\\n                            modifier = Modifier.fillMaxWidth(),\\n                            border = CardDefaults.outlinedCardBorder()"
+store_item = text.find(store_marker, editor_start)
+if editor_start < 0 or store_item < 0:
+    raise RuntimeError("Could not locate the store open/close control")
+store_brace = text.find("{", store_item)
+store_end = matching_end(text, store_brace)
+if "selectedEditorSection == 0" not in text[max(0, store_item - 100):store_item]:
+    store_block = text[store_item:store_end + 1]
+    text = text[:store_item] + "                    if (selectedEditorSection == 0) {\\n" + store_block + "\\n                    }" + text[store_end + 1:]
+
+sort_title = text.find('title = "ترتيب وظهور أقسام الصفحة"', editor_start)
+if sort_title < 0:
+    raise RuntimeError("Could not locate the section-ordering card")
+sort_item = text.rfind("                    item {", editor_start, sort_title)
+sort_brace = text.find("{", sort_item)
+sort_end = matching_end(text, sort_brace)
+if "selectedEditorSection == 2" not in text[max(0, sort_item - 100):sort_item]:
+    sort_block = text[sort_item:sort_end + 1]
+    text = text[:sort_item] + "                    if (selectedEditorSection == 2) {\\n" + sort_block + "\\n                    }" + text[sort_end + 1:]
+
+text = text.replace(
+    "var selectedEditorSection by remember { mutableIntStateOf(0) } // 0 = Editor, 1 = Live Preview Mockup",
+    "var selectedEditorSection by remember { mutableIntStateOf(0) } // 0 = Header, 1 = Banners, 2 = Categories, 3 = Prime visibility, 4 = Gallery and identity"
+)
+
 # Prime pricing, duration, discount and shipping benefits are managed in the Prime area.
 # In Website Editor keep only the website visibility switch to avoid duplicate controls.
 prime_marker = "// Card 7: Elory Prime"
@@ -102,10 +129,8 @@ prime_block = prime_block.replace(
     'description = "تخصيص الباقات والأسعار والمزايا الحصرية للأعضاء"',
     'description = "إظهار أو إخفاء قسم Prime في الموقع؛ الأسعار والمزايا التشغيلية تُدار من قسم Prime"'
 )
-prime_block = prime_block.replace(
-    "onClick = { activeEditingDialog = 7 }",
-    "onClick = { }"
-)
+prime_block = prime_block.replace("SectionCard(", "PrimeVisibilityCard(", 1)
+prime_block = prime_block.replace("            onClick = { }\\n", "")
 text = text[:prime_item] + prime_block + text[prime_end+1:]
 
 # Replace the five free-form HEX text fields with a real hue wheel + saturation/brightness picker.
@@ -139,6 +164,7 @@ for field, label, weighted in (
 imports = [
     "import androidx.compose.foundation.Canvas",
     "import androidx.compose.foundation.gestures.detectTapGestures",
+    "import androidx.compose.foundation.gestures.detectDragGestures",
     "import androidx.compose.ui.geometry.Offset",
     "import androidx.compose.ui.geometry.Size",
     "import androidx.compose.ui.graphics.drawscope.Stroke",
@@ -211,6 +237,14 @@ private fun ColorPickerField(
                                     hue = (degrees + 360f) % 360f
                                 }
                             }
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, _ ->
+                                    val cx = size.width / 2f
+                                    val cy = size.height / 2f
+                                    val degrees = Math.toDegrees(atan2((change.position.y - cy).toDouble(), (change.position.x - cx).toDouble())).toFloat()
+                                    hue = (degrees + 360f) % 360f
+                                }
+                            }
                     ) {
                         val stroke = 26.dp.toPx()
                         val arcSize = Size(size.width - stroke, size.height - stroke)
@@ -255,5 +289,65 @@ private fun ColorPickerField(
 '''
     text += picker
 
+if "private fun PrimeVisibilityCard(" not in text:
+    text += "\n@Composable\nprivate fun PrimeVisibilityCard(\n    title: String,\n    description: String,\n    icon: androidx.compose.ui.graphics.vector.ImageVector,\n    isActive: Boolean,\n    onToggleActive: ((Boolean) -> Unit)?\n) {\n    Card(\n        modifier = Modifier.fillMaxWidth(),\n        shape = RoundedCornerShape(12.dp),\n        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),\n        border = CardDefaults.outlinedCardBorder()\n    ) {\n        Row(\n            modifier = Modifier.fillMaxWidth().padding(14.dp),\n            verticalAlignment = Alignment.CenterVertically,\n            horizontalArrangement = Arrangement.spacedBy(12.dp)\n        ) {\n            Icon(icon, contentDescription = null, tint = PinkPrimary, modifier = Modifier.size(28.dp))\n            Column(Modifier.weight(1f)) {\n                Text(title, fontWeight = FontWeight.Bold)\n                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)\n            }\n            onToggleActive?.let { callback ->\n                Switch(checked = isActive, onCheckedChange = callback)\n            }\n        }\n    }\n}\n"
+
 file.write_text(text, encoding="utf-8")
-print("Website editor tabs, Prime deduplication and free color wheel applied.")
+
+# General site saves must not be blocked by unrelated Prime operational values.
+vm_file = root / "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
+if not vm_file.exists():
+    raise SystemExit(f"ViewModel source not found: {vm_file}")
+vm = vm_file.read_text(encoding="utf-8")
+update_start = vm.find("    fun updateWebsiteConfig(config: WebsiteConfig) {")
+if update_start < 0:
+    raise SystemExit("updateWebsiteConfig() was not found")
+valid_start = vm.find("            val validPrime =", update_start)
+saving_start = vm.find('            _websiteSaveState.value = "saving"', valid_start)
+if valid_start >= 0 and saving_start >= 0:
+    vm = vm[:valid_start] + vm[saving_start:]
+draft_old = '''                if (!draftResponse.isSuccessful) {
+                    android.util.Log.e("EloryWebsite", "Publish checkpoint failed: " + draftResponse.code())
+                    return@launch
+                }
+'''
+draft_new = '''                if (!draftResponse.isSuccessful) {
+                    val detail = runCatching { draftResponse.errorBody()?.string().orEmpty() }.getOrDefault("")
+                    android.util.Log.e("EloryWebsite", "Publish checkpoint failed: ${draftResponse.code()} ${detail.take(300)}")
+                    _websiteSaveState.value = "error"
+                    notifyUser("تعذر حفظ تغييرات الموقع كمسودة (HTTP ${draftResponse.code()}). لم يتم نشر التغييرات.")
+                    return@launch
+                }
+'''
+if draft_old in vm:
+    vm = vm.replace(draft_old, draft_new, 1)
+settings_old = '''                    _websiteSaveState.value = "error"
+                    return@launch
+                }
+
+                val clearDraftResponse'''
+settings_new = '''                    _websiteSaveState.value = "error"
+                    notifyUser("لم تكتمل عملية حفظ الموقع. تحقق من الصلاحيات والاتصال ثم أعد المحاولة.")
+                    return@launch
+                }
+
+                val clearDraftResponse'''
+if settings_old in vm:
+    vm = vm.replace(settings_old, settings_new, 1)
+catch_old = '''                _websiteSaveState.value = "error"
+            }
+        }
+    }
+
+    // Notification management'''
+catch_new = '''                _websiteSaveState.value = "error"
+                notifyUser(e.message?.take(180) ?: "حدث خطأ أثناء حفظ إعدادات الموقع")
+            }
+        }
+    }
+
+    // Notification management'''
+if catch_old in vm:
+    vm = vm.replace(catch_old, catch_new, 1)
+vm_file.write_text(vm, encoding="utf-8")
+print("Website editor tabs, Prime visibility and site save-flow fixes applied.")
