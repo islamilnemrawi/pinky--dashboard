@@ -23,7 +23,7 @@ def patch_remote(s):
     order_start = s.find("data class SupabaseOrderDto(")
     if order_start < 0:
         raise SystemExit("SupabaseOrderDto declaration not found")
-    order_end = s.find("\\n)", order_start)
+    order_end = s.find("\n)", order_start)
     if order_end < 0:
         raise SystemExit("SupabaseOrderDto closing delimiter not found")
     order_block = s[order_start:order_end]
