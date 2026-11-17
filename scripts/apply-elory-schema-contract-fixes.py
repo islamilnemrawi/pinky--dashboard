@@ -68,7 +68,16 @@ def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
     # Staff profile schema has no phone field; omit it from writes and default on reads.
     s = s.replace('                            phone = dto.phone ?: "",', '                            phone = "",', 1)
-    s = re.sub(r'(?m)^\s*phone\s*=\s*staff\.phone,\s*\n', '', s)
+    staff_start = s.find("SupabaseStaffProfileDto(")
+    if staff_start >= 0:
+        staff_end = s.find("\\n                )", staff_start)
+        if staff_end < 0:
+            staff_end = s.find("\\n            )", staff_start)
+        if staff_end < 0:
+            raise SystemExit("Could not locate SupabaseStaffProfileDto constructor end")
+        staff_block = s[staff_start:staff_end]
+        staff_block = re.sub(r'(?m)^\\s*phone\\s*=.*?,\\s*\\n', '', staff_block)
+        s = s[:staff_start] + staff_block + s[staff_end:]
     return s
 
 edit(vm_file, patch_vm)
