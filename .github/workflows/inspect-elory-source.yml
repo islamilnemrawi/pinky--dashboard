@@ -46,6 +46,13 @@ jobs:
           show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 1, 350)
           show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 1400, 1490)
           show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 780, 1050)
+          print("=== WEBSITE EDITOR PRIME AND COLOR FIELDS ===")
+          web = src / "com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"
+          web_lines=web.read_text(encoding="utf-8").splitlines()
+          for i,line in enumerate(web_lines):
+              if re.search(r"primePrice|primeDurationDays|primeDiscountPercent|primeFreeShippingOrdersCount|announcementBgColor|announcementTextColor|headerIconsColor|headerBgColor|primaryColorHex|GlobalSettingsForm",line):
+                  print(f"--- around line {i+1} ---")
+                  for n in range(max(0,i-2),min(len(web_lines),i+9)): print(f"{n+1}: {web_lines[n]}")
           print("=== WEBSITE CONFIG MODEL ===")
           for p in sorted((root / "app/src/main/java").rglob("*.kt")):
               lines=p.read_text(encoding="utf-8").splitlines()
