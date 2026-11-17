@@ -76,13 +76,24 @@ jobs:
                       print(f"--- {pattern} at {i+1} ---")
                       for n in range(max(0,i-4),min(len(repo_lines),i+70)):
                           print(f"{n+1}: {repo_lines[n]}")
-          print("=== ADMIN USER MODEL ===")
+          print("=== CUSTOMER SYNC DEFINITIONS ===")
           for p in sorted((root / "app/src/main/java").rglob("*.kt")):
               lines=p.read_text(encoding="utf-8").splitlines()
               for i,line in enumerate(lines):
-                  if "data class AdminUser" in line:
+                  if "syncCustomers" in line or "class CustomerRepository" in line:
                       print(f"--- {p.relative_to(root / 'app/src/main/java')} ---")
-                      for n in range(i,min(len(lines),i+35)): print(f"{n+1}: {lines[n]}")
+                      for n in range(max(0,i-3),min(len(lines),i+45)): print(f"{n+1}: {lines[n]}")
+          print("=== ORDER AND CUSTOMER DAO DEFINITIONS ===")
+          dao_lines=dao.read_text(encoding="utf-8").splitlines()
+          for i in range(min(len(dao_lines),140)): print(f"{i+1}: {dao_lines[i]}")
+          print("=== ENTITY TABLE NAMES ===")
+          for p in sorted((root / "app/src/main/java").rglob("*.kt")):
+              lines=p.read_text(encoding="utf-8").splitlines()
+              if any("data class OrderEntity" in x or "data class CustomerEntity" in x for x in lines):
+                  print(f"--- {p.relative_to(root / 'app/src/main/java')} ---")
+                  for i,line in enumerate(lines):
+                      if "@Entity" in line or "data class OrderEntity" in line or "data class CustomerEntity" in line:
+                          for n in range(max(0,i-2),min(len(lines),i+8)): print(f"{n+1}: {lines[n]}")
           print("=== VIEWMODEL DATA METHODS ===")
           vm = src / "com/pinky/dashboard/ui/PinkyViewModel.kt"
           vm_lines=vm.read_text(encoding="utf-8").splitlines()
