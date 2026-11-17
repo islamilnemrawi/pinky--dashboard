@@ -191,7 +191,7 @@ def find_matching_brace(text, opening):
 opening = source.find("{", function_start)
 if opening < 0:
     raise SystemExit("Could not locate syncRemainingSupabaseData() opening brace")
-function_end = find_matching_brace(source, opening)
+function_end = find_matching_brace(source, opening) + 1
 
 block = source[function_start:function_end]
 
