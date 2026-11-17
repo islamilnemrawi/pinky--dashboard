@@ -20,7 +20,17 @@ def patch_remote(s):
     # The live orders.order_number column is BIGINT; nullable customer fields must not break decoding.
     s = s.replace('@Json(name = "order_number") val orderNumber: String,', '@Json(name = "order_number") val orderNumber: Long,', 1)
     s = s.replace('@Json(name = "customer_name") val customerName: String,', '@Json(name = "customer_name") val customerName: String? = null,', 1)
-    s = s.replace('@Json(name = "phone") val phone: String,', '@Json(name = "phone") val phone: String? = null,', 1)
+    order_start = s.find("data class SupabaseOrderDto(")
+    if order_start < 0:
+        raise SystemExit("SupabaseOrderDto declaration not found")
+    order_end = s.find("\\n)", order_start)
+    if order_end < 0:
+        raise SystemExit("SupabaseOrderDto closing delimiter not found")
+    order_block = s[order_start:order_end]
+    if order_block.count('@Json(name = "phone") val phone: String,') != 1:
+        raise SystemExit("Order phone field missing or duplicated")
+    order_block = order_block.replace('@Json(name = "phone") val phone: String,', '@Json(name = "phone") val phone: String? = null,', 1)
+    s = s[:order_start] + order_block + s[order_end:]
     s = s.replace('    @Json(name = "discount_amount") val discountAmount: Double? = null,\n', '', 1)
     anchor = '    @Json(name = "customer_order_code") val customerOrderCode: String? = null\n'
     if s.count(anchor) != 1:
