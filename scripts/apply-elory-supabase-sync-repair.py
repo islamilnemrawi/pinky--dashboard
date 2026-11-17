@@ -209,8 +209,6 @@ for variable, pattern, label in [
 # Keep each read independent: a failed section reports its own error and does not cancel the other reads.
 catch_sections = [
     ("// Fetch Coupons", "الكوبونات"),
-    ("// Fetch Prime Subscriptions", "اشتراكات Prime"),
-    ("// Fetch Prime subscriptions through the schema-safe admin RPC.", "اشتراكات Prime"),
     ("// Fetch Staff Profiles", "الموظفون"),
     ("// Fetch Store Settings and Site Customizations", "إعدادات الموقع"),
 ]
