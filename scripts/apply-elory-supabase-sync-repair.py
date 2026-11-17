@@ -91,34 +91,34 @@ if "val storedImageBitmap = remember(imageUrl)" not in category:
     if category.count(context_anchor) != 1:
         raise SystemExit("Category dialog context anchor is missing or duplicated")
     category = category.replace(context_anchor, context_anchor + bitmap_state, 1)
-image_block_old = """AsyncImage(
-                    model = selectedImageUri ?: imageUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )"""
-image_block_new = """if (selectedImageUri != null) {
-                    AsyncImage(
-                        model = selectedImageUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (storedImageBitmap != null) {
-                    Image(
-                        bitmap = storedImageBitmap,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    AsyncImage(
-                        model = imageUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }"""
+image_block_old = """                            AsyncImage(
+                                model = selectedImageUri ?: imageUrl,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )"""
+image_block_new = """                            if (selectedImageUri != null) {
+                                AsyncImage(
+                                    model = selectedImageUri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (storedImageBitmap != null) {
+                                Image(
+                                    bitmap = storedImageBitmap,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }"""
 if image_block_old in category:
     category = category.replace(image_block_old,image_block_new,1)
 elif "storedImageBitmap != null" not in category:
