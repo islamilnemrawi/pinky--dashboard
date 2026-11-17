@@ -32,10 +32,7 @@ def patch_remote(s):
     order_block = order_block.replace('@Json(name = "phone") val phone: String,', '@Json(name = "phone") val phone: String? = null,', 1)
     s = s[:order_start] + order_block + s[order_end:]
     s = s.replace('    @Json(name = "discount_amount") val discountAmount: Double? = null,\n', '', 1)
-    anchor = '    @Json(name = "customer_order_code") val customerOrderCode: String? = null\n'
-    if s.count(anchor) != 1:
-        raise SystemExit("Order DTO customer code field anchor missing or duplicated")
-    s = s.replace(anchor, '    @Json(name = "prime_requested") val primeRequested: Boolean? = null,\n    @Json(name = "prime_discount") val primeDiscount: Double? = null,\n' + anchor, 1)
+    # Prime request/discount fields are already added by the earlier Prime and profit patches.
     # Offers.discount is NUMERIC in Supabase, not a string.
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
     # staff_profiles has no phone column; never send an unsupported property.
@@ -71,7 +68,7 @@ def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
     # Staff profile schema has no phone field; omit it from writes and default on reads.
     s = s.replace('                            phone = dto.phone ?: "",', '                            phone = "",', 1)
-    s = s.replace('                    phone = staff.phone,\n', '', 1)
+    s = re.sub(r'(?m)^\s*phone\s*=\s*staff\.phone,\s*\n', '', s)
     return s
 
 edit(vm_file, patch_vm)
