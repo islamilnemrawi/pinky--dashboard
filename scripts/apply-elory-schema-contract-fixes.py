@@ -65,4 +65,20 @@ def patch_vm(s):
     return s
 
 edit(vm_file, patch_vm)
-print("PASS: Supabase order, offer, Prime and staff DTOs now match the live schema contract.")
+
+# Use the bucket IDs that actually exist in the connected Elory Supabase project.
+config_file = "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseConfig.kt"
+edit(config_file, lambda source: source.replace('"pinky-products"', '"product-images"').replace('"pinky-banners"', '"hero-ads"'))
+website_file = "app/src/main/java/com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"
+edit(website_file, lambda source: source.replace('"pinky-products"', '"product-images"').replace('"pinky-banners"', '"hero-ads"'))
+category_file = "app/src/main/java/com/pinky/dashboard/ui/screens/categories/CategoriesScreen.kt"
+category_path = root / category_file
+category_source = category_path.read_text(encoding="utf-8")
+if '"pinky-products"' in category_source:
+    category_path.write_text(category_source.replace('"pinky-products"', '"product-images"'), encoding="utf-8")
+migration_file = "elory_security_storage_migration.sql"
+edit(migration_file, lambda source: source.replace("'pinky-products'", "'product-images'").replace("'pinky-banners'", "'hero-ads'"))
+readme_file = "README.md"
+edit(readme_file, lambda source: source.replace('pinky-products', 'product-images').replace('pinky-banners', 'hero-ads'))
+
+print("PASS: Supabase order, offer, Prime and staff DTOs match the live schema; Storage uploads target the existing buckets.")
