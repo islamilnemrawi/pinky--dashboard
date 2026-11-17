@@ -141,8 +141,13 @@ next_method = re.search(
     source[function_start + len(function_header):],
 )
 if next_method is None:
-    raise SystemExit("Could not locate the next ViewModel method after syncRemainingSupabaseData()")
-function_end = function_start + len(function_header) + next_method.start()
+    # Some patched ViewModel variants place syncRemainingSupabaseData() as the
+    # final method in the class. In that case, stop at the class closing brace.
+    function_end = source.find("\\n}\\n", function_start)
+    if function_end < 0:
+        raise SystemExit("Could not locate the end of the ViewModel class after syncRemainingSupabaseData()")
+else:
+    function_end = function_start + len(function_header) + next_method.start()
 
 block = source[function_start:function_end]
 
