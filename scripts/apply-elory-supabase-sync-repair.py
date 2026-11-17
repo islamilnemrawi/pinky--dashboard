@@ -143,8 +143,8 @@ next_method = re.search(
 if next_method is None:
     # Some patched ViewModel variants place syncRemainingSupabaseData() as the
     # final method in the class. In that case, stop at the class closing brace.
-    function_end = source.find("\\n}\\n", function_start)
-    if function_end < 0:
+    function_end = source.rfind("\\n}")
+    if function_end <= function_start:
         raise SystemExit("Could not locate the end of the ViewModel class after syncRemainingSupabaseData()")
 else:
     function_end = function_start + len(function_header) + next_method.start()
