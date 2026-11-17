@@ -90,27 +90,37 @@ groups = {1:0, 2:0, 3:0, 4:1, 5:2, 6:2, 7:3, 8:3, 9:4, 10:4, 11:4}
 for number, section in groups.items():
     text = wrap_card(text, number, section)
 
-# Keep global store status in the header tab only, and keep section ordering with categories/products.
+# Place global controls once and section ordering with categories/products.
 editor_start = text.find("// Editor Sections List")
-store_marker = "                    item {\n                            Card(\n                                modifier = Modifier.fillMaxWidth(),\n                                border = CardDefaults.outlinedCardBorder()"
-store_item = text.find(store_marker, editor_start)
-if editor_start < 0 or store_item < 0:
-    raise RuntimeError("Could not locate the store open/close control")
-store_brace = text.find("{", store_item)
-store_end = matching_end(text, store_brace)
-if "selectedEditorSection == 0" not in text[max(0, store_item - 100):store_item]:
-    store_block = text[store_item:store_end + 1]
-    text = text[:store_item] + "                    if (selectedEditorSection == 0) {\n" + store_block + "\n                    }" + text[store_end + 1:]
+if editor_start < 0:
+    editor_start = text.find("ScrollableTabRow(selectedTabIndex = selectedEditorSection")
+if editor_start < 0:
+    raise RuntimeError("Could not locate the website editor section container")
+
+store_state_pos = text.find("المتجر مفتوح للزوار", editor_start)
+if store_state_pos < 0:
+    store_state_pos = text.find("Switch(checked = config.isStoreOpen", editor_start)
+if store_state_pos >= 0:
+    store_item = text.rfind("item {", editor_start, store_state_pos)
+    if store_item < 0:
+        raise RuntimeError("Found store status but not its LazyColumn item")
+    store_brace = text.find("{", store_item)
+    store_end = matching_end(text, store_brace)
+    if "selectedEditorSection == 0" not in text[max(editor_start, store_item - 220):store_item]:
+        store_block = text[store_item:store_end + 1]
+        text = text[:store_item] + "if (selectedEditorSection == 0) {\\n" + store_block + "\\n}" + text[store_end + 1:]
 
 sort_title = text.find('title = "ترتيب وظهور أقسام الصفحة"', editor_start)
 if sort_title < 0:
     raise RuntimeError("Could not locate the section-ordering card")
-sort_item = text.rfind("                    item {", editor_start, sort_title)
+sort_item = text.rfind("item {", editor_start, sort_title)
+if sort_item < 0:
+    raise RuntimeError("Found section-order title but not its LazyColumn item")
 sort_brace = text.find("{", sort_item)
 sort_end = matching_end(text, sort_brace)
-if "selectedEditorSection == 2" not in text[max(0, sort_item - 100):sort_item]:
+if "selectedEditorSection == 2" not in text[max(editor_start, sort_item - 220):sort_item]:
     sort_block = text[sort_item:sort_end + 1]
-    text = text[:sort_item] + "                    if (selectedEditorSection == 2) {\n" + sort_block + "\n                    }" + text[sort_end + 1:]
+    text = text[:sort_item] + "if (selectedEditorSection == 2) {\\n" + sort_block + "\\n}" + text[sort_end + 1:]
 
 text = text.replace(
     "var selectedEditorSection by remember { mutableIntStateOf(0) } // 0 = Editor, 1 = Live Preview Mockup",
