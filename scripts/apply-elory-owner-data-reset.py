@@ -477,7 +477,7 @@ def add_selection_screen(file, function_name, ids_var, list_name, item_name, sco
         }}
 '''
     if f'scopeLabel = "{scope_label}"' not in text:
-        text = text.replace(panel_anchor, panel_anchor + panel, 1)
+        text = text.replace(panel_anchor, panel + panel_anchor, 1)
     marker = item_name + "("
     call_start = text.find(marker)
     if call_start < 0: raise RuntimeError(f"{item_name} call not found in {file}")
