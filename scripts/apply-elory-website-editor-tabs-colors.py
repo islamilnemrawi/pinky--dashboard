@@ -140,7 +140,7 @@ prime_block = prime_block.replace(
     'description = "إظهار أو إخفاء قسم Prime في الموقع؛ الأسعار والمزايا التشغيلية تُدار من قسم Prime"'
 )
 prime_block = prime_block.replace("SectionCard(", "PrimeVisibilityCard(", 1)
-prime_block = re.sub(r"^\\s*onClick\\s*=\\s*\\{.*?\\}\\s*,?\\s*$", "", prime_block, flags=re.MULTILINE)
+prime_block = re.sub(r"^\s*onClick\s*=\s*\{.*?\}\s*,?\s*$", "", prime_block, flags=re.MULTILINE)
 text = text[:prime_item] + prime_block + text[prime_end+1:]
 
 # Replace the five free-form HEX text fields with a real hue wheel + saturation/brightness picker.
