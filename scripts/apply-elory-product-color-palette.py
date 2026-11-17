@@ -191,14 +191,13 @@ required_color_imports = [
 ]
 for required_import in required_color_imports:
     if required_import not in text:
-        marker = "import androidx.compose.material3.ExperimentalMaterial3Api"
-        position = text.find(marker)
-        if position < 0:
-            raise SystemExit("Could not find Compose Material3 import section for color picker.")
-        line_end = text.find("\n", position)
+        package_position = text.find("package ")
+        if package_position < 0:
+            raise SystemExit("Could not locate Kotlin package declaration for color picker imports.")
+        line_end = text.find("\n", package_position)
         if line_end < 0:
-            raise SystemExit("Malformed Compose import section.")
-        text = text[:line_end + 2] + required_import + "\n" + text[line_end + 2:]
+            raise SystemExit("Malformed Kotlin package declaration.")
+        text = text[:line_end + 1] + required_import + "\n" + text[line_end + 1:]
 
 palette_helpers = r'''
 private fun eloryColorFromHex(hex: String): Color =
