@@ -22,10 +22,10 @@ def patch_remote(s):
     s = s.replace('@Json(name = "customer_name") val customerName: String,', '@Json(name = "customer_name") val customerName: String? = null,', 1)
     s = s.replace('@Json(name = "phone") val phone: String,', '@Json(name = "phone") val phone: String? = null,', 1)
     s = s.replace('    @Json(name = "discount_amount") val discountAmount: Double? = null,\n', '', 1)
-    anchor = '    @Json(name = "coupon_free_shipping") val couponFreeShipping: Boolean? = null\n'
+    anchor = '    @Json(name = "customer_order_code") val customerOrderCode: String? = null\n'
     if s.count(anchor) != 1:
-        raise SystemExit("Order DTO coupon field anchor missing or duplicated")
-    s = s.replace(anchor, '    @Json(name = "coupon_free_shipping") val couponFreeShipping: Boolean? = null,\n    @Json(name = "prime_discount") val primeDiscount: Double? = null,\n    @Json(name = "customer_order_code") val customerOrderCode: String? = null\n', 1)
+        raise SystemExit("Order DTO customer code field anchor missing or duplicated")
+    s = s.replace(anchor, '    @Json(name = "prime_requested") val primeRequested: Boolean? = null,\n    @Json(name = "prime_discount") val primeDiscount: Double? = null,\n' + anchor, 1)
     # Offers.discount is NUMERIC in Supabase, not a string.
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
     # staff_profiles has no phone column; never send an unsupported property.
@@ -41,6 +41,9 @@ def patch_repo(s):
     s = s.replace('customerName = dto.customerName,', 'customerName = dto.customerName.orEmpty(),', 1)
     s = s.replace('customerPhone = dto.phone,', 'customerPhone = dto.phone.orEmpty(),', 1)
     s = s.replace('discountAmount = dto.discountAmount ?: 0.0,', 'discountAmount = (dto.couponDiscount ?: 0.0) + (dto.primeDiscount ?: 0.0),', 1)
+    s = s.replace('primeRequested = dto.primeRequested ?: false,', 'primeRequested = dto.primeRequested ?: false,', 1)
+    if 'primeRequested = dto.primeRequested ?: false,' not in s:
+        s = s.replace('prime = dto.prime ?: false,', 'prime = dto.prime ?: false,\n                        primeRequested = dto.primeRequested ?: false,\n                        primePackaging = dto.primePackaging ?: false,', 1)
     s = s.replace('orderNumber = order.orderNumber,', 'orderNumber = order.orderNumber.toLongOrNull() ?: throw IllegalArgumentException("رقم الطلب يجب أن يكون رقمًا صحيحًا."),', 1)
     s = s.replace('                discountAmount = order.discountAmount,\n', '', 1)
     anchor = '                notes = order.notes,\n                items = orderItemsDto\n'
