@@ -142,7 +142,7 @@ jobs:
           set -Eeuo pipefail
           SOURCE_FILE="$PROJECT_DIR/app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
           echo '--- syncRemainingSupabaseData method source ---'
-          grep -n -A180 -B5 'syncRemainingSupabaseData' "$SOURCE_FILE" || true
+          grep -n -A400 -B5 '^    private fun syncRemainingSupabaseData' "$SOURCE_FILE" || true
 
       - name: Repair awaited Supabase sync and category image uploads
         shell: bash
