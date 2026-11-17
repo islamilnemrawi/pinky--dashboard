@@ -64,8 +64,7 @@ def patch_remote(s):
     ])
     # Offers.discount is NUMERIC in Supabase, not a string.
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
-    # staff_profiles has no phone column; never send an unsupported property.
-    s = s.replace('    @Json(name = "phone") val phone: String? = null,\n    @Json(name = "role")', '    @Json(name = "role")', 1)
+    # Staff phone and last_active are backed by the additive live-schema migration.
     # Prime is intentionally handled by the existing schema-safe admin RPCs
     # (admin_list_prime_subscriptions / admin_set_prime_subscription_active).
     return s
@@ -136,18 +135,7 @@ edit(repo_file, patch_nullable_mappings)
 
 def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
-    # Staff profile schema has no phone field; omit it from writes and default on reads.
-    s = s.replace('                            phone = dto.phone ?: "",', '                            phone = "",', 1)
-    staff_start = s.find("SupabaseStaffProfileDto(")
-    if staff_start >= 0:
-        staff_end = s.find("\n                )", staff_start)
-        if staff_end < 0:
-            staff_end = s.find("\n            )", staff_start)
-        if staff_end < 0:
-            raise SystemExit("Could not locate SupabaseStaffProfileDto constructor end")
-        staff_block = s[staff_start:staff_end]
-        staff_block = re.sub(r'(?m)^\s*phone\s*=.*?,\s*\n', '', staff_block)
-        s = s[:staff_start] + staff_block + s[staff_end:]
+    # Staff phone and last_active now map to real staff_profiles columns.
     return s
 
 def patch_store_settings_nullable(source):
