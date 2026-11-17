@@ -62,7 +62,7 @@ category = category.replace(
     'Text("يتم ضغط الصورة تلقائيًا قبل رفعها", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)',
 )
 category = category.replace(
-    'uploadError = "عذرًا، حدث خطأ غير متوقع: \${e.localizedMessage}"',
+    'uploadError = "عذرًا، حدث خطأ غير متوقع: ${e.localizedMessage}"',
     'uploadError = e.message ?: "تعذر رفع صورة القسم. تحقق من الاتصال وصلاحية الحساب."',
 )
 if "SupabaseStorageUploader.uploadProductImage" not in category or "uploadStorageFile(" in category:
@@ -104,15 +104,15 @@ block = block.replace(old_header, new_header, 1)
 response_checks = [
     (
         "val response = SupabaseClient.service.getCoupons()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getCoupons()\n                if (!response.isSuccessful) errors.add(\"الكوبونات: HTTP \${response.code()}\")\n                if (response.isSuccessful) {",
+        "val response = SupabaseClient.service.getCoupons()\n                if (!response.isSuccessful) errors.add(\"الكوبونات: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
     ),
     (
         "val response = SupabaseClient.service.getPrimeSubscriptions()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getPrimeSubscriptions()\n                if (!response.isSuccessful) errors.add(\"اشتراكات Prime: HTTP \${response.code()}\")\n                if (response.isSuccessful) {",
+        "val response = SupabaseClient.service.getPrimeSubscriptions()\n                if (!response.isSuccessful) errors.add(\"اشتراكات Prime: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
     ),
     (
         "val response = SupabaseClient.service.getStaffProfiles()\n                if (response.isSuccessful) {",
-        "val response = SupabaseClient.service.getStaffProfiles()\n                if (!response.isSuccessful) errors.add(\"الموظفون: HTTP \${response.code()}\")\n                if (response.isSuccessful) {",
+        "val response = SupabaseClient.service.getStaffProfiles()\n                if (!response.isSuccessful) errors.add(\"الموظفون: HTTP ${response.code()}\")\n                if (response.isSuccessful) {",
     ),
 ]
 for old, new in response_checks:
@@ -128,8 +128,8 @@ settings_anchor = (
 settings_replacement = (
     "val settingsResponse = SupabaseClient.service.getStoreSettings()\n"
     "                val customizationsResponse = SupabaseClient.service.getSiteCustomizations()\n"
-    "                if (!settingsResponse.isSuccessful) errors.add(\"إعدادات المتجر: HTTP \${settingsResponse.code()}\")\n"
-    "                if (!customizationsResponse.isSuccessful) errors.add(\"تخصيصات الموقع: HTTP \${customizationsResponse.code()}\")\n\n"
+    "                if (!settingsResponse.isSuccessful) errors.add(\"إعدادات المتجر: HTTP ${settingsResponse.code()}\")\n"
+    "                if (!customizationsResponse.isSuccessful) errors.add(\"تخصيصات الموقع: HTTP ${customizationsResponse.code()}\")\n\n"
     "                var currentConfig = _websiteConfig.value"
 )
 if block.count(settings_anchor) != 1:
@@ -153,7 +153,7 @@ for marker, label in catch_sections:
     replacement = (
         'android.util.Log.e("SupabaseSync", "' + label + ' fetch failed", e)\n'
         '                errors.add(if (isNetworkException(e)) "NETWORK:' + label + '" '
-        'else "' + label + ': \${e.message ?: e.javaClass.simpleName}")'
+        'else "' + label + ': ${e.message ?: e.javaClass.simpleName}")'
     )
     block = block[:catch_pos] + replacement + block[catch_pos + len("e.printStackTrace()"):]
 
@@ -169,7 +169,7 @@ old_sync_call = '''                // Sync remaining in-memory states (Coupons, 
                 try {
                     syncRemainingSupabaseData()
                 } catch (e: Exception) {
-                    android.util.Log.e("SupabaseSync", "Error syncing remaining in-memory data: \${e.message}")
+                    android.util.Log.e("SupabaseSync", "Error syncing remaining in-memory data: ${e.message}")
                 }
 
                 val errors = mutableListOf<String>()
