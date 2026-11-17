@@ -1,0 +1,140 @@
+from pathlib import Path
+import os
+import re
+
+root = Path(os.environ["PROJECT_DIR"]).resolve()
+
+def edit(relative, transform):
+    path = root / relative
+    source = path.read_text(encoding="utf-8")
+    updated = transform(source)
+    if updated == source:
+        raise SystemExit(f"No product UUID repair applied to {relative}; reviewed source anchor did not match")
+    path.write_text(updated, encoding="utf-8")
+
+remote_file = "app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt"
+repo_file = "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt"
+vm_file = "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt"
+
+def patch_remote(source):
+    start = source.find("data class SupabaseProductAdminDto(")
+    if start < 0:
+        raise SystemExit("SupabaseProductAdminDto declaration not found")
+    end = source.find("\n)", start)
+    if end < 0:
+        raise SystemExit("SupabaseProductAdminDto closing delimiter not found")
+    block = source[start:end]
+    old = '@Json(name = "id") val id: String,'
+    if block.count(old) != 1:
+        raise SystemExit("Product DTO id field missing or duplicated")
+    block = block.replace(old, '@Json(name = "id") val id: String? = null,', 1)
+    source = source[:start] + block + source[end:]
+
+    old_method = """    @POST("rest/v1/products")
+    suspend fun upsertAdminProduct(
+        @Body product: SupabaseProductAdminDto,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates"
+    ): Response<Unit>"""
+    new_method = """    @POST("rest/v1/products")
+    suspend fun upsertAdminProduct(
+        @Body product: SupabaseProductAdminDto,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates,return=representation"
+    ): Response<List<SupabaseProductAdminDto>>"""
+    if source.count(old_method) != 1:
+        raise SystemExit("upsertAdminProduct API declaration missing or duplicated")
+    return source.replace(old_method, new_method, 1)
+
+edit(remote_file, patch_remote)
+
+def patch_repository(source):
+    if "import java.util.UUID" not in source:
+        anchor = "import java.util.Locale"
+        if source.count(anchor) != 1:
+            raise SystemExit("Repository import anchor missing or duplicated")
+        source = source.replace(anchor, anchor + "\nimport java.util.UUID", 1)
+
+    marker = "class ProductRepositoryImpl("
+    if source.count(marker) != 1:
+        raise SystemExit("ProductRepositoryImpl class marker missing or duplicated")
+    if "private fun isCanonicalProductUuid" not in source:
+        source = source.replace(
+            marker,
+            """private fun isCanonicalProductUuid(value: String): Boolean =
+    runCatching {
+        UUID.fromString(value).toString().equals(value, ignoreCase = true) &&
+            Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$").matches(value)
+    }.getOrDefault(false)
+
+""" + marker,
+            1
+        )
+
+    old = """            // 1. Save to Supabase (using products table via SupabaseProductAdminDto)
+            val dto = SupabaseProductAdminDto(
+                id = product.id,"""
+    new = """            // Supabase products.id is UUID. Local draft/legacy IDs such as prod_* must never
+            // be sent to Postgres; omit them so the database generates its canonical UUID.
+            val remoteProductId = product.id.takeIf(::isCanonicalProductUuid)
+
+            // 1. Save to Supabase and request the persisted row so newly generated IDs are returned.
+            val dto = SupabaseProductAdminDto(
+                id = remoteProductId,"""
+    if source.count(old) != 1:
+        raise SystemExit("Product save DTO construction anchor missing or duplicated")
+    source = source.replace(old, new, 1)
+
+    old_call = "val response = SupabaseClient.service.upsertAdminProduct(dto)"
+    new_call = 'val response = SupabaseClient.service.upsertAdminProduct(dto, "resolution=merge-duplicates,return=representation")'
+    if source.count(old_call) != 1:
+        raise SystemExit("Product upsert call missing or duplicated")
+    source = source.replace(old_call, new_call, 1)
+
+    old_response = """            // 2. Save to local Cache
+            val entity = ProductEntity(
+                id = product.id,"""
+    new_response = """            val persistedProductId = response.body()?.firstOrNull()?.id
+                ?.takeIf(::isCanonicalProductUuid)
+                ?: remoteProductId
+                ?: throw IllegalStateException("Supabase saved the product but did not return its generated UUID.")
+
+            val savedProduct = product.copy(id = persistedProductId)
+
+            // 2. Save to local Cache using the canonical Supabase UUID.
+            val entity = ProductEntity(
+                id = persistedProductId,"""
+    if source.count(old_response) != 1:
+        raise SystemExit("Product local-cache ID anchor missing or duplicated")
+    source = source.replace(old_response, new_response, 1)
+
+    old_result = "            Result.success(product)\n        } catch (e: Exception) {"
+    new_result = "            Result.success(savedProduct)\n        } catch (e: Exception) {"
+    if source.count(old_result) != 1:
+        raise SystemExit("Product save result anchor missing or duplicated")
+    return source.replace(old_result, new_result, 1)
+
+edit(repo_file, patch_repository)
+
+def patch_view_model(source):
+    old = """    fun saveProduct(product: Product) {
+        viewModelScope.launch {
+            productRepository.saveProduct(product)
+        }
+    }"""
+    new = """    fun saveProduct(product: Product) {
+        viewModelScope.launch {
+            val result = productRepository.saveProduct(product)
+            if (result.isSuccess) {
+                // Read-after-write ensures the visible list, edit/delete actions and local cache
+                // all use the canonical UUID generated by Supabase for new products.
+                productRepository.syncProducts()
+            } else {
+                android.util.Log.e("EloryProducts", "Product save failed.", result.exceptionOrNull())
+            }
+        }
+    }"""
+    if source.count(old) != 1:
+        raise SystemExit("PinkyViewModel.saveProduct anchor missing or duplicated")
+    return source.replace(old, new, 1)
+
+edit(vm_file, patch_view_model)
+print("PASS: Product create omits local prod_* IDs, receives the database UUID, persists it locally, and refreshes the product list.")
