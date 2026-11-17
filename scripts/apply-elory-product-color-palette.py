@@ -555,29 +555,36 @@ order_class_new = order_class_anchor + """
     }
 """
 text = replace_once(text, order_class_anchor, order_class_new, "transient order visibility guard")
-import re
-orders_pattern = re.compile(
-    r"(return\s+orderDao\.getAllOrdersFlow\(\)\.map\s*\{\s*entities\s*->\s*)entities\.map\s*\{\s*entity\s*->"
+flow_start = text.find("override fun getOrdersFlow()")
+flow_end = text.find("override suspend fun getOrderById(", flow_start)
+if flow_start < 0 or flow_end < 0:
+    raise SystemExit("Could not locate OrderRepositoryImpl.getOrdersFlow() boundaries.")
+flow = text[flow_start:flow_end]
+flow_anchor = "entities.map { entity ->"
+if flow.count(flow_anchor) != 1:
+    raise SystemExit("Expected one entity mapper inside getOrdersFlow(), found " + str(flow.count(flow_anchor)))
+flow = flow.replace(
+    flow_anchor,
+    "entities.filterNot { isUnconfirmedPayment(it) }.map { entity ->",
+    1
 )
-text, order_matches = orders_pattern.subn(
-    r"\1entities.filterNot { isUnconfirmedPayment(it) }.map { entity ->",
-    text,
-    count=1
-)
-if order_matches != 1:
-    raise SystemExit("Could not uniquely attach the unpaid-order filter to OrderRepositoryImpl.getOrdersFlow().")
+text = text[:flow_start] + flow + text[flow_end:]
 print("PASS hide unpaid and failed payment rows from all dashboard order flows")
 
-detail_pattern = re.compile(
-    r"(val entity = orderDao\.getOrderById\(orderId\) \?: return@withContext null\s*)val items = orderDao\.getOrderItems\(entity\.id\)\.map"
+detail_start = text.find("override suspend fun getOrderById(")
+detail_end = text.find("override suspend fun updateOrderStatus(", detail_start)
+if detail_start < 0 or detail_end < 0:
+    raise SystemExit("Could not locate OrderRepositoryImpl.getOrderById() boundaries.")
+detail = text[detail_start:detail_end]
+detail_anchor = "val entity = orderDao.getOrderById(orderId) ?: return@withContext null"
+if detail.count(detail_anchor) != 1:
+    raise SystemExit("Expected one order entity lookup in getOrderById(), found " + str(detail.count(detail_anchor)))
+detail = detail.replace(
+    detail_anchor,
+    detail_anchor + "\\n        if (isUnconfirmedPayment(entity)) return@withContext null",
+    1
 )
-text, detail_matches = detail_pattern.subn(
-    r"\1if (isUnconfirmedPayment(entity)) return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map",
-    text,
-    count=1
-)
-if detail_matches != 1:
-    raise SystemExit("Could not uniquely protect direct dashboard order lookup.")
+text = text[:detail_start] + detail + text[detail_end:]
 print("PASS prevent direct dashboard lookup of unpaid payment attempts")
 
 file.write_text(text, encoding="utf-8")
