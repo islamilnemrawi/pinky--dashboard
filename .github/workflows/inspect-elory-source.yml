@@ -48,6 +48,22 @@ jobs:
           show(Path("com/pinky/dashboard/ui/screens/offers/OffersScreen.kt"), 1, 260)
           show(Path("com/pinky/dashboard/ui/screens/offers/OffersScreen.kt"), 260, 460)
           show(Path("com/pinky/dashboard/ui/PinkyApp.kt"), 35, 105)
+          show(Path("com/pinky/dashboard/ui/PinkyViewModel.kt"), 180, 250)
+          show(Path("com/pinky/dashboard/ui/PinkyViewModel.kt"), 390, 455)
+          show(Path("com/pinky/dashboard/ui/PinkyViewModel.kt"), 680, 745)
+          print("=== REPOSITORY FILE CANDIDATES ===")
+          for p in sorted((root / "app/src/main/java/com/pinky/dashboard").rglob("*.kt")):
+              if "Repository" in p.name or "Dao" in p.name:
+                  print(p.relative_to(root / "app/src/main/java"))
+          print("=== REPOSITORY SYNC METHODS ===")
+          for p in sorted((root / "app/src/main/java/com/pinky/dashboard").rglob("*.kt")):
+              if "Repository" in p.name:
+                  lines=p.read_text(encoding="utf-8").splitlines()
+                  hits=[i for i,line in enumerate(lines) if re.search(r"fun syncOrders|fun syncCustomers|fun getOrdersFlow|fun getCustomersFlow|fun delete.*Order|fun delete.*Customer|fun clear",line)]
+                  if hits:
+                      print(f"--- {p.relative_to(root / 'app/src/main/java')} ---")
+                      for i in hits:
+                          for n in range(max(0,i-2),min(len(lines),i+14)): print(f"{n+1}: {lines[n]}")
           print("=== VIEWMODEL DATA METHODS ===")
           vm = src / "com/pinky/dashboard/ui/PinkyViewModel.kt"
           vm_lines=vm.read_text(encoding="utf-8").splitlines()
