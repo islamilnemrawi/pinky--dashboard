@@ -138,7 +138,7 @@ if function_start < 0:
 function_header = "    private fun syncRemainingSupabaseData() {"
 # The patched ViewModel implementation is the final method and owns one launch block.
 # Locate its final two closing braces explicitly; nested method braces use deeper indentation.
-function_end_marker = "\\n        }\\n    }"
+function_end_marker = "\n        }\n    }"
 function_end_position = source.find(function_end_marker, function_start)
 if function_end_position < 0:
     raise SystemExit("Could not locate the end of syncRemainingSupabaseData()")
