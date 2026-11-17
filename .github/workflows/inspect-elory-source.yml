@@ -52,13 +52,18 @@ jobs:
           vm = src / "com/pinky/dashboard/ui/PinkyViewModel.kt"
           vm_lines=vm.read_text(encoding="utf-8").splitlines()
           for i,line in enumerate(vm_lines):
-              if re.search(r"fun (sync|load|delete|save).*(Order|Customer|Coupon)|private fun syncRemaining|_orders|_customers|_coupons",line):
+              if re.search(r"orderRepository|customerRepository|couponRepository|syncOrders|syncCustomers|syncCoupons|syncRemainingSupabaseData|deleteOrder|deleteCustomer|deleteCoupon|_orders|_customers|_coupons|currentUser",line,re.I):
                   print(f"{i+1}: {line[:300]}")
-          print("=== VIEWMODEL RELEVANT CONTEXT ===")
-          for i,line in enumerate(vm_lines):
-              if re.search(r"fun (sync|load|delete|save).*(Order|Customer|Coupon)|private fun syncRemaining",line):
-                  for n in range(max(0,i-3),min(len(vm_lines),i+24)):
-                      print(f"{n+1}: {vm_lines[n]}")
+          print("=== SUPABASE API METHODS ===")
+          api = src / "com/pinky/dashboard/data/remote/SupabaseClient.kt"
+          api_lines=api.read_text(encoding="utf-8").splitlines()
+          for i,line in enumerate(api_lines):
+              if re.search(r"orders|customers|coupons|coupon_redemptions|@POST|@DELETE",line,re.I):
+                  if i < 700: print(f"{i+1}: {line[:300]}")
+          print("=== WEBSITE EDITOR CARDS ===")
+          show(Path("com/pinky/dashboard/ui/screens/website/WebsiteEditorScreen.kt"), 160, 350)
+          print("=== OFFERS COUPON LIST ===")
+          show(Path("com/pinky/dashboard/ui/screens/offers/OffersScreen.kt"), 205, 325)
           print("=== COUPON / OFFER COMPOSABLES ===")
           for p in sorted(src.rglob("*.kt")):
               lines=p.read_text(encoding="utf-8").splitlines()
