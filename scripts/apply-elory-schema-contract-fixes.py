@@ -70,13 +70,13 @@ def patch_vm(s):
     s = s.replace('                            phone = dto.phone ?: "",', '                            phone = "",', 1)
     staff_start = s.find("SupabaseStaffProfileDto(")
     if staff_start >= 0:
-        staff_end = s.find("\\n                )", staff_start)
+        staff_end = s.find("\n                )", staff_start)
         if staff_end < 0:
-            staff_end = s.find("\\n            )", staff_start)
+            staff_end = s.find("\n            )", staff_start)
         if staff_end < 0:
             raise SystemExit("Could not locate SupabaseStaffProfileDto constructor end")
         staff_block = s[staff_start:staff_end]
-        staff_block = re.sub(r'(?m)^\\s*phone\\s*=.*?,\\s*\\n', '', staff_block)
+        staff_block = re.sub(r'(?m)^\s*phone\s*=.*?,\s*\n', '', staff_block)
         s = s[:staff_start] + staff_block + s[staff_end:]
     return s
 
