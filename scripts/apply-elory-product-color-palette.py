@@ -183,34 +183,24 @@ text = replace_once(
     "import com.pinky.dashboard.domain.model.ProductVariant\nimport com.pinky.dashboard.domain.model.ProductColorOption\n",
     "product color model import",
 )
-palette_helpers = r'''
-private val ELORY_PRODUCT_COLOR_PALETTE = listOf(
-    ProductColorOption("أحمر", "#DC2626"),
-    ProductColorOption("عنابي", "#7F1D3A"),
-    ProductColorOption("وردي", "#EC4899"),
-    ProductColorOption("روز", "#D87591"),
-    ProductColorOption("موف", "#8B5CF6"),
-    ProductColorOption("لافندر", "#B49AE8"),
-    ProductColorOption("بنفسجي", "#6D4CBB"),
-    ProductColorOption("أزرق", "#2563EB"),
-    ProductColorOption("كحلي", "#1E3A8A"),
-    ProductColorOption("سماوي", "#38BDF8"),
-    ProductColorOption("تركواز", "#0F9D9A"),
-    ProductColorOption("أخضر", "#16A34A"),
-    ProductColorOption("زيتي", "#65743A"),
-    ProductColorOption("نعناعي", "#A7DCC3"),
-    ProductColorOption("أصفر", "#EAB308"),
-    ProductColorOption("ذهبي", "#C7A04A"),
-    ProductColorOption("برتقالي", "#F97316"),
-    ProductColorOption("بني", "#8B5E3C"),
-    ProductColorOption("بيج", "#D6C2A1"),
-    ProductColorOption("جملي", "#B98B62"),
-    ProductColorOption("أبيض", "#F8FAFC"),
-    ProductColorOption("عاجي", "#F2E8D5"),
-    ProductColorOption("رمادي", "#9CA3AF"),
-    ProductColorOption("أسود", "#171717")
-)
+# Material color chooser controls.
+required_color_imports = [
+    "import androidx.compose.material3.AlertDialog",
+    "import androidx.compose.material3.Slider",
+    "import androidx.compose.material3.TextButton"
+]
+for required_import in required_color_imports:
+    if required_import not in text:
+        marker = "import androidx.compose.material3.ExperimentalMaterial3Api"
+        position = text.find(marker)
+        if position < 0:
+            raise SystemExit("Could not find Compose Material3 import section for color picker.")
+        line_end = text.find("\\n", position)
+        if line_end < 0:
+            raise SystemExit("Malformed Compose import section.")
+        text = text[:line_end + 2] + required_import + "\\n" + text[line_end + 2:]
 
+palette_helpers = r'''
 private fun eloryColorFromHex(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
 
@@ -273,9 +263,15 @@ text = replace_once(
                 ?: initialProduct?.colors?.map(::legacyEloryProductColor).orEmpty()
         )
     }
-    var customColorName by remember(initialProduct?.id) { mutableStateOf("") }
-    var customColorHex by remember(initialProduct?.id) { mutableStateOf("#D87591") }
-    var colorError by remember(initialProduct?.id) { mutableStateOf<String?>(null) }""",
+    var showColorPicker by remember(initialProduct?.id) { mutableStateOf(false) }
+    var pickerHue by remember(initialProduct?.id) { mutableStateOf(320f) }
+    var pickerSaturation by remember(initialProduct?.id) { mutableStateOf(0.72f) }
+    var pickerBrightness by remember(initialProduct?.id) { mutableStateOf(0.88f) }
+    var colorError by remember(initialProduct?.id) { mutableStateOf<String?>(null) }
+    val pickerHex = remember(pickerHue, pickerSaturation, pickerBrightness) {
+        val argb = android.graphics.Color.HSVToColor(floatArrayOf(pickerHue, pickerSaturation, pickerBrightness))
+        String.format(java.util.Locale.US, "#%06X", argb and 0xFFFFFF)
+    }""",
     "product color selection state",
 )
 old_colors_ui = '''                    // Stock, Colors, Sizes
@@ -300,18 +296,7 @@ old_colors_ui = '''                    // Stock, Colors, Sizes
                         }
                     }
 '''
-new_colors_ui = '''                    // Stock
-                    item {
-                        OutlinedTextField(
-                            value = stockText,
-                            onValueChange = { stockText = it.filter(Char::isDigit) },
-                            label = { Text("الكمية بالمخزون *") },
-                            modifier = Modifier.fillMaxWidth().testTag("product_stock_input"),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-
-                    // Visual color palette: every swatch has a name, a real HEX value and a selected state.
+new_colors_ui = '''                    // Product colors: unrestricted HSV picker and circles only.
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -323,191 +308,148 @@ new_colors_ui = '''                    // Stock
                                 Modifier.fillMaxWidth().padding(14.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("ألوان المنتج", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "اختارِي الألوان من الباليتة؛ ستظهر كدوائر حقيقية للعميل عند اختيار المنتج.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                ELORY_PRODUCT_COLOR_PALETTE.chunked(6).forEach { paletteRow ->
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("ألوان المنتج", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "اختاري أي درجة لون من منتقي الألوان الحر.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            colorError = null
+                                            showColorPicker = true
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = PinkPrimary,
+                                            contentColor = Color(0xFF381528)
+                                        )
                                     ) {
-                                        paletteRow.forEach { preset ->
-                                            val isSelected = colorOptions.any {
-                                                it.name.equals(preset.name, ignoreCase = true) &&
-                                                    it.hex.equals(preset.hex, ignoreCase = true)
-                                            }
-                                            Column(
-                                                Modifier.weight(1f),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(40.dp)
-                                                        .clip(CircleShape)
-                                                        .background(eloryColorFromHex(preset.hex))
-                                                        .border(
-                                                            if (isSelected) 3.dp else 1.dp,
-                                                            if (isSelected) PinkPrimary else MaterialTheme.colorScheme.outlineVariant,
-                                                            CircleShape
-                                                        )
-                                                        .clickable {
-                                                            colorError = null
-                                                            if (!isSelected) colorOptions = colorOptions + preset
-                                                        }
-                                                        .testTag("product_color_" + preset.hex.removePrefix("#")),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    if (isSelected) {
-                                                        Icon(
-                                                            Icons.Outlined.Check,
-                                                            contentDescription = "محدد",
-                                                            tint = eloryColorCheckTint(preset.hex),
-                                                            modifier = Modifier.size(19.dp)
-                                                        )
-                                                    }
-                                                }
-                                                Text(
-                                                    preset.name,
-                                                    fontSize = 9.sp,
-                                                    maxLines = 1,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                        repeat(6 - paletteRow.size) { Spacer(Modifier.weight(1f)) }
+                                        Text("اختيار لون")
                                     }
                                 }
 
-                                Text(
-                                    "الألوان المختارة (" + colorOptions.size + ")",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
                                 if (colorOptions.isEmpty()) {
                                     Text(
-                                        "لم يتم اختيار ألوان بعد.",
+                                        "لم تتم إضافة ألوان بعد.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 } else {
-                                    colorOptions.chunked(2).forEach { selectedRow ->
+                                    colorOptions.chunked(6).forEach { selectedRow ->
                                         Row(
                                             Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
                                             selectedRow.forEach { selectedColor ->
-                                                Row(
-                                                    Modifier.weight(1f)
-                                                        .clip(RoundedCornerShape(14.dp))
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                                                        .padding(start = 9.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Box(
-                                                        Modifier.size(24.dp).clip(CircleShape)
-                                                            .background(eloryColorFromHex(selectedColor.hex))
-                                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                                    )
-                                                    Column(
-                                                        Modifier.weight(1f).padding(horizontal = 7.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(0.dp)
-                                                    ) {
-                                                        Text(selectedColor.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                                        Text(selectedColor.hex, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    }
-                                                    IconButton(
-                                                        onClick = { colorOptions = colorOptions.filterNot { it == selectedColor } },
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
-                                                        Icon(
-                                                            Icons.Outlined.Close,
-                                                            contentDescription = "حذف " + selectedColor.name,
-                                                            modifier = Modifier.size(16.dp),
-                                                            tint = MaterialTheme.colorScheme.error
-                                                        )
-                                                    }
-                                                }
+                                                Box(
+                                                    Modifier.size(42.dp)
+                                                        .clip(CircleShape)
+                                                        .background(eloryColorFromHex(selectedColor.hex))
+                                                        .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                                        .clickable {
+                                                            colorOptions = colorOptions.filterNot {
+                                                                it.hex.equals(selectedColor.hex, ignoreCase = true)
+                                                            }
+                                                        }
+                                                )
                                             }
-                                            if (selectedRow.size == 1) Spacer(Modifier.weight(1f))
+                                            repeat(6 - selectedRow.size) { Spacer(Modifier.weight(1f)) }
                                         }
                                     }
                                 }
 
-                                Divider(color = MaterialTheme.colorScheme.outlineVariant)
-                                Text("إضافة لون مخصص", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    OutlinedTextField(
-                                        value = customColorName,
-                                        onValueChange = { customColorName = it; colorError = null },
-                                        label = { Text("اسم اللون") },
-                                        placeholder = { Text("مثلاً: وردي فاتح") },
-                                        modifier = Modifier.weight(1.2f),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    OutlinedTextField(
-                                        value = customColorHex,
-                                        onValueChange = {
-                                            customColorHex = it.filter { char -> char.isDigit() || char.lowercaseChar() in 'a'..'f' || char == '#' }.take(7).uppercase()
-                                            colorError = null
-                                        },
-                                        label = { Text("HEX") },
-                                        placeholder = { Text("#D87591") },
-                                        modifier = Modifier.weight(0.8f),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                }
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        Modifier.size(34.dp).clip(CircleShape)
-                                            .background(eloryColorFromHex(customColorHex))
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                                    )
-                                    Button(
-                                        onClick = {
-                                            val cleanName = customColorName.trim()
-                                            val cleanHex = customColorHex.trim().uppercase()
-                                            when {
-                                                cleanName.isBlank() -> colorError = "اكتب اسم اللون أولاً."
-                                                !cleanHex.matches(Regex("^#[0-9A-F]{6}$")) -> colorError = "اكتب كود HEX صحيحًا مثل #D87591."
-                                                colorOptions.any { it.name.equals(cleanName, true) || it.hex.equals(cleanHex, true) } ->
-                                                    colorError = "هذا اللون مضاف بالفعل."
-                                                else -> {
-                                                    colorOptions = colorOptions + ProductColorOption(cleanName, cleanHex)
-                                                    customColorName = ""
-                                                    customColorHex = "#D87591"
-                                                    colorError = null
-                                                }
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
-                                    ) {
-                                        Icon(Icons.Outlined.Add, contentDescription = null)
-                                        Spacer(Modifier.width(5.dp))
-                                        Text("إضافة اللون")
-                                    }
-                                }
+                                Text(
+                                    "اضغطي على أي دائرة لإزالتها. لا تُعرض أسماء الألوان في المتجر.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 colorError?.let {
                                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
+                        }
+
+                        if (showColorPicker) {
+                            AlertDialog(
+                                onDismissRequest = { showColorPicker = false },
+                                title = { Text("منتقي ألوان المنتج") },
+                                text = {
+                                    Column(
+                                        Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(9.dp)
+                                    ) {
+                                        Box(
+                                            Modifier.fillMaxWidth()
+                                                .height(76.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(eloryColorFromHex(pickerHex))
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("درجة اللون")
+                                            Text(pickerHue.toInt().toString() + "°")
+                                        }
+                                        Slider(
+                                            value = pickerHue,
+                                            onValueChange = { pickerHue = it },
+                                            valueRange = 0f..360f
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("تشبع اللون")
+                                            Text((pickerSaturation * 100).toInt().toString() + "%")
+                                        }
+                                        Slider(
+                                            value = pickerSaturation,
+                                            onValueChange = { pickerSaturation = it },
+                                            valueRange = 0f..1f
+                                        )
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text("الإضاءة")
+                                            Text((pickerBrightness * 100).toInt().toString() + "%")
+                                        }
+                                        Slider(
+                                            value = pickerBrightness,
+                                            onValueChange = { pickerBrightness = it },
+                                            valueRange = 0f..1f
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            val selectedHex = pickerHex.uppercase()
+                                            if (colorOptions.none { it.hex.equals(selectedHex, ignoreCase = true) }) {
+                                                colorOptions = colorOptions + ProductColorOption(selectedHex, selectedHex)
+                                            }
+                                            colorError = null
+                                            showColorPicker = false
+                                        }
+                                    ) {
+                                        Text("إضافة الدائرة")
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showColorPicker = false }) {
+                                        Text("إلغاء")
+                                    }
+                                }
+                            )
                         }
                     }
 '''
