@@ -176,6 +176,34 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-offer-uuid-repair.py
 
+      - name: Apply owner-only PIN protected cleanup for orders, customers and coupons
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-owner-data-reset.py
+          python3 scripts/apply-elory-owner-data-reset.py
+
+      - name: Organize website editor and enable free color wheel
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-website-editor-tabs-colors.py
+          python3 scripts/apply-elory-website-editor-tabs-colors.py
+
+      - name: Export patched source archive for review
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd "$PROJECT_DIR"
+          zip -qr "$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip" .
+
+      - name: Upload patched source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elory-Dashboard-Patched-Source
+          path: ${{ runner.temp }}/Elory-Dashboard-Patched-Source.zip
+          if-no-files-found: error
+
       - name: Prepare project configuration
         shell: bash
         env:
