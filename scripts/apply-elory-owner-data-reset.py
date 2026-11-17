@@ -305,8 +305,11 @@ import kotlinx.coroutines.launch
 fun OwnerDataResetControls(
     scopeLabel: String,
     isPrimaryOwner: Boolean,
+    isDeleteMode: Boolean,
     selectedIds: List<String>,
     totalCount: Int,
+    onEnterDeleteMode: () -> Unit,
+    onExitDeleteMode: () -> Unit,
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
     onDeleteSelected: suspend (List<String>?, String) -> Result<Int>,
@@ -324,24 +327,58 @@ fun OwnerDataResetControls(
     var busy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) }
-    val allSelected = totalCount > 0 && selectedIds.size >= totalCount
+    val allSelected = totalCount > 0 && selectedIds.size == totalCount
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
-                onClick = { if (allSelected) onClearSelection() else onSelectAll() },
-                enabled = totalCount > 0 && !busy,
-                modifier = Modifier.weight(1f)
-            ) { Text(if (allSelected) "إلغاء تحديد الكل" else "تحديد الكل") }
-            Button(
-                onClick = { enteredPin = ""; errorMessage = null; showDeleteDialog = true },
-                enabled = selectedIds.isNotEmpty() && !busy,
-                modifier = Modifier.weight(1f)
-            ) { Text("حذف المحدد (\${selectedIds.size})") }
+        if (!isDeleteMode) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("إدارة حذف $scopeLabel", style = MaterialTheme.typography.titleSmall)
+                    Text("$totalCount سجل متاح", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Button(
+                    onClick = { feedback = null; errorMessage = null; onEnterDeleteMode() },
+                    enabled = totalCount > 0 && !busy
+                ) { Text("بدء وضع الحذف") }
+            }
+            TextButton(onClick = {
+                newPin = ""; confirmPin = ""; errorMessage = null; showPinSetup = true
+            }, enabled = !busy) { Text("إعداد / تغيير رمز PIN") }
+        } else {
+            Text("وضع تحديد $scopeLabel", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "حدد السجلات التي تريد حذفها. لن يتم حذف أي سجل قبل التأكيد وإدخال رمز PIN.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { if (allSelected) onClearSelection() else onSelectAll() },
+                    enabled = totalCount > 0 && !busy,
+                    modifier = Modifier.weight(1f)
+                ) { Text(if (allSelected) "إلغاء تحديد الكل" else "تحديد الكل") }
+                OutlinedButton(
+                    onClick = { if (!busy) { onClearSelection(); onExitDeleteMode() } },
+                    enabled = !busy,
+                    modifier = Modifier.weight(1f)
+                ) { Text("إلغاء") }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text("تم تحديد ${selectedIds.size} من $totalCount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(
+                    onClick = { enteredPin = ""; errorMessage = null; showDeleteDialog = true },
+                    enabled = selectedIds.isNotEmpty() && !busy
+                ) { Text("حذف المحدد (${selectedIds.size})") }
+            }
         }
-        TextButton(onClick = {
-            newPin = ""; confirmPin = ""; errorMessage = null; showPinSetup = true
-        }, enabled = !busy) { Text("إعداد / تغيير رمز PIN") }
         feedback?.let { Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
     }
 
@@ -452,26 +489,36 @@ def add_selection_screen(file, function_name, ids_var, list_name, item_name, sco
     onDeleteSelected: suspend (List<String>?, String) -> Result<Int> = { _, _ -> Result.failure(IllegalStateException("غير متاح")) },
     onSetDataResetPin: suspend (String) -> Result<Unit> = { Result.failure(IllegalStateException("غير متاح")) },'''
     text = add_screen_params(text, function_name, params)
-    if f"var {ids_var} by remember" not in text:
+    mode_var = {"selectedOrderIds": "isOrderDeleteMode", "selectedCustomerIds": "isCustomerDeleteMode"}[ids_var]
+    if f"var {ids_var} by remember" not in text or f"var {mode_var} by remember" not in text:
         marker = f"fun {function_name}("
         fs = text.find(marker)
         op = text.find("(", fs)
         sig_end = matching_end(text, op, "(", ")")
         body = text.find("{", sig_end)
-        text = text[:body + 1] + f"\n    var {ids_var} by remember {{ mutableStateOf(setOf<String>()) }}\n" + text[body + 1:]
+        state = f"\\n    var {ids_var} by remember {{ mutableStateOf(setOf<String>()) }}\\n    var {mode_var} by remember {{ mutableStateOf(false) }}\\n"
+        text = text[:body + 1] + state + text[body + 1:]
+    filter_effect = "    LaunchedEffect(searchQuery, selectedStatusFilter) { selectedOrderIds = emptySet() }\\n\\n" if function_name == "OrdersScreen" else "    LaunchedEffect(searchQuery) { selectedCustomerIds = emptySet() }\\n\\n"
+    if "LaunchedEffect(searchQuery" not in text:
+        anchor_effect = f"    var {mode_var} by remember {{ mutableStateOf(false) }}\\n"
+        text = text.replace(anchor_effect, anchor_effect + filter_effect, 1)
     if panel_anchor not in text: raise RuntimeError(f"Panel anchor missing in {file}")
+    visible_list = {"OrdersScreen": "filteredOrders", "CustomersScreen": "filteredCustomers"}[function_name]
     panel = f'''
         if (isPrimaryOwner) {{
             OwnerDataResetControls(
                 scopeLabel = "{scope_label}",
                 isPrimaryOwner = isPrimaryOwner,
-                selectedIds = {ids_var}.toList(),
-                totalCount = {list_name}.size,
-                onSelectAll = {{ {ids_var} = {list_name}.map {{ it.id }}.toSet() }},
+                isDeleteMode = {mode_var},
+                selectedIds = {ids_var}.filter {{ selected -> {visible_list}.any {{ it.id == selected }} }},
+                totalCount = {visible_list}.size,
+                onEnterDeleteMode = {{ {mode_var} = true }},
+                onExitDeleteMode = {{ {mode_var} = false; {ids_var} = emptySet() }},
+                onSelectAll = {{ {ids_var} = {visible_list}.map {{ it.id }}.toSet() }},
                 onClearSelection = {{ {ids_var} = emptySet() }},
                 onDeleteSelected = onDeleteSelected,
                 onSetPin = onSetDataResetPin,
-                onDeleteComplete = {{ {ids_var} = emptySet() }},
+                onDeleteComplete = {{ {ids_var} = emptySet(); {mode_var} = false }},
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }}
@@ -487,7 +534,7 @@ def add_selection_screen(file, function_name, ids_var, list_name, item_name, sco
     if ids_var not in call:
         checkbox_row = f'''
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {{
-                        if (isPrimaryOwner) {{
+                        if (isPrimaryOwner && {mode_var}) {{
                             Checkbox(
                                 checked = {ids_var}.contains({item_name.replace("CardItem", "").lower()}.id),
                                 onCheckedChange = {{ checked ->
@@ -548,7 +595,7 @@ offers = add_screen_params(
 if "selectedCouponIds" not in offers:
     offers = offers.replace(
         "var couponToDelete by remember { mutableStateOf<Coupon?>(null) }",
-        "var couponToDelete by remember { mutableStateOf<Coupon?>(null) }\n    var selectedCouponIds by remember { mutableStateOf(setOf<String>()) }",
+        "var couponToDelete by remember { mutableStateOf<Coupon?>(null) }\n    var selectedCouponIds by remember { mutableStateOf(setOf<String>()) }\n    var isCouponDeleteMode by remember { mutableStateOf(false) }\n    LaunchedEffect(selectedTab) { if (selectedTab != 1) { selectedCouponIds = emptySet(); isCouponDeleteMode = false } }",
         1
     )
 anchor = "                // Coupons Tab\n"
@@ -557,13 +604,16 @@ panel = '''                if (isPrimaryOwner) {
                     OwnerDataResetControls(
                         scopeLabel = "الكوبونات",
                         isPrimaryOwner = isPrimaryOwner,
+                        isDeleteMode = isCouponDeleteMode,
                         selectedIds = selectedCouponIds.toList(),
                         totalCount = coupons.size,
+                        onEnterDeleteMode = { isCouponDeleteMode = true },
+                        onExitDeleteMode = { isCouponDeleteMode = false; selectedCouponIds = emptySet() },
                         onSelectAll = { selectedCouponIds = coupons.map { it.id }.toSet() },
                         onClearSelection = { selectedCouponIds = emptySet() },
                         onDeleteSelected = onDeleteSelected,
                         onSetPin = onSetDataResetPin,
-                        onDeleteComplete = { selectedCouponIds = emptySet() },
+                        onDeleteComplete = { selectedCouponIds = emptySet(); isCouponDeleteMode = false },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
@@ -573,7 +623,7 @@ if 'scopeLabel = "الكوبونات"' not in offers:
 old_delete = '''                                            IconButton(onClick = { couponToDelete = coupon }) {
                                                 Icon(Icons.Outlined.Delete, contentDescription = "حذف", tint = StatusCancelled)
                                             }'''
-new_delete = '''                                            if (isPrimaryOwner) {
+new_delete = '''                                            if (isPrimaryOwner && isCouponDeleteMode) {
                                                 Checkbox(
                                                     checked = selectedCouponIds.contains(coupon.id),
                                                     onCheckedChange = { checked ->
