@@ -92,7 +92,7 @@ for number, section in groups.items():
 
 # Keep global store status in the header tab only, and keep section ordering with categories/products.
 editor_start = text.find("// Editor Sections List")
-store_marker = "                    item {\\n                        Card(\\n                            modifier = Modifier.fillMaxWidth(),\\n                            border = CardDefaults.outlinedCardBorder()"
+store_marker = "                    item {\n                        Card(\n                            modifier = Modifier.fillMaxWidth(),\n                            border = CardDefaults.outlinedCardBorder()"
 store_item = text.find(store_marker, editor_start)
 if editor_start < 0 or store_item < 0:
     raise RuntimeError("Could not locate the store open/close control")
@@ -100,7 +100,7 @@ store_brace = text.find("{", store_item)
 store_end = matching_end(text, store_brace)
 if "selectedEditorSection == 0" not in text[max(0, store_item - 100):store_item]:
     store_block = text[store_item:store_end + 1]
-    text = text[:store_item] + "                    if (selectedEditorSection == 0) {\\n" + store_block + "\\n                    }" + text[store_end + 1:]
+    text = text[:store_item] + "                    if (selectedEditorSection == 0) {\n" + store_block + "\n                    }" + text[store_end + 1:]
 
 sort_title = text.find('title = "ترتيب وظهور أقسام الصفحة"', editor_start)
 if sort_title < 0:
@@ -110,7 +110,7 @@ sort_brace = text.find("{", sort_item)
 sort_end = matching_end(text, sort_brace)
 if "selectedEditorSection == 2" not in text[max(0, sort_item - 100):sort_item]:
     sort_block = text[sort_item:sort_end + 1]
-    text = text[:sort_item] + "                    if (selectedEditorSection == 2) {\\n" + sort_block + "\\n                    }" + text[sort_end + 1:]
+    text = text[:sort_item] + "                    if (selectedEditorSection == 2) {\n" + sort_block + "\n                    }" + text[sort_end + 1:]
 
 text = text.replace(
     "var selectedEditorSection by remember { mutableIntStateOf(0) } // 0 = Editor, 1 = Live Preview Mockup",
@@ -130,7 +130,7 @@ prime_block = prime_block.replace(
     'description = "إظهار أو إخفاء قسم Prime في الموقع؛ الأسعار والمزايا التشغيلية تُدار من قسم Prime"'
 )
 prime_block = prime_block.replace("SectionCard(", "PrimeVisibilityCard(", 1)
-prime_block = prime_block.replace("            onClick = { }\\n", "")
+prime_block = prime_block.replace("            onClick = { }\n", "")
 text = text[:prime_item] + prime_block + text[prime_end+1:]
 
 # Replace the five free-form HEX text fields with a real hue wheel + saturation/brightness picker.
