@@ -142,6 +142,12 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-supabase-sync-repair.py
 
+      - name: Align Supabase DTOs with the live Elory schema
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/apply-elory-schema-contract-fixes.py
+
       - name: Prepare project configuration
         shell: bash
         env:
