@@ -498,10 +498,16 @@ def add_selection_screen(file, function_name, ids_var, list_name, item_name, sco
         body = text.find("{", sig_end)
         state = f"\n    var {ids_var} by remember {{ mutableStateOf(setOf<String>()) }}\n    var {mode_var} by remember {{ mutableStateOf(false) }}\n"
         text = text[:body + 1] + state + text[body + 1:]
-    filter_effect = "    LaunchedEffect(searchQuery, selectedStatusFilter) { selectedOrderIds = emptySet() }\n\n" if function_name == "OrdersScreen" else "    LaunchedEffect(searchQuery) { selectedCustomerIds = emptySet() }\n\n"
     if "LaunchedEffect(searchQuery" not in text:
-        anchor_effect = f"    var {mode_var} by remember {{ mutableStateOf(false) }}\n"
-        text = text.replace(anchor_effect, anchor_effect + filter_effect, 1)
+        if function_name == "OrdersScreen":
+            filter_anchor = "var selectedStatusFilter by remember { mutableStateOf<OrderStatus?>(null) }"
+            filter_effect = "\\n    LaunchedEffect(searchQuery, selectedStatusFilter) { selectedOrderIds = emptySet() }"
+        else:
+            filter_anchor = 'var searchQuery by remember { mutableStateOf("") }'
+            filter_effect = "\\n    LaunchedEffect(searchQuery) { selectedCustomerIds = emptySet() }"
+        if filter_anchor not in text:
+            raise RuntimeError(f"Search/filter state anchor missing in {file}")
+        text = text.replace(filter_anchor, filter_anchor + filter_effect, 1)
     if panel_anchor not in text: raise RuntimeError(f"Panel anchor missing in {file}")
     visible_list = {"OrdersScreen": "filteredOrders", "CustomersScreen": "filteredCustomers"}[function_name]
     panel = f'''
