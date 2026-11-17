@@ -195,10 +195,10 @@ for required_import in required_color_imports:
         position = text.find(marker)
         if position < 0:
             raise SystemExit("Could not find Compose Material3 import section for color picker.")
-        line_end = text.find("\\n", position)
+        line_end = text.find("\n", position)
         if line_end < 0:
             raise SystemExit("Malformed Compose import section.")
-        text = text[:line_end + 2] + required_import + "\\n" + text[line_end + 2:]
+        text = text[:line_end + 2] + required_import + "\n" + text[line_end + 2:]
 
 palette_helpers = r'''
 private fun eloryColorFromHex(hex: String): Color =
