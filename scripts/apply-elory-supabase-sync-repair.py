@@ -64,12 +64,12 @@ category = category.replace(
 
 # The dashboard must preview the SVG category assets used by the storefront.
 if "import coil.decode.SvgDecoder" not in category:
-    async_import = "import coil.compose.AsyncImage\\n"
+    async_import = "import coil.compose.AsyncImage\n"
     if category.count(async_import) != 1:
         raise SystemExit("Category AsyncImage import anchor is missing or duplicated")
     category = category.replace(
         async_import,
-        async_import + "import coil.decode.SvgDecoder\\nimport coil.request.ImageRequest\\n",
+        async_import + "import coil.decode.SvgDecoder\nimport coil.request.ImageRequest\n",
         1,
     )
 image_model_old = "model = selectedImageUri ?: imageUrl,"
@@ -98,7 +98,7 @@ coil_svg_line = 'coil-svg = { group = "io.coil-kt", name = "coil-svg", version.r
 if coil_svg_line not in versions:
     if versions.count(coil_compose_line) != 1:
         raise SystemExit("Coil version catalog anchor is missing or duplicated")
-    versions = versions.replace(coil_compose_line, coil_compose_line + "\\n" + coil_svg_line, 1)
+    versions = versions.replace(coil_compose_line, coil_compose_line + "\n" + coil_svg_line, 1)
 write("gradle/libs.versions.toml", versions)
 
 app_gradle = read("app/build.gradle.kts")
@@ -106,7 +106,7 @@ if "implementation(libs.coil.svg)" not in app_gradle:
     coil_dependency = "    implementation(libs.coil.compose)"
     if app_gradle.count(coil_dependency) != 1:
         raise SystemExit("Coil Gradle dependency anchor is missing or duplicated")
-    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\\n    implementation(libs.coil.svg)", 1)
+    app_gradle = app_gradle.replace(coil_dependency, coil_dependency + "\n    implementation(libs.coil.svg)", 1)
 write("app/build.gradle.kts", app_gradle)
 print("PASS: Coil SVG decoding is configured for category image previews")
 
