@@ -79,19 +79,56 @@ def patch_repository(source):
         if block.count("id = offer.id,") != 3: raise SystemExit("Offer DTO/cache ID anchors missing or duplicated")
         block = block.replace("id = offer.id,", "id = remoteOfferId,", 2)
 
-        old_response = """            val entity = OfferEntity(
-                id = offer.id,"""
-        new_response = """            val persistedId = response.body()?.firstOrNull()?.id
-                ?.takeIf(::isCanonicalProductUuid)
+        upsert_start = block.find("            val response = if (isBanner) {")
+        entity_start = block.find("            val entity = OfferEntity(", upsert_start)
+        if upsert_start < 0 or entity_start < 0:
+            raise SystemExit("Offer upsert/cache block boundaries not found")
+        new_upsert = """            val persistedRemoteId: String? = if (isBanner) {
+                val bannerResponse = SupabaseClient.service.upsertBanner(
+                    SupabaseBannerUpsertDto(
+                        id = remoteOfferId,
+                        title = offer.title,
+                        subtitle = offer.description,
+                        image = offer.imageUrl,
+                        buttonText = offer.buttonText,
+                        buttonAction = offer.targetCategoryId ?: offer.targetCategoryName,
+                        sortOrder = offer.sortOrder,
+                        active = offer.isActive
+                    )
+                )
+                if (!bannerResponse.isSuccessful) {
+                    return@withContext Result.failure(Exception("فشل حفظ البانر على Supabase (HTTP \${bannerResponse.code()})."))
+                }
+                bannerResponse.body()?.firstOrNull()?.id
+            } else {
+                val offerResponse = SupabaseClient.service.upsertOffer(
+                    SupabaseOfferUpsertDto(
+                        id = remoteOfferId,
+                        title = offer.title,
+                        description = offer.description,
+                        discount = offer.discountText.filter { it.isDigit() || it == '.' }.toDoubleOrNull(),
+                        image = offer.imageUrl,
+                        active = offer.isActive,
+                        startsAt = offer.startDate.toSupabaseIsoTimestamp(),
+                        endsAt = offer.endDate.toSupabaseIsoTimestamp(),
+                        buttonText = offer.buttonText,
+                        targetCategory = offer.targetCategoryId ?: offer.targetCategoryName,
+                        sortOrder = offer.sortOrder,
+                        isActive = offer.isActive
+                    )
+                )
+                if (!offerResponse.isSuccessful) {
+                    return@withContext Result.failure(Exception("فشل حفظ العرض على Supabase (HTTP \${offerResponse.code()})."))
+                }
+                offerResponse.body()?.firstOrNull()?.id
+            }
+
+            val persistedId = persistedRemoteId?.takeIf(::isCanonicalProductUuid)
                 ?: remoteOfferId
                 ?: throw IllegalStateException("Supabase saved the offer but did not return its generated UUID.")
             val savedId = if (isBanner) "ban_$persistedId" else persistedId
             val savedOffer = offer.copy(id = savedId)
 
-            val entity = OfferEntity(
-                id = savedId,"""
-        if block.count(old_response) != 1: raise SystemExit("Offer save cache anchor missing or duplicated")
-        block = block.replace(old_response, new_response, 1)
         if block.count("Result.success(offer)") != 1: raise SystemExit("Offer save result anchor missing or duplicated")
         block = block.replace("Result.success(offer)", "Result.success(savedOffer)", 1)
     source = source[:save_start] + block + source[save_end:]
