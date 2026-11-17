@@ -506,10 +506,10 @@ def add_selection_screen(file, function_name, ids_var, list_name, item_name, sco
     if "LaunchedEffect(searchQuery" not in text:
         if function_name == "OrdersScreen":
             filter_anchor = "var selectedStatusFilter by remember { mutableStateOf<OrderStatus?>(null) }"
-            filter_effect = "\\n    LaunchedEffect(searchQuery, selectedStatusFilter) { selectedOrderIds = emptySet() }"
+            filter_effect = chr(10) + "    LaunchedEffect(searchQuery, selectedStatusFilter) { selectedOrderIds = emptySet() }"
         else:
             filter_anchor = 'var searchQuery by remember { mutableStateOf("") }'
-            filter_effect = "\\n    LaunchedEffect(searchQuery) { selectedCustomerIds = emptySet() }"
+            filter_effect = chr(10) + "    LaunchedEffect(searchQuery) { selectedCustomerIds = emptySet() }"
         if filter_anchor not in text:
             raise RuntimeError(f"Search/filter state anchor missing in {file}")
         text = text.replace(filter_anchor, filter_anchor + filter_effect, 1)
