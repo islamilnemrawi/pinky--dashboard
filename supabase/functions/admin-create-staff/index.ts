@@ -62,8 +62,8 @@ Deno.serve(async (request: Request) => {
     ) as any[];
 
     const actorProfile = profiles?.[0] ?? null;
-    const actorEmail = String(actor.email ?? "").toLowerCase();
-    const isOwner = actorEmail === "ilnemrawi@gmail.com" && actorProfile?.active === true;
+    const isOwner = actorProfile?.active === true &&
+      String(actorProfile?.role ?? "").trim().toLowerCase() === "owner";
     const actorPermissions = actorProfile?.permissions && typeof actorProfile.permissions === "object"
       ? actorProfile.permissions : {};
 
@@ -97,10 +97,6 @@ Deno.serve(async (request: Request) => {
     if (["admin", "manager", "owner"].includes(role) && !isOwner) {
       return reply({ error: "إنشاء مدير نظام أو مدير أو مالك متاح لحساب المالك فقط" }, 403);
     }
-    if (role === "owner" && email === "ilnemrawi@gmail.com") {
-      return reply({ error: "لا يمكن إنشاء نسخة ثانية من حساب المالك الأساسي" }, 409);
-    }
-
     const existing = await serviceRequest(
       "staff_profiles?email=eq." + encodeURIComponent(email) + "&select=id&limit=1",
       { method: "GET" },
