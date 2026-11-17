@@ -528,7 +528,7 @@ if "OwnerDataResetControls" not in orders:
 write(orders_file, orders)
 add_selection_screen(
     orders_file, "OrdersScreen", "selectedOrderIds", "orders",
-    "OrderCardItem", "الطلبات", "            LazyColumn("
+    "OrderCardItem", "الطلبات", "        if (filteredOrders.isEmpty()) {"
 )
 
 # Coupons
