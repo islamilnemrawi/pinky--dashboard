@@ -551,10 +551,10 @@ order_class_new = order_class_anchor + """
 text = replace_once(text, order_class_anchor, order_class_new, "transient order visibility guard")
 import re
 orders_pattern = re.compile(
-    r"(return\\s+orderDao\\.getAllOrdersFlow\\(\\)\\.map\\s*\\{\\s*entities\\s*->\\s*)entities\\.map\\s*\\{\\s*entity\\s*->"
+    r"(return\s+orderDao\.getAllOrdersFlow\(\)\.map\s*\{\s*entities\s*->\s*)entities\.map\s*\{\s*entity\s*->"
 )
 text, order_matches = orders_pattern.subn(
-    r"\\1entities.filterNot { isUnconfirmedPaymentStatus(it.status) }.map { entity ->",
+    r"\1entities.filterNot { isUnconfirmedPaymentStatus(it.status) }.map { entity ->",
     text,
     count=1
 )
@@ -563,10 +563,10 @@ if order_matches != 1:
 print("PASS hide unpaid and failed payment rows from all dashboard order flows")
 
 detail_pattern = re.compile(
-    r"(val entity = orderDao\\.getOrderById\\(orderId\\) \\?: return@withContext null\\s*)val items = orderDao\\.getOrderItems\\(entity\\.id\\)\\.map"
+    r"(val entity = orderDao\.getOrderById\(orderId\) \?: return@withContext null\s*)val items = orderDao\.getOrderItems\(entity\.id\)\.map"
 )
 text, detail_matches = detail_pattern.subn(
-    r"\\1if (isUnconfirmedPaymentStatus(entity.status)) return@withContext null\\n        val items = orderDao.getOrderItems(entity.id).map",
+    r"\1if (isUnconfirmedPaymentStatus(entity.status)) return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map",
     text,
     count=1
 )
