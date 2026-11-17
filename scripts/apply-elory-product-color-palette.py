@@ -581,7 +581,7 @@ if detail.count(detail_anchor) != 1:
     raise SystemExit("Expected one order entity lookup in getOrderById(), found " + str(detail.count(detail_anchor)))
 detail = detail.replace(
     detail_anchor,
-    detail_anchor + "\\n        if (isUnconfirmedPayment(entity)) return@withContext null",
+    detail_anchor + "\n        if (isUnconfirmedPayment(entity)) return@withContext null",
     1
 )
 text = text[:detail_start] + detail + text[detail_end:]
