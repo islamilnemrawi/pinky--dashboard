@@ -136,18 +136,62 @@ function_start = source.find("    private fun syncRemainingSupabaseData() {")
 if function_start < 0:
     raise SystemExit("Could not locate syncRemainingSupabaseData()")
 function_header = "    private fun syncRemainingSupabaseData() {"
-next_method = re.search(
-    r"(?m)^    (?:private[ \t]+)?(?:suspend[ \t]+)?fun[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*\(",
-    source[function_start + len(function_header):],
-)
-if next_method is None:
-    # Some patched ViewModel variants place syncRemainingSupabaseData() as the
-    # final method in the class. In that case, stop at the class closing brace.
-    function_end = source.find("\\n}", function_start)
-    if function_end <= function_start:
-        raise SystemExit("Could not locate the end of the ViewModel class after syncRemainingSupabaseData()")
-else:
-    function_end = function_start + len(function_header) + next_method.start()
+def find_matching_brace(text, opening):
+    depth = 0
+    i = opening
+    while i < len(text):
+        if text.startswith("//", i):
+            newline = text.find("\\n", i)
+            i = len(text) if newline < 0 else newline + 1
+            continue
+        if text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            if close < 0:
+                raise SystemExit("Unclosed Kotlin block comment in ViewModel")
+            i = close + 2
+            continue
+        if text.startswith('"""', i):
+            close = text.find('"""', i + 3)
+            if close < 0:
+                raise SystemExit("Unclosed Kotlin raw string in ViewModel")
+            i = close + 3
+            continue
+        ch = text[i]
+        if ch == '"':
+            i += 1
+            while i < len(text):
+                if text[i] == "\\\\":
+                    i += 2
+                    continue
+                if text[i] == '"':
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "'":
+            i += 1
+            while i < len(text):
+                if text[i] == "\\\\":
+                    i += 2
+                    continue
+                if text[i] == "'":
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    raise SystemExit("Could not match syncRemainingSupabaseData() braces")
+
+opening = source.find("{", function_start)
+if opening < 0:
+    raise SystemExit("Could not locate syncRemainingSupabaseData() opening brace")
+function_end = find_matching_brace(source, opening)
 
 block = source[function_start:function_end]
 
