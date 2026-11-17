@@ -133,7 +133,8 @@ Deno.serve(async (request: Request) => {
       const rows = await serviceRequest("staff_profiles?on_conflict=id", {
         method: "POST",
         body: JSON.stringify([{
-          id: authData.id, email, name, role, permissions, active,
+          id: authData.id, email, name, phone: phone || null, role, permissions, active,
+          last_active: new Date().toISOString(),
         }]),
       }) as any[];
 
@@ -145,7 +146,8 @@ Deno.serve(async (request: Request) => {
         role: row.role ?? role,
         permissions: row.permissions ?? permissions,
         active: row.active ?? active,
-        phone,
+        phone: row.phone ?? phone,
+        last_active: row.last_active ?? new Date().toISOString(),
       }, 201);
     } catch (error) {
       // Roll back Auth user creation if profile upsert fails.
