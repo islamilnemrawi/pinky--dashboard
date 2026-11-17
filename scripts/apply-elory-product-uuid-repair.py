@@ -117,7 +117,15 @@ def patch_repository(source):
     new_result = "            Result.success(savedProduct)\n        } catch (e: Exception) {"
     if source.count(old_result) != 1:
         raise SystemExit("Product save result anchor missing or duplicated")
-    return source.replace(old_result, new_result, 1)
+    source = source.replace(old_result, new_result, 1)
+
+    # The active database RPC accepts the manager role. Map it to the app's
+    # administrator role while preserving the explicit permission set from Supabase.
+    old_manager_role = '"admin", "administrator" -> UserRole.ADMIN'
+    new_manager_role = '"admin", "administrator", "manager" -> UserRole.ADMIN'
+    if source.count(old_manager_role) != 1:
+        raise SystemExit("Staff role mapping anchor missing or duplicated")
+    return source.replace(old_manager_role, new_manager_role, 1)
 
 edit(repo_file, patch_repository)
 
