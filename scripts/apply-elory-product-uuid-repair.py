@@ -44,7 +44,7 @@ def patch_remote(source):
     ): Response<Unit>"""
     new_method = """    @POST("rest/v1/products")
     suspend fun upsertAdminProduct(
-        @Body product: SupabaseProductAdminDto,
+        @Body product: SupabaseProductUpsertDto,
         @Header("Prefer") prefer: String = "resolution=merge-duplicates,return=representation"
     ): Response<List<SupabaseProductAdminDto>>"""
     if source.count(old_method) != 1:
