@@ -2198,14 +2198,29 @@ serve(async (request: Request) => {
     // --------------------------------------------------------
 
     if (body?.action === "payment_capabilities") {
-      const credentialsReady = Boolean(
-        PAYMOB_API_KEY && PAYMOB_SECRET_KEY && PAYMOB_PUBLIC_KEY && PAYMOB_HMAC
-      );
-      const cardReady = credentialsReady && Number(CARD_INTEGRATION_ID) > 0;
-      const walletReady = credentialsReady && Number(WALLET_INTEGRATION_ID) > 0;
+      const credentialStatus = {
+        api_key: Boolean(PAYMOB_API_KEY),
+        secret_key: Boolean(PAYMOB_SECRET_KEY),
+        public_key: Boolean(PAYMOB_PUBLIC_KEY),
+        hmac: Boolean(PAYMOB_HMAC),
+        card_integration_id: Number(CARD_INTEGRATION_ID) > 0,
+        wallet_integration_id: Number(WALLET_INTEGRATION_ID) > 0,
+      };
+      const credentialsReady =
+        credentialStatus.api_key &&
+        credentialStatus.secret_key &&
+        credentialStatus.public_key &&
+        credentialStatus.hmac;
+      const cardReady = credentialsReady && credentialStatus.card_integration_id;
+      const walletReady = credentialsReady && credentialStatus.wallet_integration_id;
+      const missingConfiguration = Object.entries(credentialStatus)
+        .filter(([, ready]) => !ready)
+        .map(([name]) => name);
       return json({
         ok: true,
         mode: PAYMOB_MODE,
+        credentials_ready: credentialsReady,
+        missing_configuration: missingConfiguration,
         card_enabled: cardReady,
         wallet_enabled: walletReady,
         prime_enabled: cardReady,
