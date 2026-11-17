@@ -155,9 +155,12 @@ block = block.replace(old_header, new_header, 1)
 # Surface unsuccessful HTTP responses regardless of local variable names or blank lines.
 response_methods = [
     ("getCoupons", "الكوبونات"),
-    ("getPrimeSubscriptions", "اشتراكات Prime"),
     ("getStaffProfiles", "الموظفون"),
 ]
+# Prime reads are already routed through the schema-safe admin RPC by the
+# operations patch; accept that implementation instead of requiring the legacy table DTO.
+if "getPrimeSubscriptions()" not in block and "refreshPrimeSubscribers()" not in block:
+    raise SystemExit("Missing Prime subscription read (legacy REST or schema-safe RPC)")
 for method, label in response_methods:
     call_pattern = re.compile(
         r"(?m)^([ \t]*)val[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*SupabaseClient\.service\."
@@ -207,6 +210,7 @@ for variable, pattern, label in [
 catch_sections = [
     ("// Fetch Coupons", "الكوبونات"),
     ("// Fetch Prime Subscriptions", "اشتراكات Prime"),
+    ("// Fetch Prime subscriptions through the schema-safe admin RPC.", "اشتراكات Prime"),
     ("// Fetch Staff Profiles", "الموظفون"),
     ("// Fetch Store Settings and Site Customizations", "إعدادات الموقع"),
 ]
