@@ -33,20 +33,35 @@ def patch_remote(s):
     s = s[:order_start] + order_block + s[order_end:]
     s = s.replace('    @Json(name = "discount_amount") val discountAmount: Double? = null,\n', '', 1)
     # Prime request/discount fields are already added by the earlier Prime and profit patches.
-    # Nullable columns in customers must not make the entire customer sync fail.
-    s = s.replace('@Json(name = "id") val id: String,\\n    @Json(name = "name") val name: String,\\n    @Json(name = "phone") val phone: String,',
-                  '@Json(name = "id") val id: String? = null,\\n    @Json(name = "name") val name: String? = null,\\n    @Json(name = "phone") val phone: String? = null,', 1)
-    # Banner title and store contact fields are nullable in the live schema.
-    s = s.replace('@Json(name = "title") val title: String,',
-                  '@Json(name = "title") val title: String? = null,', 1)
-    s = s.replace('@Json(name = "store_name") val storeName: String,',
-                  '@Json(name = "store_name") val storeName: String? = null,', 1)
-    s = s.replace('@Json(name = "whatsapp") val whatsappNumber: String,',
-                  '@Json(name = "whatsapp") val whatsappNumber: String? = null,', 1)
-    s = s.replace('@Json(name = "instagram") val instagramHandle: String,',
-                  '@Json(name = "instagram") val instagramHandle: String? = null,', 1)
-    s = s.replace('@Json(name = "facebook") val facebookPage: String',
-                  '@Json(name = "facebook") val facebookPage: String? = null', 1)
+    # Nullable columns are handled per DTO to avoid changing unrelated fields.
+    def patch_class_block(source, class_name, replacements):
+        start = source.find(f"data class {class_name}(")
+        if start < 0:
+            raise SystemExit(f"{class_name} declaration not found")
+        end = source.find("\n)", start)
+        if end < 0:
+            raise SystemExit(f"{class_name} closing delimiter not found")
+        block = source[start:end]
+        for old_value, new_value in replacements:
+            if block.count(old_value) != 1:
+                raise SystemExit(f"{class_name} field anchor missing or duplicated: {old_value}")
+            block = block.replace(old_value, new_value, 1)
+        return source[:start] + block + source[end:]
+
+    s = patch_class_block(s, "SupabaseCustomerDto", [
+        ('@Json(name = "id") val id: String,', '@Json(name = "id") val id: String? = null,'),
+        ('@Json(name = "name") val name: String,', '@Json(name = "name") val name: String? = null,'),
+        ('@Json(name = "phone") val phone: String,', '@Json(name = "phone") val phone: String? = null,'),
+    ])
+    s = patch_class_block(s, "SupabaseBannerDto", [
+        ('@Json(name = "title") val title: String,', '@Json(name = "title") val title: String? = null,'),
+    ])
+    s = patch_class_block(s, "SupabaseStoreSettingsDto", [
+        ('@Json(name = "store_name") val storeName: String,', '@Json(name = "store_name") val storeName: String? = null,'),
+        ('@Json(name = "whatsapp") val whatsappNumber: String,', '@Json(name = "whatsapp") val whatsappNumber: String? = null,'),
+        ('@Json(name = "instagram") val instagramHandle: String,', '@Json(name = "instagram") val instagramHandle: String? = null,'),
+        ('@Json(name = "facebook") val facebookPage: String', '@Json(name = "facebook") val facebookPage: String? = null'),
+    ])
     # Offers.discount is NUMERIC in Supabase, not a string.
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
     # staff_profiles has no phone column; never send an unsupported property.
@@ -83,20 +98,41 @@ def patch_nullable_mappings(source):
     start = source.find("override suspend fun syncCustomers()")
     if start < 0:
         raise SystemExit("syncCustomers method not found")
-    end = source.find("\\n    override suspend fun", start + 1)
+    end = source.find("\n    override suspend fun", start + 1)
     if end < 0:
         end = len(source)
     block = source[start:end]
-    block = block.replace("val entities = dtoList.map { dto ->", "val entities = dtoList.mapNotNull { dto ->", 1)
-    block = block.replace("                    CustomerEntity(\\n                        id = dto.id,\\n                        name = dto.name,\\n                        phone = dto.phone,",
-                          "                    val customerId = dto.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null\\n                    CustomerEntity(\\n                        id = customerId,\\n                        name = dto.name.orEmpty(),\\n                        phone = dto.phone.orEmpty(),", 1)
+    old_map = "val entities = dtoList.map { dto ->"
+    if block.count(old_map) != 1:
+        raise SystemExit("Customer DTO mapping anchor missing or duplicated")
+    block = block.replace(old_map, "val entities = dtoList.mapNotNull { dto ->", 1)
+    old_fields = """                    CustomerEntity(
+                        id = dto.id,
+                        name = dto.name,
+                        phone = dto.phone,"""
+    new_fields = """                    val customerId = dto.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    CustomerEntity(
+                        id = customerId,
+                        name = dto.name.orEmpty(),
+                        phone = dto.phone.orEmpty(),"""
+    if block.count(old_fields) != 1:
+        raise SystemExit("Customer nullable field mapping missing or duplicated")
+    block = block.replace(old_fields, new_fields, 1)
     source = source[:start] + block + source[end:]
-    # The banner mapping is distinguished by the synthetic ban_ ID.
-    source = source.replace("                        title = dto.title,\\n                        description = dto.subtitle ?: \\"\\",",
-                          "                        title = dto.title.orEmpty(),\\n                        description = dto.subtitle ?: \\"\\", 1)
+
+    banner_old = """                    OfferEntity(
+                        id = finalId,
+                        title = dto.title,"""
+    banner_new = """                    OfferEntity(
+                        id = finalId,
+                        title = dto.title.orEmpty(),"""
+    if source.count(banner_old) != 1:
+        raise SystemExit("Banner title mapping missing or duplicated")
+    source = source.replace(banner_old, banner_new, 1)
     return source
 
 edit(repo_file, patch_nullable_mappings)
+
 
 def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
