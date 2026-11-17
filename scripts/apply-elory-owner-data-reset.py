@@ -181,7 +181,7 @@ if "admin_delete_selected_data" not in api:
         if "getOrders" in block or "rest/v1/orders" in block:
             methods = '''
     @POST("rest/v1/rpc/admin_is_primary_owner")
-    suspend fun isPrimaryOwner(): retrofit2.Response<Boolean>
+    suspend fun isPrimaryOwner(@Body body: Map<String, String>): retrofit2.Response<Boolean>
 
     @POST("rest/v1/rpc/admin_set_data_reset_pin")
     suspend fun setOwnerDataResetPin(@Body body: Map<String, String>): retrofit2.Response<Map<String, Any>>
@@ -211,7 +211,7 @@ if "suspend fun refreshPrimaryOwnerStatus()" not in vm:
     methods = '''
     suspend fun refreshPrimaryOwnerStatus() {
         _isPrimaryOwner.value = try {
-            val response = SupabaseClient.service.isPrimaryOwner()
+            val response = SupabaseClient.service.isPrimaryOwner(emptyMap())
             response.isSuccessful && response.body() == true
         } catch (e: Exception) {
             android.util.Log.w("OwnerDataReset", "Could not verify primary owner status", e)
@@ -279,6 +279,7 @@ if "suspend fun refreshPrimaryOwnerStatus()" not in vm:
         }
     }
 '''
+    methods = methods.replace("\\" + chr(36) + "{", chr(36) + "{")
     close = vm.rfind("\n}")
     if close < 0: raise RuntimeError("PinkyViewModel class closing brace missing")
     vm = vm[:close] + "\n" + methods + vm[close:]
@@ -442,6 +443,9 @@ fun OwnerDataResetControls(
 }
 ''')
 
+    component_text = read(component).replace("\\" + chr(36) + "{", chr(36) + "{")
+    write(component, component_text)
+
 def add_selection_screen(file, function_name, ids_var, list_name, item_name, scope_label, panel_anchor):
     text = read(file)
     params = '''isPrimaryOwner: Boolean = false,
@@ -588,6 +592,8 @@ app = read(APP_FILE)
 if "val isPrimaryOwner by viewModel.isPrimaryOwner.collectAsStateWithLifecycle()" not in app:
     anchor = "val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()"
     if anchor not in app: raise RuntimeError("PinkyApp currentUser state not found")
+    if "import androidx.compose.runtime.LaunchedEffect" not in app:
+        app = app.replace("package com.pinky.dashboard.ui", "package com.pinky.dashboard.ui\n\nimport androidx.compose.runtime.LaunchedEffect", 1)
     app = app.replace(anchor, anchor + "\n    val isPrimaryOwner by viewModel.isPrimaryOwner.collectAsStateWithLifecycle()\n    LaunchedEffect(currentUser?.id) { viewModel.refreshPrimaryOwnerStatus() }", 1)
 app = inject_screen_call(app, "OrdersScreen", '''isPrimaryOwner = isPrimaryOwner,
                                     onDeleteSelected = { ids, pin -> viewModel.deleteOwnerData("orders", ids, pin) },
