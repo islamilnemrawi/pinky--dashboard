@@ -549,18 +549,31 @@ order_class_new = order_class_anchor + """
         )
 """
 text = replace_once(text, order_class_anchor, order_class_new, "transient order visibility guard")
-text = replace_once(
-    text,
-    "        return orderDao.getAllOrdersFlow().map { entities ->\n            entities.map { entity ->",
-    "        return orderDao.getAllOrdersFlow().map { entities ->\n            entities.filterNot { isUnconfirmedPaymentStatus(it.status) }.map { entity ->",
-    "hide unpaid and failed payment rows from all dashboard order flows",
+import re
+orders_pattern = re.compile(
+    r"(return\\s+orderDao\\.getAllOrdersFlow\\(\\)\\.map\\s*\\{\\s*entities\\s*->\\s*)entities\\.map\\s*\\{\\s*entity\\s*->"
 )
-text = replace_once(
+text, order_matches = orders_pattern.subn(
+    r"\\1entities.filterNot { isUnconfirmedPaymentStatus(it.status) }.map { entity ->",
     text,
-    "        val entity = orderDao.getOrderById(orderId) ?: return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map { itemEntity ->",
-    "        val entity = orderDao.getOrderById(orderId) ?: return@withContext null\n        if (isUnconfirmedPaymentStatus(entity.status)) return@withContext null\n        val items = orderDao.getOrderItems(entity.id).map { itemEntity ->",
-    "prevent direct dashboard lookup of unpaid payment attempts",
+    count=1
 )
+if order_matches != 1:
+    raise SystemExit("Could not uniquely attach the unpaid-order filter to OrderRepositoryImpl.getOrdersFlow().")
+print("PASS hide unpaid and failed payment rows from all dashboard order flows")
+
+detail_pattern = re.compile(
+    r"(val entity = orderDao\\.getOrderById\\(orderId\\) \\?: return@withContext null\\s*)val items = orderDao\\.getOrderItems\\(entity\\.id\\)\\.map"
+)
+text, detail_matches = detail_pattern.subn(
+    r"\\1if (isUnconfirmedPaymentStatus(entity.status)) return@withContext null\\n        val items = orderDao.getOrderItems(entity.id).map",
+    text,
+    count=1
+)
+if detail_matches != 1:
+    raise SystemExit("Could not uniquely protect direct dashboard order lookup.")
+print("PASS prevent direct dashboard lookup of unpaid payment attempts")
+
 file.write_text(text, encoding="utf-8")
 
 print("PASS: structured product swatches, backward-compatible Room cache, visual palette, UUID product IDs, and unpaid-order dashboard filter.")
