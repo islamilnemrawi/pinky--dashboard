@@ -33,6 +33,20 @@ def patch_remote(s):
     s = s[:order_start] + order_block + s[order_end:]
     s = s.replace('    @Json(name = "discount_amount") val discountAmount: Double? = null,\n', '', 1)
     # Prime request/discount fields are already added by the earlier Prime and profit patches.
+    # Nullable columns in customers must not make the entire customer sync fail.
+    s = s.replace('@Json(name = "id") val id: String,\\n    @Json(name = "name") val name: String,\\n    @Json(name = "phone") val phone: String,',
+                  '@Json(name = "id") val id: String? = null,\\n    @Json(name = "name") val name: String? = null,\\n    @Json(name = "phone") val phone: String? = null,', 1)
+    # Banner title and store contact fields are nullable in the live schema.
+    s = s.replace('@Json(name = "title") val title: String,',
+                  '@Json(name = "title") val title: String? = null,', 1)
+    s = s.replace('@Json(name = "store_name") val storeName: String,',
+                  '@Json(name = "store_name") val storeName: String? = null,', 1)
+    s = s.replace('@Json(name = "whatsapp") val whatsappNumber: String,',
+                  '@Json(name = "whatsapp") val whatsappNumber: String? = null,', 1)
+    s = s.replace('@Json(name = "instagram") val instagramHandle: String,',
+                  '@Json(name = "instagram") val instagramHandle: String? = null,', 1)
+    s = s.replace('@Json(name = "facebook") val facebookPage: String',
+                  '@Json(name = "facebook") val facebookPage: String? = null', 1)
     # Offers.discount is NUMERIC in Supabase, not a string.
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
     # staff_profiles has no phone column; never send an unsupported property.
@@ -64,6 +78,26 @@ def patch_repo(s):
 
 edit(repo_file, patch_repo)
 
+# Safely map nullable customer, banner and store-setting columns to UI defaults.
+def patch_nullable_mappings(source):
+    start = source.find("override suspend fun syncCustomers()")
+    if start < 0:
+        raise SystemExit("syncCustomers method not found")
+    end = source.find("\\n    override suspend fun", start + 1)
+    if end < 0:
+        end = len(source)
+    block = source[start:end]
+    block = block.replace("val entities = dtoList.map { dto ->", "val entities = dtoList.mapNotNull { dto ->", 1)
+    block = block.replace("                    CustomerEntity(\\n                        id = dto.id,\\n                        name = dto.name,\\n                        phone = dto.phone,",
+                          "                    val customerId = dto.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null\\n                    CustomerEntity(\\n                        id = customerId,\\n                        name = dto.name.orEmpty(),\\n                        phone = dto.phone.orEmpty(),", 1)
+    source = source[:start] + block + source[end:]
+    # The banner mapping is distinguished by the synthetic ban_ ID.
+    source = source.replace("                        title = dto.title,\\n                        description = dto.subtitle ?: \\"\\",",
+                          "                        title = dto.title.orEmpty(),\\n                        description = dto.subtitle ?: \\"\\", 1)
+    return source
+
+edit(repo_file, patch_nullable_mappings)
+
 def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
     # Staff profile schema has no phone field; omit it from writes and default on reads.
@@ -80,7 +114,22 @@ def patch_vm(s):
         s = s[:staff_start] + staff_block + s[staff_end:]
     return s
 
-edit(vm_file, patch_vm)
+def patch_store_settings_nullable(source):
+    old = """                            storeName = settings.storeName,
+                            whatsappNumber = settings.whatsappNumber,
+                            instagramHandle = settings.instagramHandle,
+                            facebookPage = settings.facebookPage"""
+    new = """                            storeName = settings.storeName.orEmpty(),
+                            whatsappNumber = settings.whatsappNumber.orEmpty(),
+                            instagramHandle = settings.instagramHandle.orEmpty(),
+                            facebookPage = settings.facebookPage.orEmpty()"""
+    if source.count(old) != 1:
+        raise SystemExit("Store settings DTO mapping missing or duplicated")
+    return source.replace(old, new, 1)
+
+edit(vm_file, patch_store_settings_nullable)
+
+# Use the bucket IDs that actually exist
 
 # Use the bucket IDs that actually exist in the connected Elory Supabase project.
 def replace_if_present(rel, replacements):
