@@ -136,6 +136,7 @@ edit(repo_file, patch_nullable_mappings)
 def patch_vm(s):
     # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
     # Staff phone and last_active now map to real staff_profiles columns.
+    s = s.replace('lastActive = staff.lastActive.toSupabaseIsoTimestamp()', 'lastActive = System.currentTimeMillis().toSupabaseIsoTimestamp()', 1)
     return s
 
 def patch_store_settings_nullable(source):
