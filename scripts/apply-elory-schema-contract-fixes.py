@@ -30,50 +30,8 @@ def patch_remote(s):
     s = s.replace('@Json(name = "discount") val discount: String? = null,', '@Json(name = "discount") val discount: Double? = null,', 1)
     # staff_profiles has no phone column; never send an unsupported property.
     s = s.replace('    @Json(name = "phone") val phone: String? = null,\n    @Json(name = "role")', '    @Json(name = "role")', 1)
-    # Replace legacy Prime DTO with the real prime_subscriptions schema.
-    start = s.find('data class SupabasePrimeSubscriptionDto(')
-    if start < 0:
-        raise SystemExit("Prime DTO not found")
-    end = s.find('\n)', start)
-    if end < 0:
-        raise SystemExit("Prime DTO closing delimiter not found")
-    end += 2
-    block = '''data class SupabasePrimeSubscriptionDto(
-    @Json(name = "id") val id: String,
-    @Json(name = "user_id") val userId: String? = null,
-    @Json(name = "started_at") val startedAt: String? = null,
-    @Json(name = "expires_at") val expiresAt: String? = null,
-    @Json(name = "active") val active: Boolean? = null,
-    @Json(name = "free_shipping_limit") val freeShippingLimit: Int? = null,
-    @Json(name = "free_shipping_used") val freeShippingUsed: Int? = null,
-    @Json(name = "discount_percent") val discountPercent: Double? = null,
-    @Json(name = "packaging_enabled") val packagingEnabled: Boolean? = null,
-    @Json(name = "price") val price: Double? = null,
-    @Json(name = "payment_reference") val paymentReference: String? = null,
-    @Json(name = "status") val status: String? = null,
-    @Json(name = "order_id") val orderId: String? = null,
-    @Json(name = "actual_free_shipping_cost_total") val actualFreeShippingCostTotal: Double? = null,
-    @Json(name = "duration_days") val durationDays: Int? = null,
-    @Json(name = "theme_enabled") val themeEnabled: Boolean? = null,
-    @Json(name = "payment_confirmed") val paymentConfirmed: Boolean? = null
-)'''
-    s = s[:start] + block + s[end:]
-    # Add a narrow PATCH contract for toggling an existing subscription without overwriting payment/usage data.
-    anchor = '''    @POST("rest/v1/prime_subscriptions")
-    suspend fun upsertPrimeSubscription(
-        @Body sub: SupabasePrimeSubscriptionDto,
-        @Header("Prefer") prefer: String = "resolution=merge-duplicates"
-    ): Response<Unit>
-'''
-    if s.count(anchor) != 1:
-        raise SystemExit("Prime upsert API anchor missing or duplicated")
-    s = s.replace(anchor, anchor + '''
-    @PATCH("rest/v1/prime_subscriptions")
-    suspend fun patchPrimeSubscription(
-        @Query("id") filter: String,
-        @Body updates: Map<String, @JvmSuppressWildcards Any>
-    ): Response<Unit>
-''', 1)
+    # Prime is intentionally handled by the existing schema-safe admin RPCs
+    # (admin_list_prime_subscriptions / admin_set_prime_subscription_active).
     return s
 
 edit(remote, patch_remote)
@@ -97,71 +55,7 @@ def patch_repo(s):
 edit(repo_file, patch_repo)
 
 def patch_vm(s):
-    # Correct Prime decoding: actual table has started_at/expires_at and lower-case status values.
-    old = '''                            customerName = dto.customerName,
-                            phone = dto.phone,
-                            startDate = dto.startDate.toEpochMillisOrNull() ?: System.currentTimeMillis(),
-                            expiryDate = dto.expiryDate.toEpochMillisOrNull() ?: System.currentTimeMillis(),
-                            status = try { PrimeSubscriberStatus.valueOf(dto.status) } catch (e: Exception) { PrimeSubscriberStatus.ACTIVE },
-                            totalOrdersWithPrime = dto.totalOrders ?: 0,
-                            totalSavedWithPrime = dto.totalSaved ?: 0.0'''
-    new = '''                            customerName = "عميل Prime",
-                            phone = "",
-                            startDate = dto.startedAt.toEpochMillisOrNull() ?: System.currentTimeMillis(),
-                            expiryDate = dto.expiresAt.toEpochMillisOrNull() ?: System.currentTimeMillis(),
-                            status = when {
-                                dto.active != true -> PrimeSubscriberStatus.EXPIRED
-                                (dto.expiresAt.toEpochMillisOrNull() ?: 0L) <= System.currentTimeMillis() -> PrimeSubscriberStatus.EXPIRED
-                                (dto.expiresAt.toEpochMillisOrNull() ?: Long.MAX_VALUE) <= System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000 -> PrimeSubscriberStatus.EXPIRING_SOON
-                                else -> PrimeSubscriberStatus.ACTIVE
-                            },
-                            totalOrdersWithPrime = dto.freeShippingUsed ?: 0,
-                            totalSavedWithPrime = 0.0'''
-    if s.count(old) != 1:
-        raise SystemExit("Prime DTO mapping anchor missing or duplicated")
-    s = s.replace(old, new, 1)
-    # Existing-subscription status changes must only patch active/status and preserve payment, price, expiry and usage fields.
-    start = s.find('    fun savePrimeSubscriber(subscriber: PrimeSubscriber) {')
-    if start < 0:
-        raise SystemExit("savePrimeSubscriber function not found")
-    end = s.find('\n    fun togglePrimeStatus', start)
-    if end < 0:
-        raise SystemExit("savePrimeSubscriber end not found")
-    block = s[start:end]
-    old_body_start = block.find('        viewModelScope.launch {')
-    if old_body_start < 0:
-        raise SystemExit("savePrimeSubscriber coroutine not found")
-    new_block = '''    fun savePrimeSubscriber(subscriber: PrimeSubscriber) {
-        viewModelScope.launch {
-            try {
-                val subscriptionId = subscriber.id
-                if (runCatching { java.util.UUID.fromString(subscriptionId) }.isFailure) {
-                    android.util.Log.e("EloryPrime", "Prime activation requires an existing Supabase subscription UUID; refusing to create a detached local-only subscriber.")
-                    return@launch
-                }
-                val isActive = subscriber.status == PrimeSubscriberStatus.ACTIVE ||
-                    subscriber.status == PrimeSubscriberStatus.EXPIRING_SOON
-                val response = SupabaseClient.service.patchPrimeSubscription(
-                    "eq.$subscriptionId",
-                    mapOf(
-                        "active" to isActive,
-                        "status" to if (isActive) "active" else "inactive"
-                    )
-                )
-                if (!response.isSuccessful) {
-                    android.util.Log.e("EloryPrime", "Prime status update failed: HTTP ${response.code()}")
-                    return@launch
-                }
-                _primeSubscribers.value = _primeSubscribers.value.map {
-                    if (it.id == subscriber.id) subscriber else it
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("EloryPrime", "Prime status update failed", e)
-            }
-        }
-    }
-'''
-    s = s[:start] + new_block + s[end:]
+    # Prime reads and writes are intentionally left to the existing schema-safe RPC flow.
     # Staff profile schema has no phone field; omit it from writes and default on reads.
     s = s.replace('                            phone = dto.phone ?: "",', '                            phone = "",', 1)
     s = s.replace('                    phone = staff.phone,\n', '', 1)
