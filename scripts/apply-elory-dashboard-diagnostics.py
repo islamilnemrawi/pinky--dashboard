@@ -1,5 +1,6 @@
 from pathlib import Path
-R=Path(__file__).resolve().parents[1]
+import os
+R=Path(os.environ["PROJECT_DIR"]).resolve()
 p=R/"app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
 s=p.read_text(encoding="utf-8")
 def replace(old,new,label):
