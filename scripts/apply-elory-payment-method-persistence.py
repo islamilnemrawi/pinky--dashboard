@@ -222,4 +222,54 @@ new_toggle = '''    fun togglePaymentMethodActive(key: String, isEnabled: Boolea
 '''
 patch(vm, old_toggle, new_toggle, "persist payment method enable/disable switches")
 
+test_file = PROJECT / "app/src/test/java/com/pinky/dashboard/PaymentMethodsConfigSerializationTest.kt"
+if not test_file.exists():
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("""package com.pinky.dashboard
+
+import com.pinky.dashboard.domain.model.PaymentMethodSiteConfig
+import com.pinky.dashboard.domain.model.PaymentMethodsConfig
+import com.pinky.dashboard.domain.model.SiteCustomizationConfig
+import com.squareup.moshi.Moshi
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class PaymentMethodsConfigSerializationTest {
+    private val adapter = Moshi.Builder().build().adapter(SiteCustomizationConfig::class.java)
+
+    @Test
+    fun paymentMethodsRoundTripPreservesCustomerFacingSettings() {
+        val expected = PaymentMethodsConfig(
+            methods = listOf(
+                PaymentMethodSiteConfig(
+                    id = "pm_1",
+                    key = "credit_card",
+                    name = "بطاقات الدفع",
+                    description = "الدفع الآمن عبر Paymob",
+                    isEnabled = false,
+                    feeOrDiscountText = "بدون رسوم"
+                )
+            )
+        )
+        val encoded = adapter.toJson(SiteCustomizationConfig(paymentMethods = expected))
+        val decoded = adapter.fromJson(encoded)
+
+        assertNotNull(decoded)
+        assertEquals(expected, decoded?.paymentMethods)
+    }
+
+    @Test
+    fun olderSiteConfigWithoutPaymentMethodsRemainsCompatible() {
+        val decoded = adapter.fromJson("{}")
+        assertNotNull(decoded)
+        assertNull(decoded?.paymentMethods)
+    }
+}
+""", encoding="utf-8")
+    print("Added payment-method JSON compatibility unit tests.")
+else:
+    print("Payment-method JSON unit tests already exist.")
+
 print("Payment-method persistence patch completed with all unique anchors verified.")
