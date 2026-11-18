@@ -78,7 +78,7 @@ edit(order, 'IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_
      'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))\n                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
      "copy order action")
 edit(order, 'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
-     'CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\\n                            CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
+     'CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\n                            CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
      "copy customer order code separately")
 
 
@@ -111,11 +111,11 @@ if "copy_product_" not in product_source:
     name_at = product_source.find("text = product.name,")
     if name_at < 0:
         raise SystemExit("Could not find product title for copy action")
-    close_at = product_source.find("\\n            )", name_at)
+    close_at = product_source.find("\n            )", name_at)
     if close_at < 0:
         raise SystemExit("Could not find end of product title")
-    close_at += len("\\n            )")
-    product_source = product_source[:close_at] + '\\n            CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج", modifier = Modifier.testTag("copy_product_${product.id}"))' + product_source[close_at:]
+    close_at += len("\n            )")
+    product_source = product_source[:close_at] + '\n            CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج", modifier = Modifier.testTag("copy_product_${product.id}"))' + product_source[close_at:]
     product_file.write_text(product_source, encoding="utf-8")
 
 
@@ -199,27 +199,27 @@ def replace_health(old, new, label):
 
 replace_health(
     "for ((tableName, queryFunc) in tablesToTest) {",
-    "for ((tableName, queryFunc) in tablesToTest) {\\n                    var tableStatus = TestStatus.FAILED\\n                    var tableError: DiagnosticError? = null\\n                    val tableLogs = mutableListOf<String>()",
+    "for ((tableName, queryFunc) in tablesToTest) {\n                    var tableStatus = TestStatus.FAILED\n                    var tableError: DiagnosticError? = null\n                    val tableLogs = mutableListOf<String>()",
     "per-table state"
 )
 replace_health(
-    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\\n                            succeededTables++',
-    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\\n                            tableStatus = TestStatus.WORKING\\n                            succeededTables++',
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            succeededTables++',
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\n                            tableStatus = TestStatus.WORKING\n                            succeededTables++',
     "table read success"
 )
 replace_health(
-    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\\n                                restrictedTables++',
-    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\\n                                tableStatus = TestStatus.PARTIAL\\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")\\n                                restrictedTables++',
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                restrictedTables++',
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\n                                tableStatus = TestStatus.PARTIAL\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")\n                                restrictedTables++',
     "RLS restriction detail"
 )
 replace_health(
-    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\\n                                failedTables++',
-    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\\n                                tableStatus = TestStatus.FAILED\\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")\\n                                failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\n                                tableStatus = TestStatus.FAILED\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")\n                                failedTables++',
     "HTTP failure detail"
 )
 replace_health(
-    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\\n                        failedTables++',
-    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\\n                        tableStatus = TestStatus.FAILED\\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")\\n                        failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\n                        tableStatus = TestStatus.FAILED\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")\n                        failedTables++',
     "network failure detail"
 )
 
