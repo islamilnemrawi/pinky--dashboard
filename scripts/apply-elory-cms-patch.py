@@ -1354,7 +1354,7 @@ fun HeroCampaignMediaSelector(
 @Composable
 fun HeroBannersForm(
     config: WebsiteConfig,
-    products: List<com.pinky.dashboard.domain.model.Product>,
+    products: List<com.pinky.dashboard.domain.model.Product> = emptyList(),
     onUpdate: (WebsiteConfig) -> Unit
 ) {
     val slides = config.heroSlides.sortedBy { it.sortOrder }
