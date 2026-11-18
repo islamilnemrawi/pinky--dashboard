@@ -522,6 +522,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-r2-media.py
           python3 scripts/apply-elory-r2-media.py
 
+      - name: Fix product multi-image selection and Android image decoding
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-product-multi-image-picker.py
+          python3 scripts/apply-elory-product-multi-image-picker.py
+
       - name: Add resilient image loading and fallback to order details
         shell: bash
         run: |
