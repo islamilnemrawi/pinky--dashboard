@@ -27,8 +27,8 @@ state_new = '''    var selectedProductImageUris by remember { mutableStateOf<Lis
 if source.count(state_anchor) != 1:
     raise SystemExit("Product crop state anchor mismatch.")
 source = source.replace(state_anchor, state_new, 1)
-thumb_old = '''Box(Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, PinkPrimary, RoundedCornerShape(10.dp)))'''
-thumb_new = '''Box(Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, PinkPrimary, RoundedCornerShape(10.dp)).clickable { cropTargetUri = uri })'''
+thumb_old = '''AsyncImage(model = uri, contentDescription = "صورة محددة للمنتج", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())'''
+thumb_new = '''AsyncImage(model = uri, contentDescription = "صورة محددة للمنتج", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clickable { cropTargetUri = uri })'''
 if source.count(thumb_old) != 1:
     raise SystemExit("Product image thumbnail anchor mismatch.")
 source = source.replace(thumb_old, thumb_new, 1)
