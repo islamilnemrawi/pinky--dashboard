@@ -24,8 +24,11 @@ class EloryFirebaseMessagingService : FirebaseMessagingService() {
 
         val orderId = message.data["order_id"].orEmpty()
         val orderNumber = message.data["order_number"].orEmpty()
-        val title = message.notification?.title?.takeIf { it.isNotBlank() } ?: "🛍️ طلب جديد - Elory"
-        val body = message.notification?.body?.takeIf { it.isNotBlank() }
+        val title = message.data["title"]?.takeIf { it.isNotBlank() }
+            ?: message.notification?.title?.takeIf { it.isNotBlank() }
+            ?: "🛍️ طلب جديد - Elory"
+        val body = message.data["body"]?.takeIf { it.isNotBlank() }
+            ?: message.notification?.body?.takeIf { it.isNotBlank() }
             ?: if (orderNumber.isNotBlank()) "تم استلام طلب جديد رقم #" + orderNumber else "تم استلام طلب جديد من المتجر"
 
         PinkyNotificationManager(applicationContext).showNewOrderNotification(
