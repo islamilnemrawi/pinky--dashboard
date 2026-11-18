@@ -204,22 +204,22 @@ replace_health(
 )
 replace_health(
     'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")',
-    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\\n                            tableStatus = TestStatus.WORKING',
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\n                            tableStatus = TestStatus.WORKING',
     "table read success"
 )
 replace_health(
     'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")',
-    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\\n                                tableStatus = TestStatus.PARTIAL\\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")',
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\n                                tableStatus = TestStatus.PARTIAL\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")',
     "RLS restriction detail"
 )
 replace_health(
     'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")',
-    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\\n                                tableStatus = TestStatus.FAILED\\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")',
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\n                                tableStatus = TestStatus.FAILED\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")',
     "HTTP failure detail"
 )
 replace_health(
     'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")',
-    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\\n                        tableStatus = TestStatus.FAILED\\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")',
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\n                        tableStatus = TestStatus.FAILED\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")',
     "network failure detail"
 )
 
