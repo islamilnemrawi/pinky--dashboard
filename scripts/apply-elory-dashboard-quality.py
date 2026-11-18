@@ -153,7 +153,7 @@ if "var selectedFilter by remember" not in notification_source:
     notification_file.write_text(notification_source, encoding="utf-8")
 notification_source = notification_file.read_text(encoding="utf-8")
 if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
-    insert_at = notification_source.index("        if (notifications.isEmpty())")
+    insert_at = notification_source.index("        // Header")
     filter_block = """        if (notifications.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
