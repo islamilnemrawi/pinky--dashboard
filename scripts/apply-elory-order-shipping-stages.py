@@ -69,6 +69,12 @@ replace_once(
                 "تم الشحن", "shipped" -> SHIPPED''',
     "parse distinct shipping statuses"
 )
+replace_once(
+    MODEL,
+'''                "تم التسليم", "delivered" -> DELIVERED''',
+'''                "تم التسليم", "تم التوصيل", "delivered" -> DELIVERED''',
+    "accept online delivery wording as the delivered state"
+)
 
 COMMON = "app/src/main/java/com/pinky/dashboard/ui/components/CommonComponents.kt"
 replace_once(
@@ -156,6 +162,7 @@ replace_once(
         assertEquals("تم التسليم", OrderStatus.DELIVERED.displayLabel(PaymentMethod.COD))
         assertEquals("تم التوصيل", OrderStatus.DELIVERED.displayLabel(PaymentMethod.CREDIT_CARD))
         assertEquals("تم التوصيل", OrderStatus.DELIVERED.displayLabel(PaymentMethod.VODAFONE_CASH))
+        assertEquals(OrderStatus.DELIVERED, OrderStatus.fromString("تم التوصيل"))
         assertEquals(OrderStatus.CONFIRMING, OrderStatus.fromString("جاري التأكيد"))
         assertEquals(listOf(OrderStatus.CONFIRMING, OrderStatus.PREPARING, OrderStatus.SHIPPING, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED), OrderStatus.availableFor(PaymentMethod.COD))
         assertFalse(OrderStatus.availableFor(PaymentMethod.CREDIT_CARD).contains(OrderStatus.CONFIRMING))
