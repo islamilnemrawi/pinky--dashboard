@@ -230,6 +230,43 @@ jobs:
           python3 -m py_compile scripts/apply-elory-payment-method-persistence.py
           python3 scripts/apply-elory-payment-method-persistence.py
 
+      - name: Repair product palette, product saving, order sync and owner staff tools
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          encoded = Path("scripts/elory-dashboard-workflow-fixes.patch.gz.b64").read_text(encoding="ascii").strip()
+          patch_data = gzip.decompress(base64.b64decode(encoded, validate=True))
+          Path("/tmp/elory-dashboard-workflow-fixes.patch").write_bytes(patch_data)
+          print("Decoded source repair patch:", len(patch_data), "bytes")
+          PY
+          patch --batch --forward -p1 -d "$PROJECT_DIR" < /tmp/elory-dashboard-workflow-fixes.patch
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ["PROJECT_DIR"])
+          checks = {
+              "color palette model": ("app/src/main/java/com/pinky/dashboard/domain/model/Product.kt", "data class ProductColorOption"),
+              "color swatch editor": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductEditDialog.kt", "ألوان المنتج — اختَر اللون من الباليتة"),
+              "Supabase color options": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "color_options"),
+              "variant persistence": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "variantsJson = encodeProductVariants"),
+              "awaited product save": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductEditDialog.kt", "val saveResult = onSave(updated)"),
+              "owner product delete UI": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt", "scopeLabel = \"المنتجات\""),
+              "paged orders": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "getOrdersPage("),
+              "authoritative order cache": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "orderDao.replaceOrders(orderEntities, itemEntities)"),
+              "three order stages": ("app/src/main/java/com/pinky/dashboard/domain/model/Order.kt", "val fulfillmentStatuses"),
+              "owner password reset UI": ("app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt", "إعادة تعيين كلمة المرور"),
+              "password reset endpoint": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "admin-reset-staff-password"),
+              "non-destructive Room options migration": ("app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt", "MIGRATION_9_10")
+          }
+          for label, (relative, marker) in checks.items():
+              if marker not in (root / relative).read_text(encoding="utf-8"):
+                  raise SystemExit("Elory regression check failed: " + label)
+              print("PASS:", label)
+          PY
+
       - name: Export patched source archive for review
         shell: bash
         run: |
