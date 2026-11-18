@@ -299,6 +299,14 @@ jobs:
           python3 -m py_compile scripts/apply-elory-order-shipping-stages.py
           python3 scripts/apply-elory-order-shipping-stages.py
 
+      - name: Show selected product colors in order details
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-order-detail-color-swatch.py scripts/verify-order-detail-color-swatch.py
+          python3 scripts/apply-order-detail-color-swatch.py
+          python3 scripts/verify-order-detail-color-swatch.py
+
       - name: Add owner-PIN protected Prime subscriber deletion
         shell: bash
         run: |
