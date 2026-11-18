@@ -1,5 +1,6 @@
 from pathlib import Path
-R=Path(__file__).resolve().parents[1]
+import os
+R=Path(os.environ["PROJECT_DIR"]).resolve()
 def patch(path, old, new, name):
  p=R/path
  s=p.read_text(encoding="utf-8")
