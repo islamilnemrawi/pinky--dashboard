@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -42,7 +42,7 @@ jobs:
           packages: platform-tools
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '9.3.1'
 
@@ -85,7 +85,7 @@ jobs:
           ls -lah "$PROJECT_DIR"
 
       - name: Export source archive for source-level diagnostics
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Elory-Dashboard-Source-Archive
           path: Elory_Dashboard_Build_Ready.zip
@@ -328,7 +328,7 @@ jobs:
           zip -qr "$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip" .
 
       - name: Upload patched source archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Elory-Dashboard-Patched-Source
           path: ${{ runner.temp }}/Elory-Dashboard-Patched-Source.zip
@@ -608,7 +608,7 @@ jobs:
           ls -lh "$RUNNER_TEMP/apk-output/Elory-Dashboard-debug.apk"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Elory-Dashboard-APK
           path: ${{ runner.temp }}/apk-output/Elory-Dashboard-debug.apk
