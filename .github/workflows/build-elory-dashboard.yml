@@ -170,6 +170,13 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-product-uuid-repair.py
 
+      - name: Connect existing product weight field to Supabase and local cache
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-product-weight-repair.py
+          python3 scripts/apply-elory-product-weight-repair.py
+
       - name: Repair offer and banner UUID creation, updates, and deletes
         shell: bash
         run: |
