@@ -185,7 +185,7 @@ if "data class SupabaseDeleteSelectedDataRequest" not in api:
     if not interface_match:
         raise RuntimeError("Supabase Retrofit interface not found for delete request DTO")
     api = api[:interface_match.start()] + request_dto + api[interface_match.start():]
-api = re.sub(r"(suspend fun deleteSelectedData\\(@Body body: )Map<String, Any\\?>", r"\\1SupabaseDeleteSelectedDataRequest", api)
+api = re.sub(r"(suspend fun deleteSelectedData\(@Body body: )Map<String, Any\?>", r"\1SupabaseDeleteSelectedDataRequest", api)
 if "admin_delete_selected_data" not in api:
     match = re.search(r"interface\s+\w+\s*\{", api)
     inserted = False
