@@ -62,8 +62,8 @@ Deno.serve(async (request: Request) => {
     ) as any[];
 
     const actorProfile = profiles?.[0] ?? null;
-    const actorEmail = String(actor.email ?? "").toLowerCase();
-    const isOwner = actorEmail === "ilnemrawi@gmail.com" && actorProfile?.active === true;
+    const isOwner = actorProfile?.active === true &&
+      String(actorProfile?.role ?? "").trim().toLowerCase() === "owner";
     const actorPermissions = actorProfile?.permissions && typeof actorProfile.permissions === "object"
       ? actorProfile.permissions : {};
 
@@ -97,10 +97,6 @@ Deno.serve(async (request: Request) => {
     if (["admin", "manager", "owner"].includes(role) && !isOwner) {
       return reply({ error: "إنشاء مدير نظام أو مدير أو مالك متاح لحساب المالك فقط" }, 403);
     }
-    if (role === "owner" && email === "ilnemrawi@gmail.com") {
-      return reply({ error: "لا يمكن إنشاء نسخة ثانية من حساب المالك الأساسي" }, 409);
-    }
-
     const existing = await serviceRequest(
       "staff_profiles?email=eq." + encodeURIComponent(email) + "&select=id&limit=1",
       { method: "GET" },
@@ -137,7 +133,8 @@ Deno.serve(async (request: Request) => {
       const rows = await serviceRequest("staff_profiles?on_conflict=id", {
         method: "POST",
         body: JSON.stringify([{
-          id: authData.id, email, name, role, permissions, active,
+          id: authData.id, email, name, phone: phone || null, role, permissions, active,
+          last_active: new Date().toISOString(),
         }]),
       }) as any[];
 
@@ -149,7 +146,8 @@ Deno.serve(async (request: Request) => {
         role: row.role ?? role,
         permissions: row.permissions ?? permissions,
         active: row.active ?? active,
-        phone,
+        phone: row.phone ?? phone,
+        last_active: row.last_active ?? new Date().toISOString(),
       }, 201);
     } catch (error) {
       // Roll back Auth user creation if profile upsert fails.
