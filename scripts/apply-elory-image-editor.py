@@ -21,14 +21,12 @@ source = source.replace(
     "import com.pinky.dashboard.ui.components.ProtectedFieldPlaceholder\nimport com.pinky.dashboard.ui.components.ImageCropEditorDialog",
     1
 )
-edit_state = '''    var selectedProductImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var isSaving by remember { mutableStateOf(false) }'''
+state_anchor = '''    var selectedProductImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }'''
 state_new = '''    var selectedProductImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var cropTargetUri by remember { mutableStateOf<Uri?>(null) }
-    var isSaving by remember { mutableStateOf(false) }'''
-if source.count(edit_state) != 1:
+    var cropTargetUri by remember { mutableStateOf<Uri?>(null) }'''
+if source.count(state_anchor) != 1:
     raise SystemExit("Product crop state anchor mismatch.")
-source = source.replace(edit_state, state_new, 1)
+source = source.replace(state_anchor, state_new, 1)
 thumb_old = '''Box(Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, PinkPrimary, RoundedCornerShape(10.dp)))'''
 thumb_new = '''Box(Modifier.size(76.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, PinkPrimary, RoundedCornerShape(10.dp)).clickable { cropTargetUri = uri })'''
 if source.count(thumb_old) != 1:
