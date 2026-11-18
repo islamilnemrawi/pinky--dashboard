@@ -154,34 +154,12 @@ if "items(visibleNotifications, key = { it.id })" not in notification_source:
 notification_file.write_text(notification_source, encoding="utf-8")
 
 shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
-edit(shipping, "    var searchQuery by remember { mutableStateOf(\"\") }\n",
-     "    var searchQuery by remember { mutableStateOf(\"\") }\n    var showAccountingNote by remember { mutableStateOf(false) }\n",
-     "shipping disclosure state")
-edit(shipping, """                        Text(
-                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "ملاحظة محاسبية: السعر هنا هو كامل المبلغ المستحق لشركة الشحن، وليس إيرادًا للمتجر. يُحفظ كسعر تكلفة على الطلب وقت إنشائه ويُخصم من الربح، بما في ذلك الشحن المجاني في Prime. تغيير السعر لاحقًا لا يغيّر تكلفة الطلبات القديمة.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )""",
-"""                        Text(text = "إدارة أسعار الشحن والمحافظات والمراكز التابعة لها.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = { showAccountingNote = !showAccountingNote }, contentPadding = PaddingValues(0.dp)) {
-                            Icon(if (showAccountingNote) Icons.Outlined.ExpandLess else Icons.Outlined.Info,
-                                contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("معلومة محاسبية", fontSize = 12.sp)
-                        }
-                        if (showAccountingNote) Text(
-                            text = "السعر هو تكلفة شركة الشحن وليس إيراداً للمتجر، ويُحفظ على الطلب وقت إنشائه ويُخصم من الربح، بما في ذلك الشحن المجاني في Prime. تغيير السعر لاحقاً لا يغيّر تكلفة الطلبات القديمة.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )""", "compact shipping intro")
-edit(shipping, "                        Spacer(modifier = Modifier.height(16.dp))\n\n                        // Search Input",
-"""                        Spacer(modifier = Modifier.height(8.dp))
+shipping_file = ROOT / shipping
+shipping_source = shipping_file.read_text(encoding="utf-8")
+if "governorates.size" not in shipping_source:
+    marker = shipping_source.index("// Search Input")
+    insert_at = shipping_source.rfind("\\n", 0, marker) + 1
+    coverage_block = """                        Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             val activeCount = governorates.count { it.isActive }
                             val centerCount = shippingCenters.count { it.isActive }
@@ -202,7 +180,10 @@ edit(shipping, "                        Spacer(modifier = Modifier.height(16.dp)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Search Input""", "shipping visible coverage")
+"""
+    shipping_source = shipping_source[:insert_at] + coverage_block + shipping_source[insert_at:]
+    shipping_file.write_text(shipping_source, encoding="utf-8")
+
 
 health = "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
 edit(health, "                for ((tableName, queryFunc) in tablesToTest) {",
