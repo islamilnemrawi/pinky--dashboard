@@ -87,11 +87,11 @@ ui = '''                    item {
 '''
 s = s[:i] + ui + s[j:]
 old_save = '''                                        val finalImageUrl = selectedMainImageUri?.let { uri ->
-                                            SupabaseStorageUploader.uploadProductImage(context.contentResolver, uri, productId, "main")
+                                            SupabaseStorageUploader.uploadProductImage(context.contentResolver, uri, productId, "main", if (initialProduct == null) "products.add" else "products.edit")
                                         } ?: imageUrl
                                         val finalGallery = if (selectedGalleryUris.isNotEmpty()) {
                                             selectedGalleryUris.mapIndexed { index, uri ->
-                                                SupabaseStorageUploader.uploadProductImage(context.contentResolver, uri, productId, "gallery_INDEX")
+                                                SupabaseStorageUploader.uploadProductImage(context.contentResolver, uri, productId, "gallery_INDEX", if (initialProduct == null) "products.add" else "products.edit")
                                             }
                                         } else {
                                             initialProduct?.gallery ?: emptyList()
