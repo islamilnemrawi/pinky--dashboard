@@ -72,21 +72,27 @@ patch(product, old_save, new_save, "Non-duplicating gallery persistence")
 
 # Show the complete UUID on each product card and provide a dedicated copy action.
 products = "app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt"
-copy_anchor = '''            CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج", modifier = Modifier.testTag("copy_product_${product.id}"))'''
-copy_row = copy_anchor + '''
-            Row(
+id_row = '''            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("معرّف المنتج: ${product.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                CopyTextButton(
-                    value = product.id,
-                    contentDescription = "نسخ معرّف المنتج",
-                    modifier = Modifier.testTag("copy_product_id_${product.id}")
-                )
-            }'''
-patch(products, copy_anchor, copy_row, "Visible product ID and copy action")
+                IconButton(
+                    onClick = { copyTextToClipboard(clipboardContext, "معرّف المنتج", product.id) },
+                    modifier = Modifier.size(32.dp).testTag("copy_product_id_${product.id}")
+                ) {
+                    Icon(Icons.Outlined.ContentCopy, contentDescription = "نسخ معرّف المنتج", modifier = Modifier.size(16.dp))
+                }
+            }
+
+'''
+patch(
+    products,
+    '            if (product.description.isNotEmpty()) {',
+    id_row + '            if (product.description.isNotEmpty()) {',
+    "Visible product ID and copy action"
+)
 
 # Static source-level guards: fail the APK build if a future patch drops any behavior.
 dialog_source = (root / product).read_text(encoding="utf-8")
