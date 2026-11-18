@@ -77,12 +77,10 @@ edit(order, "    var noteText by remember { mutableStateOf(order.notes) }\n",
 edit(order, 'IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
      'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))\n                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
      "copy order action")
-edit(order, 'text = "رمز العميل: ${order.customerOrderCode}",\n                                style = MaterialTheme.typography.bodySmall,\n                                color = MaterialTheme.colorScheme.onSurfaceVariant\n                            )',
-     'text = "رمز العميل: ${order.customerOrderCode}",\n                                style = MaterialTheme.typography.bodySmall,\n                                color = MaterialTheme.colorScheme.onSurfaceVariant,\n                                modifier = Modifier.weight(1f)\n                            )',
-     "customer code row")
-edit(order, '                                modifier = Modifier.weight(1f)\n                            )\n                        }',
-     '                                modifier = Modifier.weight(1f)\n                            )\n                            CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\n                        }',
-     "customer code copy")
+edit(order, '                            CopyTextButton(\\n                                value = orderCopyText,',
+     '                            CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\\n                            CopyTextButton(\\n                                value = orderCopyText,',
+     "copy customer order code separately")
+
 
 products = "app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt"
 edit(products, "import com.pinky.dashboard.ui.components.OwnerDataResetControls\n",
