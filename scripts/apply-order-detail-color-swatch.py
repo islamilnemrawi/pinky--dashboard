@@ -17,8 +17,9 @@ new_attributes = '''                                    val attributes = listOfN
                                         if (item.size.isNullOrEmpty()) null else "المقاس: ${item.size}"
                                     )'''
 if new_attributes not in source:
-    if source.count(old_attributes) != 1:
-        raise SystemExit(f"Expected one order-item attributes block, found {source.count(old_attributes)}")
+    count = source.count(old_attributes)
+    if count != 1:
+        raise SystemExit(f"Expected one order-item attributes block, found {count}")
     source = source.replace(old_attributes, new_attributes, 1)
     print("PASS: remove raw color code from order item attribute text")
 else:
@@ -72,8 +73,9 @@ new_insert = '''                                    if (attributes.isNotEmpty())
                                     Text(
                                         text = "${item.quantity} قطعة × ${Formatters.formatCurrencyEgp(item.unitPrice)}",'''
 if new_insert not in source:
-    if source.count(old_insert) != 1:
-        raise SystemExit(f"Expected one order item attribute rendering block, found {source.count(old_insert)}")
+    count = source.count(old_insert)
+    if count != 1:
+        raise SystemExit(f"Expected one order item attribute rendering block, found {count}")
     source = source.replace(old_insert, new_insert, 1)
     print("PASS: render selected color as a circular swatch")
 else:
@@ -140,4 +142,42 @@ if 'internal fun parseOrderItemColor(value: String)' not in source:
     source = source.replace(marker, helper, 1)
 
 DETAIL.write_text(source, encoding="utf-8")
-print("PASS: dashboard order-detail color swatch patch")
+
+test_path = ROOT / "app/src/test/java/com/pinky/dashboard/OrderItemColorTest.kt"
+test_path.parent.mkdir(parents=True, exist_ok=True)
+test_path.write_text('''package com.pinky.dashboard
+
+import androidx.compose.ui.graphics.Color
+import com.pinky.dashboard.ui.screens.orders.parseOrderItemColor
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class OrderItemColorTest {
+    @Test
+    fun parsesSixDigitHexColorExactly() {
+        assertEquals(Color(0xFFFF0000), parseOrderItemColor("#FF0000"))
+    }
+
+    @Test
+    fun parsesShortHexColor() {
+        assertEquals(Color(0xFF00FF00), parseOrderItemColor("#0F0"))
+    }
+
+    @Test
+    fun parsesArgbHexColor() {
+        assertEquals(Color(0x80112233), parseOrderItemColor("#80112233"))
+    }
+
+    @Test
+    fun parsesArabicColorNames() {
+        assertEquals(Color(0xFF2196F3), parseOrderItemColor("أزرق"))
+    }
+
+    @Test
+    fun invalidColorDoesNotCrash() {
+        assertNull(parseOrderItemColor("#12"))
+    }
+}
+''', encoding="utf-8")
+print("PASS: add focused order-color parsing regression tests")
