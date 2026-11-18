@@ -158,7 +158,16 @@ shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingSc
 edit(shipping, "    var searchQuery by remember { mutableStateOf(\"\") }\n",
      "    var searchQuery by remember { mutableStateOf(\"\") }\n    var showAccountingNote by remember { mutableStateOf(false) }\n",
      "shipping disclosure state")
-edit(shipping, '                        Text(\n                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",\n                            style = MaterialTheme.typography.bodyMedium,\n                            color = MaterialTheme.colorScheme.onSurfaceVariant\n                        )\n                        Text(\n                            text = "ملاحظة محاسبية:',
+edit(shipping, """                        Text(
+                            text = "تعديل وإضافة أسعار شحن المحافظات ومندوبين التوصيل لكل المراكز الفرعية التابعة لها.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "ملاحظة محاسبية: السعر هنا هو كامل المبلغ المستحق لشركة الشحن، وليس إيرادًا للمتجر. يُحفظ كسعر تكلفة على الطلب وقت إنشائه ويُخصم من الربح، بما في ذلك الشحن المجاني في Prime. تغيير السعر لاحقًا لا يغيّر تكلفة الطلبات القديمة.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )""",
 """                        Text(text = "إدارة أسعار الشحن والمحافظات والمراكز التابعة لها.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         TextButton(onClick = { showAccountingNote = !showAccountingNote }, contentPadding = PaddingValues(0.dp)) {
@@ -168,7 +177,10 @@ edit(shipping, '                        Text(\n                            text 
                             Text("معلومة محاسبية", fontSize = 12.sp)
                         }
                         if (showAccountingNote) Text(
-                            text = "ملاحظة محاسبية:""", "compact shipping intro")
+                            text = "السعر هو تكلفة شركة الشحن وليس إيراداً للمتجر، ويُحفظ على الطلب وقت إنشائه ويُخصم من الربح، بما في ذلك الشحن المجاني في Prime. تغيير السعر لاحقاً لا يغيّر تكلفة الطلبات القديمة.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )""", "compact shipping intro")
 edit(shipping, "                        Spacer(modifier = Modifier.height(16.dp))\n\n                        // Search Input",
 """                        Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
