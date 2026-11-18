@@ -51,7 +51,7 @@ swatch = '''
                                                     )
                                                     .testTag("order_item_color_swatch"),
                                                 contentAlignment = Alignment.Center
-                                            )
+                                            ) {}
                                         }
                                     }
 '''
