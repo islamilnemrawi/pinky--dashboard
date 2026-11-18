@@ -522,6 +522,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-r2-media.py
           python3 scripts/apply-elory-r2-media.py
 
+      - name: Add resilient image loading and fallback to order details
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-order-image-fallback.py
+          python3 scripts/apply-elory-order-image-fallback.py
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
