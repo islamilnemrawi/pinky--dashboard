@@ -285,6 +285,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-order-payment-status-flow.py
           python3 scripts/apply-elory-order-payment-status-flow.py
 
+      - name: Label online and cash payments and expose failed Paymob status
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-payment-display-and-failure.py
+          python3 scripts/apply-elory-payment-display-and-failure.py
+
       - name: Add distinct shipping and shipped order stages
         shell: bash
         run: |
