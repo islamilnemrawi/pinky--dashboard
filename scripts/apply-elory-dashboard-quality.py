@@ -105,14 +105,19 @@ edit(products, "    Card(\n        modifier = Modifier\n            .fillMaxWidt
         modifier = Modifier
             .fillMaxWidth()
             .testTag("product_card_${product.id}"),""", "product copy summary")
-edit(products, '            Text(\n                text = product.name,\n                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),\n                color = MaterialTheme.colorScheme.onSurface\n            )',
-"""            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = product.name,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج",
-                    modifier = Modifier.testTag("copy_product_${product.id}"))
-            }""", "product copy action")
+product_file = ROOT / products
+product_source = product_file.read_text(encoding="utf-8")
+if "copy_product_" not in product_source:
+    name_at = product_source.find("text = product.name,")
+    if name_at < 0:
+        raise SystemExit("Could not find product title for copy action")
+    close_at = product_source.find("\\n            )", name_at)
+    if close_at < 0:
+        raise SystemExit("Could not find end of product title")
+    close_at += len("\\n            )")
+    product_source = product_source[:close_at] + '\\n            CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج", modifier = Modifier.testTag("copy_product_${product.id}"))' + product_source[close_at:]
+    product_file.write_text(product_source, encoding="utf-8")
+
 
 notifications = "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt"
 edit(notifications, "import androidx.compose.runtime.Composable\n",
