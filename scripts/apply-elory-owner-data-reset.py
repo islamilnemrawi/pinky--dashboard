@@ -169,8 +169,22 @@ repos = repos.replace(
         }''', 1)
 write(REPO_FILE, repos)
 
-# Supabase RPC declarations.
+# Supabase RPC declarations. Use a concrete Moshi DTO for Retrofit @Body:
+# Kotlin Map<String, Any?> is emitted to Java as Map<String, ?>, which Retrofit rejects.
 api = read(API_FILE)
+request_dto = """@JsonClass(generateAdapter = true)
+data class SupabaseDeleteSelectedDataRequest(
+    @Json(name = "p_pin") val pin: String,
+    @Json(name = "p_scope") val scope: String,
+    @Json(name = "p_ids") val ids: List<String>?
+)
+
+"""
+if "data class SupabaseDeleteSelectedDataRequest" not in api:
+    interface_match = re.search(r"interface\\s+\\w+\\s*\\{", api)
+    if not interface_match:
+        raise RuntimeError("Supabase Retrofit interface not found for delete request DTO")
+    api = api[:interface_match.start()] + request_dto + api[interface_match.start():]
 if "admin_delete_selected_data" not in api:
     match = re.search(r"interface\s+\w+\s*\{", api)
     inserted = False
@@ -187,7 +201,7 @@ if "admin_delete_selected_data" not in api:
     suspend fun setOwnerDataResetPin(@Body body: Map<String, String>): retrofit2.Response<Map<String, Any>>
 
     @POST("rest/v1/rpc/admin_delete_selected_data")
-    suspend fun deleteSelectedData(@Body body: Map<String, Any?>): retrofit2.Response<Map<String, Any>>
+    suspend fun deleteSelectedData(@Body body: SupabaseDeleteSelectedDataRequest): retrofit2.Response<Map<String, Any>>
 '''
             api = api[:end] + methods + api[end:]
             inserted = True
@@ -247,7 +261,7 @@ if "suspend fun refreshPrimaryOwnerStatus()" not in vm:
         }
         try {
             val response = SupabaseClient.service.deleteSelectedData(
-                mapOf("p_pin" to pin, "p_scope" to scope, "p_ids" to ids)
+                SupabaseDeleteSelectedDataRequest(pin = pin, scope = scope, ids = ids)
             )
             if (!response.isSuccessful) {
                 return@withContext Result.failure(IllegalStateException("فشل الحذف من قاعدة البيانات (\${response.code()})"))
