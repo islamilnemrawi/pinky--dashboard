@@ -1235,7 +1235,7 @@ hero_fields = [
     ('mobileMediaUrl', '    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",'),
     ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = "",'),
     ('buttonVisible', '    @Json(name = "buttonVisible") val buttonVisible: Boolean = false,'),
-    ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-center",'),
+    ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-left",'),
     ('actionType', '    @Json(name = "actionType") val actionType: String = "url",'),
     ('productId', '    @Json(name = "productId") val productId: String = ""')
 ]
@@ -1640,7 +1640,7 @@ fun HeroBannersForm(
                     mobileMediaUrl = "",
                     posterUrl = "",
                     buttonVisible = false,
-                    buttonPosition = "bottom-center",
+                    buttonPosition = "bottom-left",
                     actionType = "product",
                     productId = ""
                 )
