@@ -120,13 +120,22 @@ if "copy_product_" not in product_source:
 
 
 notifications = "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt"
-edit(notifications, "import androidx.compose.runtime.Composable\n",
-"""import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-""", "notification filter imports")
+notification_file = ROOT / notifications
+notification_source = notification_file.read_text(encoding="utf-8")
+if "import androidx.compose.runtime.*" not in notification_source:
+    for required_import in (
+        "import androidx.compose.runtime.getValue",
+        "import androidx.compose.runtime.mutableStateOf",
+        "import androidx.compose.runtime.remember",
+        "import androidx.compose.runtime.setValue",
+    ):
+        if required_import not in notification_source:
+            notification_source = notification_source.replace(
+                "import androidx.compose.runtime.Composable",
+                "import androidx.compose.runtime.Composable\\n" + required_import,
+                1
+            )
+notification_file.write_text(notification_source, encoding="utf-8")
 edit(notifications, "    Column(\n        modifier = modifier",
 """    var selectedFilter by remember { mutableStateOf("all") }
     val unreadCount = notifications.count { !it.isRead }
