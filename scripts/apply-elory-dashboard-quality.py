@@ -122,25 +122,10 @@ if "copy_product_" not in product_source:
 notifications = "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt"
 notification_file = ROOT / notifications
 notification_source = notification_file.read_text(encoding="utf-8")
-if "import androidx.compose.runtime.*" not in notification_source:
-    for required_import in (
-        "import androidx.compose.runtime.getValue",
-        "import androidx.compose.runtime.mutableStateOf",
-        "import androidx.compose.runtime.remember",
-        "import androidx.compose.runtime.setValue",
-    ):
-        if required_import not in notification_source:
-            notification_source = notification_source.replace(
-                "import androidx.compose.runtime.Composable",
-                "import androidx.compose.runtime.Composable\\n" + required_import,
-                1
-            )
-notification_file.write_text(notification_source, encoding="utf-8")
-notification_source = notification_file.read_text(encoding="utf-8")
-if "var selectedFilter by remember" not in notification_source:
-    fn_start = notification_source.index("fun NotificationsScreen(")
+fn_start = notification_source.index("fun NotificationsScreen(")
+if "val visibleNotifications = when (selectedFilter)" not in notification_source:
     body_start = notification_source.index(") {", fn_start) + 3
-    state_block = """ 
+    state_block = """
     var selectedFilter by remember { mutableStateOf("all") }
     val unreadCount = notifications.count { !it.isRead }
     val visibleNotifications = when (selectedFilter) {
@@ -150,13 +135,11 @@ if "var selectedFilter by remember" not in notification_source:
     }
 """
     notification_source = notification_source[:body_start] + state_block + notification_source[body_start:]
-    notification_file.write_text(notification_source, encoding="utf-8")
-notification_source = notification_file.read_text(encoding="utf-8")
 if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
-    state_start = notification_source.index("val visibleNotifications = when (selectedFilter)")
-    state_end = notification_source.index("    }", state_start) + len("    }")
-    insert_at = state_end
-    filter_block = """        if (notifications.isNotEmpty()) {
+    column_start = notification_source.index("Column(", fn_start)
+    column_body = notification_source.index(") {", column_start) + 3
+    filter_block = """
+        if (notifications.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = selectedFilter == "all", onClick = { selectedFilter = "all" }, label = { Text("الكل ${notifications.size}") })
@@ -165,11 +148,10 @@ if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
             }
         }
 """
-    notification_source = notification_source[:insert_at] + filter_block + notification_source[insert_at:]
+    notification_source = notification_source[:column_body] + filter_block + notification_source[column_body:]
 if "items(visibleNotifications, key = { it.id })" not in notification_source:
     notification_source = notification_source.replace("items(notifications, key = { it.id })", "items(visibleNotifications, key = { it.id })", 1)
 notification_file.write_text(notification_source, encoding="utf-8")
-
 
 shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
 edit(shipping, "    var searchQuery by remember { mutableStateOf(\"\") }\n",
