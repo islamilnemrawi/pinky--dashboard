@@ -3,6 +3,13 @@ import re
 from pathlib import Path
 
 root = Path(os.environ["PROJECT_DIR"]).resolve()
+repo_root = Path(__file__).resolve().parents[1]
+cropper_overlay = repo_root / "scripts/android-feature-overlay/app/src/main/java/com/pinky/dashboard/ui/components/ImageCropEditorDialog.kt"
+cropper_target = root / "app/src/main/java/com/pinky/dashboard/ui/components/ImageCropEditorDialog.kt"
+if not cropper_overlay.is_file():
+    raise SystemExit("Image crop editor source is missing from the Android feature overlay.")
+cropper_target.parent.mkdir(parents=True, exist_ok=True)
+cropper_target.write_text(cropper_overlay.read_text(encoding="utf-8"), encoding="utf-8")
 
 def edit(relative, old, new, label):
     path = root / relative
