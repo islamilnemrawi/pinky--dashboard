@@ -3,10 +3,12 @@ import os
 R=Path(os.environ["PROJECT_DIR"]).resolve()
 def patch(path, old, new, name):
  p=R/path
- s=p.read_text(encoding="utf-8")
+s=p.read_text(encoding="utf-8")
+ old=old.replace("@@","$")
+ new=new.replace("@@","$")
  if new in s:return
  if old not in s:raise SystemExit("Missing patch anchor: "+name)
- p.write_text(s.replace(old,new.replace("@@","$"),1),encoding="utf-8")
+ p.write_text(s.replace(old,new,1),encoding="utf-8")
 
 # Native clipboard component
 p=R/"app/src/main/java/com/pinky/dashboard/ui/components/CopyTextButton.kt"
