@@ -136,16 +136,21 @@ if "import androidx.compose.runtime.*" not in notification_source:
                 1
             )
 notification_file.write_text(notification_source, encoding="utf-8")
-edit(notifications, "    Column(\n        modifier = modifier",
-"""    var selectedFilter by remember { mutableStateOf("all") }
+notification_source = notification_file.read_text(encoding="utf-8")
+if "var selectedFilter by remember" not in notification_source:
+    fn_start = notification_source.index("fun NotificationsScreen(")
+    body_start = notification_source.index(") {", fn_start) + 3
+    state_block = """ 
+    var selectedFilter by remember { mutableStateOf("all") }
     val unreadCount = notifications.count { !it.isRead }
     val visibleNotifications = when (selectedFilter) {
         "unread" -> notifications.filter { !it.isRead }
         "read" -> notifications.filter { it.isRead }
         else -> notifications
     }
-    Column(
-        modifier = modifier""", "notification filter state")
+"""
+    notification_source = notification_source[:body_start] + state_block + notification_source[body_start:]
+    notification_file.write_text(notification_source, encoding="utf-8")
 edit(notifications, "        if (notifications.isEmpty()) {",
 """        if (notifications.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
