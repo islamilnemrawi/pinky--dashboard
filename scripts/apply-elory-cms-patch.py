@@ -1235,7 +1235,7 @@ hero_fields = [
     ('mobileMediaUrl', '    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",'),
     ('posterUrl', '    @Json(name = "posterUrl") val posterUrl: String = "",'),
     ('buttonVisible', '    @Json(name = "buttonVisible") val buttonVisible: Boolean = false,'),
-    ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-center",'),
+    ('buttonPosition', '    @Json(name = "buttonPosition") val buttonPosition: String = "bottom-left",'),
     ('actionType', '    @Json(name = "actionType") val actionType: String = "url",'),
     ('productId', '    @Json(name = "productId") val productId: String = ""')
 ]
@@ -1354,6 +1354,7 @@ fun HeroCampaignMediaSelector(
 @Composable
 fun HeroBannersForm(
     config: WebsiteConfig,
+    products: List<com.pinky.dashboard.domain.model.Product> = emptyList(),
     onUpdate: (WebsiteConfig) -> Unit
 ) {
     val slides = config.heroSlides.sortedBy { it.sortOrder }
@@ -1533,22 +1534,64 @@ fun HeroBannersForm(
 
                     when (slide.actionType) {
                         "product" -> {
+                            var productSearch by remember(slide.id, slide.productId) {
+                                mutableStateOf(products.firstOrNull { it.id == slide.productId }?.name.orEmpty())
+                            }
                             OutlinedTextField(
-                                value = slide.productId,
-                                onValueChange = { value -> updateSlide(slide.id) { it.copy(productId = value.trim()) } },
-                                label = { Text("معرّف المنتج") },
-                                placeholder = { Text("الصقي معرّف المنتج هنا") },
+                                value = productSearch,
+                                onValueChange = { productSearch = it },
+                                label = { Text("ابحث عن المنتج بالاسم") },
+                                placeholder = { Text("اكتب اسم المنتج لاختياره") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true
                             )
+                            val matchingProducts = remember(products, productSearch) {
+                                if (productSearch.isBlank()) products.take(8)
+                                else products.filter { it.name.contains(productSearch, ignoreCase = true) }.take(8)
+                            }
+                            if (productSearch.isNotBlank() && matchingProducts.isNotEmpty() &&
+                                products.firstOrNull { it.id == slide.productId }?.name != productSearch) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                ) {
+                                    Column {
+                                        matchingProducts.forEach { product ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().clickable {
+                                                    updateSlide(slide.id) { it.copy(productId = product.id) }
+                                                    productSearch = product.name
+                                                }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(product.name, fontWeight = FontWeight.SemiBold)
+                                                    Text("معرّف: " + product.id.take(8), style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Icon(Icons.Outlined.CheckCircle, contentDescription = "اختيار المنتج")
+                                            }
+                                            if (product != matchingProducts.last()) Divider()
+                                        }
+                                    }
+                                }
+                            }
+                            products.firstOrNull { it.id == slide.productId }?.let { selected ->
+                                Text("المنتج المختار: " + selected.name, color = Color(0xFF16834A),
+                                    style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            }
                             Text(
                                 "الأفضل اختيار صفحة المنتج: سيفتح تفاصيله ليختار العميل اللون والمقاس ثم يضيفه إلى السلة.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (slide.productId.isBlank()) {
-                                Text("أضيفي معرّف المنتج حتى يعمل الضغط على الإعلان.", color = MaterialTheme.colorScheme.error,
+                                Text("اختَر المنتج من نتائج البحث حتى يفتح الزر صفحة المنتج الصحيحة.", color = MaterialTheme.colorScheme.error,
                                     style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (products.isEmpty()) {
+                                Text("قائمة المنتجات غير متاحة حاليًا. حدّث المنتجات في الداشبورد ثم أعد المحاولة.",
+                                    color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         "url" -> {
@@ -1597,7 +1640,7 @@ fun HeroBannersForm(
                     mobileMediaUrl = "",
                     posterUrl = "",
                     buttonVisible = false,
-                    buttonPosition = "bottom-center",
+                    buttonPosition = "bottom-left",
                     actionType = "product",
                     productId = ""
                 )
