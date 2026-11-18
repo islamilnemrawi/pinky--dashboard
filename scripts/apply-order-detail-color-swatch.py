@@ -113,7 +113,7 @@ internal fun parseOrderItemColor(value: String): Color? {
                 else -> return null
             }
         }.getOrNull() ?: return null
-        return Color(argb)
+        return Color(argb.toLong() and 0xFFFFFFFFL)
     }
 
     return when (raw.lowercase()) {
