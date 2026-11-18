@@ -515,6 +515,13 @@ jobs:
           fi
           echo 'Previously reported getProducts() parameters are present.'
 
+      - name: Integrate Cloudflare R2 media uploads
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-r2-media.py
+          python3 scripts/apply-elory-r2-media.py
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
