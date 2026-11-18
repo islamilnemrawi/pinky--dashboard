@@ -151,8 +151,10 @@ if "var selectedFilter by remember" not in notification_source:
 """
     notification_source = notification_source[:body_start] + state_block + notification_source[body_start:]
     notification_file.write_text(notification_source, encoding="utf-8")
-edit(notifications, "        if (notifications.isEmpty()) {",
-"""        if (notifications.isNotEmpty()) {
+notification_source = notification_file.read_text(encoding="utf-8")
+if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
+    insert_at = notification_source.index("        if (notifications.isEmpty())")
+    filter_block = """        if (notifications.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = selectedFilter == "all", onClick = { selectedFilter = "all" }, label = { Text("الكل ${notifications.size}") })
@@ -160,16 +162,12 @@ edit(notifications, "        if (notifications.isEmpty()) {",
                 FilterChip(selected = selectedFilter == "read", onClick = { selectedFilter = "read" }, label = { Text("مقروءة ${notifications.size - unreadCount}") })
             }
         }
-        if (notifications.isEmpty()) {""", "notification filters")
-edit(notifications, "                items(notifications, key = { it.id }) { notif ->",
-     "                items(visibleNotifications, key = { it.id }) { notif ->", "filtered notifications")
-edit(notifications, "        } else {\n            LazyColumn(",
-"""        } else if (visibleNotifications.isEmpty()) {
-            EmptyStateCard(title = if (selectedFilter == "unread") "لا توجد إشعارات جديدة" else "لا توجد إشعارات مقروءة",
-                message = "غيّر الفلتر لعرض باقي الإشعارات", icon = Icons.Outlined.NotificationsNone,
-                modifier = Modifier.padding(16.dp))
-        } else {
-            LazyColumn(""", "filtered empty state")
+"""
+    notification_source = notification_source[:insert_at] + filter_block + notification_source[insert_at:]
+if "items(visibleNotifications, key = { it.id })" not in notification_source:
+    notification_source = notification_source.replace("items(notifications, key = { it.id })", "items(visibleNotifications, key = { it.id })", 1)
+notification_file.write_text(notification_source, encoding="utf-8")
+
 
 shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
 edit(shipping, "    var searchQuery by remember { mutableStateOf(\"\") }\n",
