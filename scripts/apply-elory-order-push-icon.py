@@ -262,4 +262,9 @@ for relative in (
     if "SupabaseDashboardPushDeviceDto" in source or "registerPushDevice(" in source:
         raise SystemExit("A legacy direct push registration remains in " + relative)
 
-print("PASS: real FCM registration/receiver, default-sound channel, permission, and branded Elory launcher.")
+service_source = required_sources[1].read_text(encoding="utf-8")
+for marker in ('message.data["title"]', 'message.data["body"]', 'message.data["type"] != "new_order"'):
+    if marker not in service_source:
+        raise SystemExit("FCM data-only notification handling is missing: " + marker)
+
+print("PASS: real FCM registration/receiver, data-only new-order notification handling, default-sound channel, permission, and branded Elory launcher.")
