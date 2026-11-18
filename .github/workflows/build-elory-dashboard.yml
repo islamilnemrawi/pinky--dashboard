@@ -246,6 +246,13 @@ jobs:
           # KeyboardOptions is part of Compose Foundation, not ui.text.input.
           sed -i 's/import androidx.compose.ui.text.input.KeyboardOptions/import androidx.compose.foundation.text.KeyboardOptions/' "$PROJECT_DIR/app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt"
           python3 - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          encoded = Path("scripts/elory-dashboard-fcm-order-refresh.patch.gz.b64").read_text(encoding="ascii").strip()
+          Path("/tmp/elory-dashboard-fcm-order-refresh.patch").write_bytes(gzip.decompress(base64.b64decode(encoded, validate=True)))
+          PY
+          patch --batch --forward -p1 -d "$PROJECT_DIR" < /tmp/elory-dashboard-fcm-order-refresh.patch
+          python3 - <<'PY'
           import os
           from pathlib import Path
           root = Path(os.environ["PROJECT_DIR"])
@@ -262,6 +269,7 @@ jobs:
               "owner password reset UI": ("app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt", "إعادة تعيين كلمة المرور"),
               "Compose password keyboard import": ("app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt", "import androidx.compose.foundation.text.KeyboardOptions"),
               "password reset endpoint": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "admin-reset-staff-password"),
+              "FCM immediate order refresh": ("app/src/main/java/com/pinky/dashboard/core/notification/EloryFirebaseMessagingService.kt", "OrderRepositoryImpl(database).syncOrders()"),
               "non-destructive Room options migration": ("app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt", "MIGRATION_9_10")
           }
           for label, (relative, marker) in checks.items():
