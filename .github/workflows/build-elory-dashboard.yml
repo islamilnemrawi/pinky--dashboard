@@ -177,6 +177,32 @@ jobs:
           python3 -m py_compile scripts/apply-elory-product-weight-repair.py
           python3 scripts/apply-elory-product-weight-repair.py
 
+      - name: Verify product weight is wired through editor, Supabase, and Room
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ["PROJECT_DIR"])
+          checks = {
+              "domain model": ("app/src/main/java/com/pinky/dashboard/domain/model/Product.kt", "val weight: Double? = null"),
+              "Room entity": ("app/src/main/java/com/pinky/dashboard/data/local/entity/Entities.kt", "val weight: Double? = null"),
+              "Room migration": ("app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt", 'ALTER TABLE products ADD COLUMN weight REAL'),
+              "Room migration registration": ("app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt", "MIGRATION_8_9)"),
+              "editor restoration": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductEditDialog.kt", "initialProduct?.weight?.toString()"),
+              "editor validation": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductEditDialog.kt", "normalizedWeight"),
+              "editor save": ("app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductEditDialog.kt", "weight = weight"),
+              "Supabase upsert": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "weight = product.weight"),
+              "Supabase sync": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "weight = dto.weight"),
+              "Room restore": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "weight = weight"),
+          }
+          for label, (relative, marker) in checks.items():
+              if marker not in (root / relative).read_text(encoding="utf-8"):
+                  raise SystemExit("Product-weight regression: missing " + label)
+              print("PASS:", label)
+          PY
+
       - name: Repair offer and banner UUID creation, updates, and deletes
         shell: bash
         run: |
