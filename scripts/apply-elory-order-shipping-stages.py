@@ -118,6 +118,21 @@ replace_once(
 TEST = "app/src/test/java/com/pinky/dashboard/EloryProductOptionsAndOrderStatusTest.kt"
 replace_once(
     TEST,
+'''import com.pinky.dashboard.domain.model.OrderStatus''',
+'''import com.pinky.dashboard.domain.model.OrderStatus
+import com.pinky.dashboard.domain.model.PaymentMethod''',
+    "import PaymentMethod into order lifecycle regression tests"
+)
+replace_once(
+    TEST,
+'''import org.junit.Assert.assertEquals''',
+'''import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse''',
+    "import assertFalse into order lifecycle regression tests"
+)
+
+replace_once(
+    TEST,
 '''    @Test
     fun oldOrderStatusesMapToThreeCurrentFulfillmentStages() {
         assertEquals(OrderStatus.PREPARING, OrderStatus.fromString("طلب جديد"))
