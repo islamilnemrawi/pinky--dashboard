@@ -115,6 +115,34 @@ replace_once(
     "render COD preparation label correctly"
 )
 
+TEST = "app/src/test/java/com/pinky/dashboard/EloryProductOptionsAndOrderStatusTest.kt"
+replace_once(
+    TEST,
+'''    @Test
+    fun oldOrderStatusesMapToThreeCurrentFulfillmentStages() {
+        assertEquals(OrderStatus.PREPARING, OrderStatus.fromString("طلب جديد"))
+        assertEquals(OrderStatus.PREPARING, OrderStatus.fromString("جاري التجهيز"))
+        assertEquals(OrderStatus.SHIPPED, OrderStatus.fromString("تم الشحن"))
+        assertEquals(OrderStatus.SHIPPED, OrderStatus.fromString("جاري الشحن"))
+        assertEquals(OrderStatus.DELIVERED, OrderStatus.fromString("تم التسليم"))
+    }''',
+'''    @Test
+    fun orderStatusesKeepConfirmationShippingAndShipmentAsSeparateStages() {
+        assertEquals(OrderStatus.CONFIRMING, OrderStatus.fromString("جاري التأكيد"))
+        assertEquals(OrderStatus.PREPARING, OrderStatus.fromString("طلب جديد"))
+        assertEquals(OrderStatus.PREPARING, OrderStatus.fromString("جاري التحضير"))
+        assertEquals(OrderStatus.SHIPPING, OrderStatus.fromString("جاري الشحن"))
+        assertEquals(OrderStatus.SHIPPED, OrderStatus.fromString("تم الشحن"))
+        assertEquals(OrderStatus.DELIVERED, OrderStatus.fromString("تم التسليم"))
+        assertEquals(PaymentMethod.CREDIT_CARD, PaymentMethod.fromString("card"))
+        assertEquals(PaymentMethod.VODAFONE_CASH, PaymentMethod.fromString("vodafone_cash"))
+        assertEquals(OrderStatus.CONFIRMING, OrderStatus.fromString("جاري التأكيد"))
+        assertEquals(listOf(OrderStatus.CONFIRMING, OrderStatus.PREPARING, OrderStatus.SHIPPING, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED), OrderStatus.availableFor(PaymentMethod.COD))
+        assertFalse(OrderStatus.availableFor(PaymentMethod.CREDIT_CARD).contains(OrderStatus.CONFIRMING))
+    }''',
+    "update regression tests for the explicit payment-aware order lifecycle"
+)
+
 CHART = "app/src/main/java/com/pinky/dashboard/ui/components/AnalyticsChart.kt"
 replace_once(
     CHART,
