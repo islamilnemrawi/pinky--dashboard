@@ -278,6 +278,13 @@ jobs:
               print("PASS:", label)
           PY
 
+      - name: Apply payment-aware COD and Paymob order statuses
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-order-payment-status-flow.py
+          python3 scripts/apply-elory-order-payment-status-flow.py
+
       - name: Add owner-PIN protected Prime subscriber deletion
         shell: bash
         run: |
