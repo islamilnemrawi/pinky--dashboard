@@ -36,8 +36,7 @@ replace_once(
     companion object {''',
 '''    CANCELLED("ملغي");
 
-    fun displayLabel(paymentMethod: PaymentMethod?): String =
-        if (this == PREPARING && paymentMethod == PaymentMethod.COD) "جاري التجهيز" else arabicLabel
+    fun displayLabel(paymentMethod: PaymentMethod?): String = arabicLabel
 
     companion object {''',
     "place COD display label on each enum value"
@@ -151,6 +150,8 @@ replace_once(
         assertEquals(OrderStatus.DELIVERED, OrderStatus.fromString("تم التسليم"))
         assertEquals(PaymentMethod.CREDIT_CARD, PaymentMethod.fromString("card"))
         assertEquals(PaymentMethod.VODAFONE_CASH, PaymentMethod.fromString("vodafone_cash"))
+        assertEquals("جاري التحضير", OrderStatus.PREPARING.displayLabel(PaymentMethod.COD))
+        assertEquals("جاري التحضير", OrderStatus.PREPARING.displayLabel(PaymentMethod.CREDIT_CARD))
         assertEquals(OrderStatus.CONFIRMING, OrderStatus.fromString("جاري التأكيد"))
         assertEquals(listOf(OrderStatus.CONFIRMING, OrderStatus.PREPARING, OrderStatus.SHIPPING, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED), OrderStatus.availableFor(PaymentMethod.COD))
         assertFalse(OrderStatus.availableFor(PaymentMethod.CREDIT_CARD).contains(OrderStatus.CONFIRMING))
