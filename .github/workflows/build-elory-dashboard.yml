@@ -328,6 +328,42 @@ jobs:
           python3 -m py_compile scripts/fix-elory-followup-compile.py
           python3 scripts/fix-elory-followup-compile.py
 
+      - name: Add dashboard copy, notification filters, per-section diagnostics, and shipping overview
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-dashboard-quality.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-dashboard-quality.py
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ["PROJECT_DIR"])
+          checks = {
+              "clipboard component": "app/src/main/java/com/pinky/dashboard/ui/components/CopyTextButton.kt",
+              "order copy action": "app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt",
+              "product copy action": "app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt",
+              "notification filters": "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt",
+              "per-table diagnostics": "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt",
+              "shipping overview": "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt",
+          }
+          for label, relative in checks.items():
+              path = root / relative
+              if not path.is_file():
+                  raise SystemExit("Missing " + label)
+              source = path.read_text(encoding="utf-8")
+              marker = {
+                  "clipboard component": "fun CopyTextButton",
+                  "order copy action": "copy_order_details_btn",
+                  "product copy action": "copy_product_",
+                  "notification filters": "selectedFilter",
+                  "per-table diagnostics": 'updatedResults["section_$tableName"]',
+                  "shipping overview": "governorates.size",
+              }[label]
+              if marker not in source:
+                  raise SystemExit("Missing expected implementation: " + label)
+              print("PASS:", label)
+          PY
+
       - name: Export patched source archive for review
         shell: bash
         run: |
