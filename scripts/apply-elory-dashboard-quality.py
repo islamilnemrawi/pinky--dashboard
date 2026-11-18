@@ -186,24 +186,49 @@ if "governorates.size" not in shipping_source:
 
 
 health = "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
-edit(health, "                for ((tableName, queryFunc) in tablesToTest) {",
-     "                for ((tableName, queryFunc) in tablesToTest) {\n                    var tableStatus = TestStatus.FAILED\n                    var tableError: DiagnosticError? = null\n                    val tableLogs = mutableListOf<String>()",
-     "per table diagnostics")
-edit(health, '                            rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            succeededTables++',
-     '                            rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\n                            tableStatus = TestStatus.WORKING\n                            succeededTables++',
-     "per table success")
-edit(health, '                                rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                restrictedTables++',
-     '                                rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\n                                tableStatus = TestStatus.PARTIAL\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")\n                                restrictedTables++',
-     "per table RLS")
-edit(health, '                                rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                failedTables++',
-     '                                rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\n                                tableStatus = TestStatus.FAILED\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")\n                                failedTables++',
-     "per table HTTP error")
-edit(health, '                        rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        failedTables++',
-     '                        rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\n                        tableStatus = TestStatus.FAILED\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")\n                        failedTables++',
-     "per table network error")
-edit(health, '                    }\n                }\n\n                rlsLogs.add("ملخص الفحص:',
-"""                    }
-                    updatedResults["section_$tableName"] = ModuleTestResult(
+health_file = ROOT / health
+health_source = health_file.read_text(encoding="utf-8")
+
+def replace_health(old, new, label):
+    global health_source
+    if new in health_source:
+        return
+    if old not in health_source:
+        raise SystemExit("Missing health source for " + label)
+    health_source = health_source.replace(old, new, 1)
+
+replace_health(
+    "for ((tableName, queryFunc) in tablesToTest) {",
+    "for ((tableName, queryFunc) in tablesToTest) {\\n                    var tableStatus = TestStatus.FAILED\\n                    var tableError: DiagnosticError? = null\\n                    val tableLogs = mutableListOf<String>()",
+    "per-table state"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\\n                            succeededTables++',
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\\n                            tableStatus = TestStatus.WORKING\\n                            succeededTables++',
+    "table read success"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\\n                                restrictedTables++',
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\\n                                tableStatus = TestStatus.PARTIAL\\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")\\n                                restrictedTables++',
+    "RLS restriction detail"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\\n                                failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\\n                                tableStatus = TestStatus.FAILED\\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")\\n                                failedTables++',
+    "HTTP failure detail"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\\n                        failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\\n                        tableStatus = TestStatus.FAILED\\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")\\n                        failedTables++',
+    "network failure detail"
+)
+
+if 'updatedResults["section_$tableName"]' not in health_source:
+    summary_at = health_source.index('                rlsLogs.add("ملخص الفحص:')
+    loop_close = health_source.rfind("                }", 0, summary_at)
+    if loop_close < 0:
+        raise SystemExit("Could not locate end of table diagnostics loop")
+    module_result = """                    updatedResults["section_$tableName"] = ModuleTestResult(
                         name = tableName,
                         arabicName = when (tableName) {
                             "orders" -> "قسم الطلبات"
@@ -227,10 +252,10 @@ edit(health, '                    }\n                }\n\n                rlsLog
                         error = tableError
                     )
                     testResults = updatedResults.toMap()
-                }
-
-                rlsLogs.add("ملخص الفحص:""", "per table result cards")
-edit(health, "            items(testResults.values.toList()) { result ->",
-     "            items(testResults.values.toList(), key = { it.name }) { result ->", "stable diagnostics keys")
+"""
+    health_source = health_source[:loop_close] + module_result + health_source[loop_close:]
+health_source = health_source.replace("items(testResults.values.toList()) { result ->",
+    "items(testResults.values.toList(), key = { it.name }) { result ->", 1)
+health_file.write_text(health_source, encoding="utf-8")
 
 print("Applied Elory dashboard quality improvements.")
