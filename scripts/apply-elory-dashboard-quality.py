@@ -153,7 +153,9 @@ if "var selectedFilter by remember" not in notification_source:
     notification_file.write_text(notification_source, encoding="utf-8")
 notification_source = notification_file.read_text(encoding="utf-8")
 if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
-    state_end = notification_source.index("\\n    }", notification_source.index("val visibleNotifications = when (selectedFilter)")) + len("\\n    }")\n    insert_at = state_end
+    state_start = notification_source.index("val visibleNotifications = when (selectedFilter)")
+    state_end = notification_source.index("    }", state_start) + len("    }")
+    insert_at = state_end
     filter_block = """        if (notifications.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
