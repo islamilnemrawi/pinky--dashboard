@@ -1,0 +1,261 @@
+from pathlib import Path
+import os
+
+ROOT = Path(os.environ.get("PROJECT_DIR", Path(__file__).resolve().parents[1])).resolve()
+
+def edit(path, old, new, label):
+    f = ROOT / path
+    s = f.read_text(encoding="utf-8")
+    if new in s:
+        return
+    if old not in s:
+        raise SystemExit(f"Missing expected source for {label}: {path}")
+    f.write_text(s.replace(old, new, 1), encoding="utf-8")
+
+# Native Android clipboard helper.
+p = ROOT / "app/src/main/java/com/pinky/dashboard/ui/components/CopyTextButton.kt"
+if not p.exists():
+    p.write_text("""package com.pinky.dashboard.ui.components
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+
+@Composable
+fun CopyTextButton(value: String, contentDescription: String = "نسخ", modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    IconButton(onClick = { copyTextToClipboard(context, value, contentDescription) },
+        enabled = value.isNotBlank(), modifier = modifier) {
+        Icon(Icons.Outlined.ContentCopy, contentDescription = contentDescription)
+    }
+}
+
+fun copyTextToClipboard(context: Context, value: String, label: String = "النص") {
+    if (value.isBlank()) return
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+    Toast.makeText(context, "تم نسخ $label", Toast.LENGTH_SHORT).show()
+}
+""", encoding="utf-8")
+
+order = "app/src/main/java/com/pinky/dashboard/ui/screens/orders/OrderDetailDialog.kt"
+edit(order, "import com.pinky.dashboard.ui.components.OrderStatusBadge\n",
+     "import com.pinky.dashboard.ui.components.OrderStatusBadge\nimport com.pinky.dashboard.ui.components.CopyTextButton\n",
+     "order clipboard import")
+edit(order, "    var noteText by remember { mutableStateOf(order.notes) }\n",
+"""    var noteText by remember { mutableStateOf(order.notes) }
+    val orderCopyText = remember(order) {
+        buildString {
+            appendLine("رقم الطلب: ${order.orderNumber}")
+            appendLine("كود العميل: ${order.customerOrderCode}")
+            appendLine("العميل: ${order.customerName}")
+            appendLine("الهاتف: ${order.customerPhone}")
+            appendLine("المحافظة: ${order.governorate}")
+            appendLine("المركز: ${order.shippingCenter}")
+            appendLine("العنوان: ${order.customerAddress}")
+            appendLine("الحالة: ${order.status.displayLabel(order.paymentMethod)}")
+            appendLine("طريقة الدفع: ${order.paymentMethod.arabicLabel}")
+            appendLine("الإجمالي: ${order.totalAmount}")
+            appendLine("الشحن: ${order.shippingFee}")
+            appendLine("الخصم: ${order.discountAmount}")
+            appendLine("المنتجات:")
+            order.items.forEachIndexed { i, item ->
+                appendLine("${i + 1}. ${item.productName} | الكمية: ${item.quantity} | اللون: ${item.color.orEmpty()} | المقاس: ${item.size.orEmpty()} | السعر: ${item.unitPrice} | الإجمالي: ${item.lineTotal} | كود المنتج: ${item.productCode}")
+            }
+            if (order.notes.isNotBlank()) appendLine("ملاحظات: ${order.notes}")
+        }
+    }
+""", "order copy summary")
+edit(order, 'IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
+     'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))\n                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
+     "copy order action")
+edit(order, 'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
+     'CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\n                            CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
+     "copy customer order code separately")
+
+
+products = "app/src/main/java/com/pinky/dashboard/ui/screens/products/ProductsScreen.kt"
+edit(products, "import com.pinky.dashboard.ui.components.OwnerDataResetControls\n",
+     "import com.pinky.dashboard.ui.components.OwnerDataResetControls\nimport com.pinky.dashboard.ui.components.CopyTextButton\n",
+     "product copy import")
+edit(products, "    Card(\n        modifier = Modifier\n            .fillMaxWidth()\n            .testTag(\"product_card_${product.id}\"),",
+"""    val productCopyText = buildString {
+        appendLine("المنتج: ${product.name}")
+        appendLine("كود المنتج: ${product.id}")
+        appendLine("القسم: ${product.categoryName}")
+        appendLine("السعر: ${product.price}")
+        appendLine("السعر السابق: ${product.oldPrice ?: "غير متوفر"}")
+        appendLine("المخزون: ${product.stock}")
+        appendLine("الألوان: ${product.colors.joinToString()}")
+        appendLine("المقاسات: ${product.sizes.joinToString()}")
+        appendLine("الحالة: ${if (product.isActive) "نشط" else "غير نشط"}")
+        if (currentUser?.canViewWholesale == true) appendLine("سعر الجملة/التكلفة: ${product.wholesalePrice ?: "غير محدد"}")
+        if (currentUser?.canViewInternalCode == true) appendLine("كود SKU: ${product.internalCode ?: "—"}")
+        if (product.description.isNotBlank()) appendLine("الوصف: ${product.description}")
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("product_card_${product.id}"),""", "product copy summary")
+product_file = ROOT / products
+product_source = product_file.read_text(encoding="utf-8")
+if "copy_product_" not in product_source:
+    name_at = product_source.find("text = product.name,")
+    if name_at < 0:
+        raise SystemExit("Could not find product title for copy action")
+    close_at = product_source.find("\n            )", name_at)
+    if close_at < 0:
+        raise SystemExit("Could not find end of product title")
+    close_at += len("\n            )")
+    product_source = product_source[:close_at] + '\n            CopyTextButton(value = productCopyText, contentDescription = "نسخ بيانات المنتج", modifier = Modifier.testTag("copy_product_${product.id}"))' + product_source[close_at:]
+    product_file.write_text(product_source, encoding="utf-8")
+
+
+notifications = "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt"
+notification_file = ROOT / notifications
+notification_source = notification_file.read_text(encoding="utf-8")
+fn_start = notification_source.index("fun NotificationsScreen(")
+if "val visibleNotifications = when (selectedFilter)" not in notification_source:
+    body_start = notification_source.index(") {", fn_start) + 3
+    state_block = """
+    var selectedFilter by remember { mutableStateOf("all") }
+    val unreadCount = notifications.count { !it.isRead }
+    val visibleNotifications = when (selectedFilter) {
+        "unread" -> notifications.filter { !it.isRead }
+        "read" -> notifications.filter { it.isRead }
+        else -> notifications
+    }
+"""
+    notification_source = notification_source[:body_start] + state_block + notification_source[body_start:]
+if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
+    column_start = notification_source.index("Column(", fn_start)
+    column_body = notification_source.index(") {", column_start) + 3
+    filter_block = """
+        if (notifications.isNotEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = selectedFilter == "all", onClick = { selectedFilter = "all" }, label = { Text("الكل ${notifications.size}") })
+                FilterChip(selected = selectedFilter == "unread", onClick = { selectedFilter = "unread" }, label = { Text("جديدة $unreadCount") })
+                FilterChip(selected = selectedFilter == "read", onClick = { selectedFilter = "read" }, label = { Text("مقروءة ${notifications.size - unreadCount}") })
+            }
+        }
+"""
+    notification_source = notification_source[:column_body] + filter_block + notification_source[column_body:]
+if "items(visibleNotifications, key = { it.id })" not in notification_source:
+    notification_source = notification_source.replace("items(notifications, key = { it.id })", "items(visibleNotifications, key = { it.id })", 1)
+notification_file.write_text(notification_source, encoding="utf-8")
+
+shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
+shipping_file = ROOT / shipping
+shipping_source = shipping_file.read_text(encoding="utf-8")
+if "governorates.size" not in shipping_source:
+    marker = shipping_source.index("// Search Input")
+    insert_at = shipping_source.rfind("\n", 0, marker) + 1
+    coverage_block = """                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            val activeCount = governorates.count { it.isActive }
+                            val centerCount = shippingCenters.count { it.isActive }
+                            Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Text("المحافظات", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${governorates.size} إجمالي • $activeCount نشطة", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                            Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Text("مراكز الشحن", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${shippingCenters.size} إجمالي • $centerCount نشط", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+"""
+    shipping_source = shipping_source[:insert_at] + coverage_block + shipping_source[insert_at:]
+    shipping_file.write_text(shipping_source, encoding="utf-8")
+
+
+health = "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt"
+health_file = ROOT / health
+health_source = health_file.read_text(encoding="utf-8")
+
+def replace_health(old, new, label):
+    global health_source
+    if new in health_source:
+        return
+    if old not in health_source:
+        raise SystemExit("Missing health source for " + label)
+    health_source = health_source.replace(old, new, 1)
+
+replace_health(
+    "for ((tableName, queryFunc) in tablesToTest) {",
+    "for ((tableName, queryFunc) in tablesToTest) {\n                    var tableStatus = TestStatus.FAILED\n                    var tableError: DiagnosticError? = null\n                    val tableLogs = mutableListOf<String>()",
+    "per-table state"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            succeededTables++',
+    'rlsLogs.add("- جدول $tableName: قراءة ناجحة ✓")\n                            tableLogs.add("تم تنفيذ استعلام القراءة الفعلي بنجاح.")\n                            tableStatus = TestStatus.WORKING\n                            succeededTables++',
+    "table read success"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                restrictedTables++',
+    'rlsLogs.add("- جدول $tableName: حماية الـ RLS تفرض قيوداً لهذا الحساب (HTTP 403/42501) ✓")\n                                tableLogs.add("رفضت قاعدة البيانات القراءة لهذا الحساب؛ راجع صلاحيات الدور وسياسة RLS.")\n                                tableStatus = TestStatus.PARTIAL\n                                tableError = DiagnosticError("select", tableName, response.code(), "42501", errorStr.ifBlank { "RLS restricted this role" }, "RLS / Authorization")\n                                restrictedTables++',
+    "RLS restriction detail"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاستعلام (${response.code()}): $errorStr ✗")\n                                tableLogs.add("فشل HTTP ${response.code()}: ${errorStr.take(700)}")\n                                tableStatus = TestStatus.FAILED\n                                tableError = DiagnosticError("select", tableName, response.code(), "HTTP_${response.code()}", errorStr.take(700), "Database / RLS")\n                                failedTables++',
+    "HTTP failure detail"
+)
+replace_health(
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        failedTables++',
+    'rlsLogs.add("- جدول $tableName: فشل الاتصال (${e.message}) ✗")\n                        tableLogs.add("تعذر تنفيذ طلب الشبكة: ${e.message ?: "Network error"}")\n                        tableStatus = TestStatus.FAILED\n                        tableError = DiagnosticError("select", tableName, 0, "NET_ERR", e.message ?: "Network error", "Network / Repository")\n                        failedTables++',
+    "network failure detail"
+)
+
+if 'updatedResults["section_$tableName"]' not in health_source:
+    summary_at = health_source.index('                rlsLogs.add("ملخص الفحص:')
+    loop_close = health_source.rfind("                }", 0, summary_at)
+    if loop_close < 0:
+        raise SystemExit("Could not locate end of table diagnostics loop")
+    module_result = """                    updatedResults["section_$tableName"] = ModuleTestResult(
+                        name = tableName,
+                        arabicName = when (tableName) {
+                            "orders" -> "قسم الطلبات"
+                            "products" -> "قسم المنتجات والمخزون"
+                            "categories" -> "قسم الأقسام"
+                            "offers" -> "قسم العروض"
+                            "banners" -> "قسم البنرات"
+                            "coupons" -> "قسم الكوبونات"
+                            "shipping_governorates" -> "قسم المحافظات والشحن"
+                            "shipping_centers" -> "قسم مراكز الشحن"
+                            "prime_subscriptions" -> "قسم اشتراكات Prime"
+                            "site_customizations" -> "قسم تحرير الموقع"
+                            "store_settings" -> "قسم إعدادات المتجر"
+                            "staff_profiles" -> "قسم الموظفين والصلاحيات"
+                            else -> "قسم $tableName"
+                        },
+                        dashboardToWebsite = tableStatus,
+                        websiteToDashboard = tableStatus,
+                        supabaseStatus = tableStatus,
+                        logs = tableLogs,
+                        error = tableError
+                    )
+                    testResults = updatedResults.toMap()
+"""
+    health_source = health_source[:loop_close] + module_result + health_source[loop_close:]
+health_source = health_source.replace("items(testResults.values.toList()) { result ->",
+    "items(testResults.values.toList(), key = { it.name }) { result ->", 1)
+health_file.write_text(health_source, encoding="utf-8")
+
+print("Applied Elory dashboard quality improvements.")
