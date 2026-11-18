@@ -36,8 +36,7 @@ replace_once(
     companion object {''',
 '''    CANCELLED("ملغي");
 
-    fun displayLabel(paymentMethod: PaymentMethod?): String =
-        if (this == PREPARING && paymentMethod == PaymentMethod.COD) "جاري التجهيز" else arabicLabel
+    fun displayLabel(paymentMethod: PaymentMethod?): String = arabicLabel
 
     companion object {''',
     "place COD display label on each enum value"
