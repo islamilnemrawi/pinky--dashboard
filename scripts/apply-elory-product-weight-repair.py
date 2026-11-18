@@ -164,7 +164,7 @@ class ProductWeightSerializationTest {
     @Test
     fun productWeightIsReadFromSupabaseAdminRows() {
         val dto = adapter.fromJson(
-            "{\"id\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"Test\",\"price\":100,\"weight\":350.5}"
+            "{\\\"id\\\":\\\"00000000-0000-0000-0000-000000000001\\\",\\\"name\\\":\\\"Test\\\",\\\"price\\\":100,\\\"weight\\\":350.5}"
         )
         assertNotNull(dto)
         assertEquals(350.5, dto?.weight ?: 0.0, 0.0001)
