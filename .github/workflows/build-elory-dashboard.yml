@@ -529,6 +529,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-product-multi-image-picker.py
           python3 scripts/apply-elory-product-multi-image-picker.py
 
+      - name: Add image crop editor for products and responsive hero campaigns
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-image-editor.py
+          python3 scripts/apply-elory-image-editor.py
+
       - name: Add resilient image loading and fallback to order details
         shell: bash
         run: |
