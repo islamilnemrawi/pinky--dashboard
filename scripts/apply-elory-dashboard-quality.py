@@ -158,7 +158,7 @@ shipping_file = ROOT / shipping
 shipping_source = shipping_file.read_text(encoding="utf-8")
 if "governorates.size" not in shipping_source:
     marker = shipping_source.index("// Search Input")
-    insert_at = shipping_source.rfind("\\n", 0, marker) + 1
+    insert_at = shipping_source.rfind("\n", 0, marker) + 1
     coverage_block = """                        Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             val activeCount = governorates.count { it.isActive }
