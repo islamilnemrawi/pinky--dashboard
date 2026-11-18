@@ -243,6 +243,8 @@ jobs:
           print("Decoded source repair patch:", len(patch_data), "bytes")
           PY
           patch --batch --forward -p1 -d "$PROJECT_DIR" < /tmp/elory-dashboard-workflow-fixes.patch
+          # KeyboardOptions is part of Compose Foundation, not ui.text.input.
+          sed -i 's/import androidx.compose.ui.text.input.KeyboardOptions/import androidx.compose.foundation.text.KeyboardOptions/' "$PROJECT_DIR/app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt"
           python3 - <<'PY'
           import os
           from pathlib import Path
@@ -258,6 +260,7 @@ jobs:
               "authoritative order cache": ("app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt", "orderDao.replaceOrders(orderEntities, itemEntities)"),
               "three order stages": ("app/src/main/java/com/pinky/dashboard/domain/model/Order.kt", "val fulfillmentStatuses"),
               "owner password reset UI": ("app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt", "إعادة تعيين كلمة المرور"),
+              "Compose password keyboard import": ("app/src/main/java/com/pinky/dashboard/ui/screens/staff/StaffScreen.kt", "import androidx.compose.foundation.text.KeyboardOptions"),
               "password reset endpoint": ("app/src/main/java/com/pinky/dashboard/data/remote/SupabaseClient.kt", "admin-reset-staff-password"),
               "non-destructive Room options migration": ("app/src/main/java/com/pinky/dashboard/data/local/PinkyDatabase.kt", "MIGRATION_9_10")
           }
