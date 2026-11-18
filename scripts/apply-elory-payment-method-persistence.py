@@ -6,9 +6,11 @@ compare-and-swap update of the existing site_customizations row, and does not ad
 or remove tables, policies, methods, or existing settings.
 """
 from pathlib import Path
+import os
 
-ROOT = Path(__file__).resolve().parent.parent
-PROJECT = Path.cwd()
+PROJECT = Path(os.environ.get("PROJECT_DIR", "")).resolve()
+if not PROJECT.is_dir():
+    raise SystemExit("PROJECT_DIR is missing or invalid")
 
 def patch(path: str, old: str, new: str, label: str) -> None:
     file = PROJECT / path
