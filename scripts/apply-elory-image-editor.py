@@ -40,10 +40,10 @@ if source.count(hint_old) != 1:
 source = source.replace(hint_old, hint_new, 1)
 # Insert the dialog immediately after the ProductEditDialog's outer Dialog.
 start = source.index("@Composable\nfun ProductEditDialog(")
-end_marker = "\n}\n\n@Composable"
-end = source.find(end_marker, start)
-if end < 0:
+end_match = re.search(r"\n}\s*\n@Composable", source[start:])
+if end_match is None:
     raise SystemExit("Could not locate ProductEditDialog end.")
+end = start + end_match.start()
 dialog = '''
     cropTargetUri?.let { target ->
         ImageCropEditorDialog(
