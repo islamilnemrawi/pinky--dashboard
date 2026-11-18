@@ -77,8 +77,8 @@ edit(order, "    var noteText by remember { mutableStateOf(order.notes) }\n",
 edit(order, 'IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
      'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))\n                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("close_order_detail_btn")) {',
      "copy order action")
-edit(order, '                            CopyTextButton(\\n                                value = orderCopyText,',
-     '                            CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\\n                            CopyTextButton(\\n                                value = orderCopyText,',
+edit(order, 'CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
+     'CopyTextButton(value = order.customerOrderCode, contentDescription = "نسخ كود العميل")\\n                            CopyTextButton(value = orderCopyText, contentDescription = "نسخ تفاصيل الطلب", modifier = Modifier.testTag("copy_order_details_btn"))',
      "copy customer order code separately")
 
 
