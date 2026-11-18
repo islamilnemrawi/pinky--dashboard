@@ -106,6 +106,7 @@ new='''    onSaveCoupon: suspend (Coupon) -> Result<Unit>,
     onDeleteCoupon: (String) -> Unit,
     onToggleCouponActive: (String, Boolean) -> Unit,
     websiteConfig: WebsiteConfig,
+    products: List<com.pinky.dashboard.domain.model.Product>,
     onSaveWebsiteConfig: (WebsiteConfig) -> Unit,
     websiteSaveState: String = "idle",
     modifier: Modifier = Modifier
@@ -168,7 +169,7 @@ branch='''            if (selectedTab == 0) {
                         }
                     }
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        HeroBannersForm(config = localHeroConfig, onUpdate = {
+                        HeroBannersForm(config = localHeroConfig, products = products, onUpdate = {
                             localHeroConfig = it
                             heroDirty = true
                         })
@@ -368,6 +369,7 @@ newCall='''                                OffersScreen(
                                     offers = offers,
                                     coupons = coupons,
                                     categories = categories,
+                                    products = products,
                                     onSaveOffer = { viewModel.saveOffer(it) },
                                     onDeleteOffer = { viewModel.deleteOffer(it) },
                                     onSaveCoupon = { viewModel.saveCoupon(it) },
