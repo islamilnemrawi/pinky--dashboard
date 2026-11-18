@@ -119,8 +119,15 @@ replace_once(
 )
 replace_once(
     repository,
-    "                wholesalePrice = product.wholesalePrice,\n                internalCode = product.internalCode,\n                stock = product.stock,\n                colorsJson = product.colors.joinToString(","),",
-    "                wholesalePrice = product.wholesalePrice,\n                internalCode = product.internalCode,\n                stock = product.stock,\n                weight = product.weight,\n                colorsJson = product.colors.joinToString(","),",
+    '''                wholesalePrice = product.wholesalePrice,
+                internalCode = product.internalCode,
+                stock = product.stock,
+                colorsJson = product.colors.joinToString(","),''',
+    '''                wholesalePrice = product.wholesalePrice,
+                internalCode = product.internalCode,
+                stock = product.stock,
+                weight = product.weight,
+                colorsJson = product.colors.joinToString(","),''',
     "persist product weight in Room cache"
 )
 replace_once(
