@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+# Apply only to the extracted dashboard source directory supplied by the build workflow.
 R=Path(os.environ["PROJECT_DIR"]).resolve()
 def patch(path, old, new, name):
  p=R/path
