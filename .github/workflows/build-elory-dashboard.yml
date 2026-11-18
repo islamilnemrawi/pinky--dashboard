@@ -278,6 +278,20 @@ jobs:
               print("PASS:", label)
           PY
 
+      - name: Apply Elory website save, unrestricted product color wheel, and staff-only PIN UI
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-followup-fixes.py
+          python3 scripts/apply-elory-followup-fixes.py
+
+      - name: Fix Compose compatibility in Elory follow-up UI
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/fix-elory-followup-compile.py
+          python3 scripts/fix-elory-followup-compile.py
+
       - name: Export patched source archive for review
         shell: bash
         run: |
