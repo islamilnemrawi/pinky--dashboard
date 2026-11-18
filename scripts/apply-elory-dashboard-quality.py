@@ -17,10 +17,6 @@ p = ROOT / "app/src/main/java/com/pinky/dashboard/ui/components/CopyTextButton.k
 if not p.exists():
     p.write_text("""package com.pinky.dashboard.ui.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
@@ -32,17 +28,10 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun CopyTextButton(value: String, contentDescription: String = "نسخ", modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    IconButton(onClick = { copyTextToClipboard(context, value, contentDescription) },
+    IconButton(onClick = { copyTextToClipboard(context, contentDescription, value) },
         enabled = value.isNotBlank(), modifier = modifier) {
         Icon(Icons.Outlined.ContentCopy, contentDescription = contentDescription)
     }
-}
-
-fun copyTextToClipboard(context: Context, value: String, label: String = "النص") {
-    if (value.isBlank()) return
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-    Toast.makeText(context, "تم نسخ $label", Toast.LENGTH_SHORT).show()
 }
 """, encoding="utf-8")
 
@@ -120,38 +109,9 @@ if "copy_product_" not in product_source:
 
 
 notifications = "app/src/main/java/com/pinky/dashboard/ui/screens/notifications/NotificationsScreen.kt"
-notification_file = ROOT / notifications
-notification_source = notification_file.read_text(encoding="utf-8")
-fn_start = notification_source.index("fun NotificationsScreen(")
-if "val visibleNotifications = when (selectedFilter)" not in notification_source:
-    body_start = notification_source.index(") {", fn_start) + 3
-    state_block = """
-    var selectedFilter by remember { mutableStateOf("all") }
-    val unreadCount = notifications.count { !it.isRead }
-    val visibleNotifications = when (selectedFilter) {
-        "unread" -> notifications.filter { !it.isRead }
-        "read" -> notifications.filter { it.isRead }
-        else -> notifications
-    }
-"""
-    notification_source = notification_source[:body_start] + state_block + notification_source[body_start:]
-if 'FilterChip(selected = selectedFilter == "all"' not in notification_source:
-    column_start = notification_source.index("Column(", fn_start)
-    column_body = notification_source.index(") {", column_start) + 3
-    filter_block = """
-        if (notifications.isNotEmpty()) {
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = selectedFilter == "all", onClick = { selectedFilter = "all" }, label = { Text("الكل ${notifications.size}") })
-                FilterChip(selected = selectedFilter == "unread", onClick = { selectedFilter = "unread" }, label = { Text("جديدة $unreadCount") })
-                FilterChip(selected = selectedFilter == "read", onClick = { selectedFilter = "read" }, label = { Text("مقروءة ${notifications.size - unreadCount}") })
-            }
-        }
-"""
-    notification_source = notification_source[:column_body] + filter_block + notification_source[column_body:]
-if "items(visibleNotifications, key = { it.id })" not in notification_source:
-    notification_source = notification_source.replace("items(notifications, key = { it.id })", "items(visibleNotifications, key = { it.id })", 1)
-notification_file.write_text(notification_source, encoding="utf-8")
+# Preserve the already-implemented notification center: it includes read/unread counts,
+# filters, empty states, and mark-as-read actions. Avoid layering a duplicate state model.
+
 
 shipping = "app/src/main/java/com/pinky/dashboard/ui/screens/shipping/ShippingScreen.kt"
 shipping_file = ROOT / shipping
