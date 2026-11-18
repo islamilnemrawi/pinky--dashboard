@@ -31,6 +31,19 @@ replace_once(
 )
 replace_once(
     MODEL,
+'''    CANCELLED("ملغي");
+
+    companion object {''',
+'''    CANCELLED("ملغي");
+
+    fun displayLabel(paymentMethod: PaymentMethod?): String =
+        if (this == PREPARING && paymentMethod == PaymentMethod.COD) "جاري التجهيز" else arabicLabel
+
+    companion object {''',
+    "place COD display label on each enum value"
+)
+replace_once(
+    MODEL,
 '''        val fulfillmentStatuses: List<OrderStatus> = listOf(CONFIRMING, PREPARING, SHIPPED, DELIVERED, CANCELLED)''',
 '''        val fulfillmentStatuses: List<OrderStatus> = listOf(CONFIRMING, PREPARING, SHIPPING, SHIPPED, DELIVERED, CANCELLED)''',
     "include both shipping stages in status filters"
@@ -45,9 +58,6 @@ replace_once(
 '''        fun availableFor(paymentMethod: PaymentMethod): List<OrderStatus> =
             if (paymentMethod == PaymentMethod.COD) fulfillmentStatuses
             else fulfillmentStatuses.filterNot { it == CONFIRMING }
-
-        fun displayLabel(paymentMethod: PaymentMethod?): String =
-            if (this == PREPARING && paymentMethod == PaymentMethod.COD) "جاري التجهيز" else arabicLabel
 
         fun fromString(value: String): OrderStatus {''',
     "show COD preparation as جاري التجهيز"
