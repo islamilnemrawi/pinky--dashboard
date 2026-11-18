@@ -106,7 +106,7 @@ new='''    onSaveCoupon: suspend (Coupon) -> Result<Unit>,
     onDeleteCoupon: (String) -> Unit,
     onToggleCouponActive: (String, Boolean) -> Unit,
     websiteConfig: WebsiteConfig,
-    products: List<com.pinky.dashboard.domain.model.Product>,
+    products: List<com.pinky.dashboard.domain.model.Product> = emptyList(),
     onSaveWebsiteConfig: (WebsiteConfig) -> Unit,
     websiteSaveState: String = "idle",
     modifier: Modifier = Modifier
