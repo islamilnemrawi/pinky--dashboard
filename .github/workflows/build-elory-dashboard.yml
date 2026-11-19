@@ -564,6 +564,20 @@ jobs:
           python3 -m py_compile scripts/apply-elory-order-image-fallback.py
           python3 scripts/apply-elory-order-image-fallback.py
 
+      - name: Enforce staff permissions and permission-aware navigation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-staff-permission-navigation.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-staff-permission-navigation.py
+
+      - name: Collapse dashboard header across sections without hiding essential actions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-collapsible-dashboard-header.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-collapsible-dashboard-header.py
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
