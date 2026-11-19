@@ -543,6 +543,13 @@ jobs:
           python3 -m py_compile scripts/apply-staff-permission-navigation.py
           PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-staff-permission-navigation.py
 
+      - name: Route privileged product reads through the secured Supabase RPC
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-secure-product-rpc.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-secure-product-rpc.py
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
