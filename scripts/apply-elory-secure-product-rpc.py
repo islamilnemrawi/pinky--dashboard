@@ -77,6 +77,58 @@ replace_once(
     "Keep the products RLS diagnostic on the secured staff RPC",
 )
 
+replace_once(
+    API,
+'''    @POST("rest/v1/products")
+    suspend fun upsertAdminProduct(
+        @Body product: SupabaseProductUpsertDto,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates,return=representation"
+    ): Response<List<SupabaseProductAdminDto>>
+''',
+'''    @POST("rest/v1/products")
+    suspend fun upsertAdminProduct(
+        @Body product: SupabaseProductUpsertDto,
+        @Header("Prefer") prefer: String = "resolution=merge-duplicates,return=minimal"
+    ): Response<Unit>
+''',
+    "Keep product upserts compatible with protected-column SELECT grants",
+)
+
+replace_once(
+    REPOSITORY,
+'''            val remoteProductId = product.id.takeIf(::isCanonicalProductUuid)
+''',
+'''            // Generate the UUID client-side so return=minimal can be used safely
+            // without asking PostgREST to SELECT protected product columns.
+            val remoteProductId = product.id.takeIf(::isCanonicalProductUuid)
+                ?: java.util.UUID.randomUUID().toString()
+''',
+    "Generate canonical product UUIDs before a minimal-response upsert",
+)
+
+replace_once(
+    REPOSITORY,
+'''            val response = SupabaseClient.service.upsertAdminProduct(dto, "resolution=merge-duplicates,return=representation")
+''',
+'''            val response = SupabaseClient.service.upsertAdminProduct(dto, "resolution=merge-duplicates,return=minimal")
+''',
+    "Avoid RETURNING protected product columns during save",
+)
+
+replace_once(
+    REPOSITORY,
+'''            val persistedProductId = response.body()?.firstOrNull()?.id
+                ?.takeIf(::isCanonicalProductUuid)
+                ?: remoteProductId
+                ?: throw IllegalStateException("Supabase saved the product but did not return its generated UUID.")
+''',
+'''            // The same canonical ID was sent in the upsert body; the server
+            // intentionally returns no row to preserve column-level privacy.
+            val persistedProductId = remoteProductId
+''',
+    "Retain the product UUID without requiring a privileged row response",
+)
+
 api_source = (ROOT / API).read_text(encoding="utf-8")
 repository_source = (ROOT / REPOSITORY).read_text(encoding="utf-8")
 if '@POST("rest/v1/rpc/admin_list_products")' not in api_source:
@@ -89,5 +141,14 @@ if 'productDao.replaceProducts(entities)' not in repository_source:
     raise SystemExit("The existing atomic local-cache replacement was unexpectedly changed")
 if 'if (page.size < SupabaseConfig.PAGE_SIZE) break' not in repository_source:
     raise SystemExit("The existing product pagination completion guard was unexpectedly changed")
+
+if 'java.util.UUID.randomUUID().toString()' not in repository_source:
+    raise SystemExit("New products must receive a canonical UUID before an insert")
+if 'return=minimal' not in repository_source:
+    raise SystemExit("Product upsert must not request protected columns in its response")
+if 'val persistedProductId = remoteProductId' not in repository_source:
+    raise SystemExit("The product save path no longer preserves its client-generated UUID")
+if 'Response<Unit>' not in api_source:
+    raise SystemExit("The product upsert API must use a minimal response type")
 
 print("PASS: dashboard product synchronization keeps its authenticated paging and cache-preservation behavior.")
