@@ -182,6 +182,8 @@ fun ImageCropEditorDialog(
                                     Uri.fromFile(file)
                                 }
                                 onCropped(result)
+                            } catch (e: OutOfMemoryError) {
+                                error = "ذاكرة الهاتف غير كافية لإتمام قص الصورة. اختَر صورة أصغر وحاول مرة أخرى."
                             } catch (e: Exception) {
                                 error = e.localizedMessage ?: "تعذر تجهيز الصورة"
                             } finally { busy = false }
