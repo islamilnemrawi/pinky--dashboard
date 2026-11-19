@@ -54,13 +54,48 @@ fun ImageCropEditorDialog(
     LaunchedEffect(imageUri) {
         bitmap = withContext(Dispatchers.IO) {
             try {
-                if (Build.VERSION.SDK_INT >= 28) {
-                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, imageUri)) { d, _, _ ->
-                        d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                // Never decode a camera-original at full resolution. Large 24–50 MP
+                // images can exhaust the dashboard process memory and close the app.
+                val maxDecodeDimension = 2048
+                val decoded = if (Build.VERSION.SDK_INT >= 28) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, imageUri)) { decoder, info, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        val width = info.size.width
+                        val height = info.size.height
+                        val longest = maxOf(width, height)
+                        if (longest > maxDecodeDimension) {
+                            val factor = maxDecodeDimension.toFloat() / longest.toFloat()
+                            decoder.setTargetSize(
+                                (width * factor).toInt().coerceAtLeast(1),
+                                (height * factor).toInt().coerceAtLeast(1)
+                            )
+                        }
                     }
-                } else context.contentResolver.openInputStream(imageUri)?.use {
-                    BitmapFactory.decodeStream(it)
+                } else {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(imageUri)?.use {
+                        BitmapFactory.decodeStream(it, null, bounds)
+                    } ?: throw IOException("تعذر فتح ملف الصورة")
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                        throw IOException("ملف الصورة تالف أو بصيغة غير مدعومة")
+                    }
+                    var sampleSize = 1
+                    while (bounds.outWidth / sampleSize > maxDecodeDimension ||
+                        bounds.outHeight / sampleSize > maxDecodeDimension) {
+                        sampleSize *= 2
+                    }
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }
+                    context.contentResolver.openInputStream(imageUri)?.use {
+                        BitmapFactory.decodeStream(it, null, options)
+                    } ?: throw IOException("تعذر فك ترميز الصورة")
                 }
+                decoded ?: throw IOException("تعذر قراءة الصورة المحددة")
+            } catch (e: OutOfMemoryError) {
+                error = "الصورة أكبر من قدرة الهاتف على المعالجة. اختَر صورة أصغر."
+                null
             } catch (e: Exception) {
                 error = e.localizedMessage ?: "تعذر فتح الصورة"
                 null
