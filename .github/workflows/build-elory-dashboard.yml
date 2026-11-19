@@ -30,6 +30,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Validate dashboard CMS patch script syntax
+        run: python3 -m py_compile scripts/apply-elory-cms-draft-preview-publish.py
+      - name: Validate product color palette patch syntax
+        run: python3 -m py_compile scripts/apply-elory-product-color-palette.py
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -143,6 +147,7 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/apply-elory-profit-dashboard.py
           python3 scripts/apply-elory-cms-draft-preview-publish.py
+          python3 scripts/apply-elory-product-color-palette.py
 
       - name: Diagnose source sync method before repair
         shell: bash
