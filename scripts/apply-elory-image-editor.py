@@ -79,11 +79,6 @@ path = root / website
 source = path.read_text(encoding="utf-8")
 if "onUrlsChanged" in source or "نسخة الكمبيوتر ونسخة الموبايل" in source:
     raise SystemExit("Hero crop editor is already integrated; refusing duplicate patch.")
-source = source.replace(
-    "import com.pinky.dashboard.ui.theme.PinkPrimary",
-    "import com.pinky.dashboard.ui.theme.PinkPrimary\nimport com.pinky.dashboard.ui.components.ImageCropEditorDialog",
-    1
-)
 call_old = '''                    HeroCampaignMediaSelector(
                         label = "صورة البانر",
                         mediaUrl = currentImage,
@@ -103,15 +98,14 @@ call_old = '''                    HeroCampaignMediaSelector(
 call_new = '''                    HeroCampaignMediaSelector(
                         label = "صورة البانر",
                         mediaUrl = currentImage,
-                        onUrlsChanged = { desktopUrl, mobileUrl ->
+                        onUrlChanged = { url ->
                             updateSlide(slide.id, activateUploadedSlideIfOnlyActiveIsEmpty = true) {
                                 it.copy(
                                     fullBleed = true,
                                     mediaType = "image",
-                                    mediaUrl = desktopUrl,
-                                    imageUrl = desktopUrl,
-                                    mobileMediaUrl = mobileUrl,
-                                    useSeparateMobileMedia = true,
+                                    mediaUrl = url,
+                                    imageUrl = url,
+                                    mobileMediaUrl = "",
                                     posterUrl = ""
                                 )
                             }
@@ -126,28 +120,35 @@ new_function = '''@Composable
 fun HeroCampaignMediaSelector(
     label: String,
     mediaUrl: String,
-    onUrlsChanged: (String, String) -> Unit
+    onUrlChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isUploading by remember { mutableStateOf(false) }
     var uploadError by remember { mutableStateOf<String?>(null) }
     var uploadSuccess by remember { mutableStateOf(false) }
-    var sourceUri by remember { mutableStateOf<Uri?>(null) }
-    var desktopCropUri by remember { mutableStateOf<Uri?>(null) }
-    var mobileCropUri by remember { mutableStateOf<Uri?>(null) }
-    var cropStep by remember { mutableIntStateOf(0) }
 
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null && !isUploading) {
-            sourceUri = uri
-            desktopCropUri = null
-            mobileCropUri = null
-            cropStep = 1
+            isUploading = true
             uploadError = null
             uploadSuccess = false
+            scope.launch {
+                try {
+                    // Keep hero uploads on the original URI-to-storage path.
+                    // The crop editor is intentionally not part of this flow.
+                    val uploadedUrl = HeroAdMediaUploader.upload(context.contentResolver, uri, isVideo = false)
+                    onUrlChanged(uploadedUrl)
+                    uploadSuccess = true
+                } catch (error: Exception) {
+                    uploadError = error.message ?: "تعذر رفع صورة الهيرو."
+                    android.util.Log.e("EloryHeroCampaign", "Hero image upload failed", error)
+                } finally {
+                    isUploading = false
+                }
+            }
         }
     }
 
@@ -156,7 +157,7 @@ fun HeroCampaignMediaSelector(
         if (mediaUrl.isNotBlank()) {
             AsyncImage(
                 model = mediaUrl,
-                contentDescription = "معاينة صورة الهيرو للكمبيوتر",
+                contentDescription = "معاينة صورة الهيرو",
                 modifier = Modifier.fillMaxWidth().height(155.dp).clip(RoundedCornerShape(10.dp)),
                 contentScale = ContentScale.Crop
             )
@@ -172,107 +173,41 @@ fun HeroCampaignMediaSelector(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                enabled = !isUploading && cropStep == 0,
+                enabled = !isUploading,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = PinkPrimary, contentColor = Color(0xFF381528))
             ) {
                 if (isUploading) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(7.dp))
-                    Text("جاري رفع النسختين...")
+                    Text("جاري رفع الصورة...")
                 } else {
-                    Text(if (mediaUrl.isBlank()) "اختيار صورة وقصّها" else "تغيير الصورة وقصّها")
+                    Text(if (mediaUrl.isBlank()) "اختيار صورة" else "تغيير الصورة")
                 }
             }
             if (mediaUrl.isNotBlank()) {
-                OutlinedButton(onClick = { onUrlsChanged("", ""); uploadSuccess = false }, enabled = !isUploading && cropStep == 0) {
+                OutlinedButton(onClick = { onUrlChanged(""); uploadSuccess = false }, enabled = !isUploading) {
                     Text("إزالة الصورة")
                 }
             }
         }
-        if (uploadSuccess) Text("تم رفع نسختي الكمبيوتر والموبايل بنجاح", color = Color(0xFF16834A), style = MaterialTheme.typography.bodySmall)
+        if (uploadSuccess) Text("تم رفع صورة الهيرو بنجاح", color = Color(0xFF16834A), style = MaterialTheme.typography.bodySmall)
         uploadError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        Text(
-            "سيتم تجهيز قصّة عريضة للكمبيوتر وقصّة طولية للموبايل تلقائياً، مع إمكانية تحريك الصورة وتكبيرها قبل الاعتماد.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-
-    val original = sourceUri
-    if (original != null && cropStep == 1) {
-        ImageCropEditorDialog(
-            imageUri = original,
-            aspectRatio = 2.43f,
-            title = "قص صورة الهيرو — الكمبيوتر",
-            onDismiss = { cropStep = 0; sourceUri = null },
-            onCropped = { uri -> desktopCropUri = uri; cropStep = 2 }
-        )
-    }
-    if (original != null && cropStep == 2) {
-        ImageCropEditorDialog(
-            imageUri = original,
-            aspectRatio = 0.79f,
-            title = "قص صورة الهيرو — الموبايل",
-            onDismiss = { cropStep = 0; sourceUri = null; desktopCropUri = null },
-            onCropped = { uri ->
-                mobileCropUri = uri
-                cropStep = 0
-                val desktop = desktopCropUri
-                val mobile = mobileCropUri
-                if (desktop == null) {
-                    uploadError = "تعذر تجهيز نسخة الكمبيوتر. أعد اختيار الصورة."
-                } else {
-                    isUploading = true
-                    scope.launch {
-                        try {
-                            val desktopUrl = HeroAdMediaUploader.upload(context.contentResolver, desktop, isVideo = false)
-                            val mobileUrl = HeroAdMediaUploader.upload(context.contentResolver, uri, isVideo = false)
-                            onUrlsChanged(desktopUrl, mobileUrl)
-                            uploadSuccess = true
-                            sourceUri = null
-                            desktopCropUri = null
-                            mobileCropUri = null
-                        } catch (error: Exception) {
-                            uploadError = error.message ?: "تعذر رفع صور الهيرو."
-                            android.util.Log.e("EloryHeroCampaign", "Hero image upload failed", error)
-                        } finally {
-                            isUploading = false
-                        }
-                    }
-                }
-            }
-        )
     }
 }
 '''
 source = source[:function_start] + new_function + source[function_end:]
 path.write_text(source, encoding="utf-8")
 
-# The storefront uses this flag to select the mobile crop in its <picture> element.
-model = "app/src/main/java/com/pinky/dashboard/domain/model/WebsiteCustomizationConfig.kt"
-edit(model,
-'''    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",
-    @Json(name = "posterUrl") val posterUrl: String = "",''',
-'''    @Json(name = "mobileMediaUrl") val mobileMediaUrl: String = "",
-    @Json(name = "useSeparateMobileMedia") val useSeparateMobileMedia: Boolean = false,
-    @Json(name = "posterUrl") val posterUrl: String = "",''',
-"Hero mobile media model")
 
-# Cropped temporary files use file:// URIs; infer MIME and file size for these uploads.
-uploader = "app/src/main/java/com/pinky/dashboard/data/remote/HeroAdMediaUploader.kt"
-edit(uploader,
-'''        val mimeType = contentResolver.getType(uri)?.lowercase()
-            ?: throw IllegalArgumentException("تعذر تحديد نوع الملف. اختر صورة أو فيديو بصيغة مدعومة.")''',
-'''        val mimeType = contentResolver.getType(uri)?.lowercase() ?: when (uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase()) {
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "webp" -> "image/webp"
-            "avif" -> "image/avif"
-            "mp4" -> "video/mp4"
-            "webm" -> "video/webm"
-            else -> throw IllegalArgumentException("تعذر تحديد نوع الملف. اختر صورة أو فيديو بصيغة مدعومة.")
-        }''',
-"Hero upload MIME fallback")
-
-print("PASS: shared crop editor wired into product images and desktop/mobile hero campaign uploads.")
+# Guard the exact regression boundary: crop stays available for product images,
+# while hero image selection and upload never instantiate the crop editor.
+hero_source = (root / website).read_text(encoding="utf-8")
+product_source = (root / product).read_text(encoding="utf-8")
+if "ImageCropEditorDialog" in hero_source or "cropStep" in hero_source or "onUrlsChanged" in hero_source:
+    raise SystemExit("Hero image upload must remain independent from the crop editor.")
+if "ImageCropEditorDialog" not in product_source:
+    raise SystemExit("Product image crop editor was unexpectedly removed.")
+if "HeroAdMediaUploader.upload(context.contentResolver, uri, isVideo = false)" not in hero_source:
+    raise SystemExit("Hero image direct upload path is missing.")
+print("PASS: hero upload bypasses crop editor; product crop editor remains enabled.")
