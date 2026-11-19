@@ -107,7 +107,7 @@ checks = {
     "shared nested-scroll connection is installed on app shell":
         ".nestedScroll(dashboardAppBarScrollBehavior.nestedScrollConnection)" in app,
     "PinkyApp opts into experimental Material 3 app-bar APIs":
-        "@OptIn(ExperimentalMaterial3Api::class)" in app and "@Composable\\nfun PinkyApp(" in app,
+        "@OptIn(ExperimentalMaterial3Api::class)" in app and "@Composable\nfun PinkyApp(" in app,
     "section changes restore the expanded header":
         "LaunchedEffect(currentSection)" in app and "dashboardAppBarState.heightOffset = 0f" in app,
     "app bar uses exit-until-collapsed behavior":
