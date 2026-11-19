@@ -543,6 +543,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-product-gallery-and-id.py
           python3 scripts/apply-elory-product-gallery-and-id.py
 
+      - name: Verify independent product availability and homepage-featured controls
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-product-visibility-contract.py
+          python3 scripts/apply-elory-product-visibility-contract.py
+
       - name: Add resilient image loading and fallback to order details
         shell: bash
         run: |
