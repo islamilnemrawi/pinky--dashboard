@@ -290,10 +290,12 @@ one(APP,
 ''',
 '''    val snackbarHostState = remember { SnackbarHostState() }
     val effectiveUser = remember(currentUser, isPrimaryOwner) {
-        currentUser?.copy(
-            permissions = if (isPrimaryOwner) Permission.entries.toSet()
-            else currentUser.permissions - Permission.MANAGE_STAFF
-        )
+        currentUser?.let { user ->
+            user.copy(
+                permissions = if (isPrimaryOwner) Permission.entries.toSet()
+                else user.permissions - Permission.MANAGE_STAFF
+            )
+        }
     }
     val canAccessSection: (DashboardSection) -> Boolean = remember(effectiveUser?.permissions, isPrimaryOwner) {
         { section -> section.isAccessibleBy(effectiveUser) }
