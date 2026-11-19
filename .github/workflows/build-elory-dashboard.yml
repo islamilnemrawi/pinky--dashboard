@@ -529,6 +529,34 @@ jobs:
           python3 -m py_compile scripts/apply-elory-product-multi-image-picker.py
           python3 scripts/apply-elory-product-multi-image-picker.py
 
+      - name: Add image crop editor for products and responsive hero campaigns
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-image-editor.py
+          python3 scripts/apply-elory-image-editor.py
+
+      - name: Restore saved product galleries and expose copyable product IDs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-product-gallery-and-id.py
+          python3 scripts/apply-elory-product-gallery-and-id.py
+
+      - name: Verify independent product availability and homepage-featured controls
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-product-visibility-contract.py
+          python3 scripts/apply-elory-product-visibility-contract.py
+
+      - name: Fix hero save Retrofit signature and collapse products header on scroll
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/apply-elory-hero-save-and-products-scroll.py
+          python3 scripts/apply-elory-hero-save-and-products-scroll.py
+
       - name: Add resilient image loading and fallback to order details
         shell: bash
         run: |
