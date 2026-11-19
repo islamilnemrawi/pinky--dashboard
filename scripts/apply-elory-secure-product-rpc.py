@@ -61,6 +61,22 @@ replace_once(
     "Use bounded limit/offset parameters for admin product pagination",
 )
 
+replace_once(
+    "app/src/main/java/com/pinky/dashboard/ui/screens/health/HealthCheckScreen.kt",
+'''                        SupabaseClient.service.getAdminProducts(
+                            select = "*",
+                            order = "id.asc",
+                            range = "0-0",
+                            rangeUnit = "items"
+                        )
+''',
+'''                        SupabaseClient.service.getAdminProducts(
+                            mapOf("p_limit" to 1, "p_offset" to 0)
+                        )
+''',
+    "Keep the products RLS diagnostic on the secured staff RPC",
+)
+
 api_source = (ROOT / API).read_text(encoding="utf-8")
 repository_source = (ROOT / REPOSITORY).read_text(encoding="utf-8")
 if '@POST("rest/v1/rpc/admin_list_products")' not in api_source:
