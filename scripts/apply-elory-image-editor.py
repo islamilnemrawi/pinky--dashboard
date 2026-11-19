@@ -8,8 +8,12 @@ cropper_overlay = repo_root / "scripts/android-feature-overlay/app/src/main/java
 cropper_target = root / "app/src/main/java/com/pinky/dashboard/ui/components/ImageCropEditorDialog.kt"
 if not cropper_overlay.is_file():
     raise SystemExit("Image crop editor source is missing from the Android feature overlay.")
+cropper_source = cropper_overlay.read_text(encoding="utf-8")
+for marker in ("maxDecodeDimension = 2048", "decoder.setTargetSize", "inJustDecodeBounds = true", "catch (e: OutOfMemoryError)"):
+    if marker not in cropper_source:
+        raise SystemExit("Image crop editor memory-safety regression: missing " + marker)
 cropper_target.parent.mkdir(parents=True, exist_ok=True)
-cropper_target.write_text(cropper_overlay.read_text(encoding="utf-8"), encoding="utf-8")
+cropper_target.write_text(cropper_source, encoding="utf-8")
 
 def edit(relative, old, new, label):
     path = root / relative
