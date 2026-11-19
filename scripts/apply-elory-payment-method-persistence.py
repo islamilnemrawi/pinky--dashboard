@@ -68,7 +68,7 @@ patch(
     '    suspend fun patchSiteCustomizationsRaw(\n'
     '        @Query("id") idFilter: String,\n'
     '        @Query("updated_at") updatedAtFilter: String,\n'
-    '        @Body updates: Map<String, Any?>,\n'
+    '        @Body updates: Map<String, @JvmSuppressWildcards Any?>,\n'
     '        @Header("Prefer") prefer: String = "return=representation"\n'
     '    ): Response<List<Map<String, Any?>>>\n',
     "safe raw JSON read and compare-and-swap patch API"
