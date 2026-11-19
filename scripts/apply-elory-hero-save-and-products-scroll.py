@@ -120,6 +120,7 @@ old = """                    }
 new = """                    }
             }
     }
+    }
 
     if (showAddEditDialog) {"""
 if old not in s:
