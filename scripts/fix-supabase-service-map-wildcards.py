@@ -112,8 +112,8 @@ for method in required_methods:
         raise SystemExit(f"Retrofit @Body wildcard suppression did not validate: {method}")
 
 unsuppressed_body_map = re.compile(
-    r"@Body\\s+\\w+\\s*:\\s*Map\\s*<\\s*String\\s*,\\s*"
-    r"(?!@JvmSuppressWildcards\\b)Any\\??\\s*>"
+    r"@Body\s+\w+\s*:\s*Map\s*<\s*String\s*,\s*"
+    r"(?!@JvmSuppressWildcards\b)Any\??\s*>"
 )
 remaining = unsuppressed_body_map.search(updated_body)
 if remaining:
