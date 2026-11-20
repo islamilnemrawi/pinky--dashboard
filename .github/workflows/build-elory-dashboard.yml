@@ -84,6 +84,13 @@ jobs:
           echo 'Project files:'
           ls -lah "$PROJECT_DIR"
 
+      - name: Repair Retrofit wildcard Map parameters used by website and customer actions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/fix-supabase-service-map-wildcards.py
+          python3 scripts/fix-supabase-service-map-wildcards.py
+
       - name: Export source archive for source-level diagnostics
         uses: actions/upload-artifact@v6
         with:
