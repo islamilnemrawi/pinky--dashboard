@@ -225,6 +225,18 @@ if "import kotlinx.coroutines.Dispatchers" not in vm:
 if "suspend fun refreshPrimaryOwnerStatus()" not in vm:
     methods = '''
     suspend fun refreshPrimaryOwnerStatus() {
+        // Do not send an expired JWT to the owner-check RPC. This also waits
+        // on the shared refresh mutex if the periodic refresh is already running.
+        if (!SupabaseClient.isSessionReady || !SupabaseClient.isAuthenticated) {
+            _isPrimaryOwner.value = false
+            return
+        }
+        val refreshDue = SupabaseClient.expiresAt <=
+            System.currentTimeMillis() + 5L * 60L * 1000L
+        if (refreshDue && !SupabaseClient.performTokenRefresh()) {
+            _isPrimaryOwner.value = false
+            return
+        }
         _isPrimaryOwner.value = try {
             val response = SupabaseClient.service.isPrimaryOwner(emptyMap())
             response.isSuccessful && response.body() == true

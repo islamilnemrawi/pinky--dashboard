@@ -550,6 +550,13 @@ jobs:
           python3 -m py_compile scripts/apply-elory-secure-product-rpc.py
           PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-secure-product-rpc.py
 
+      - name: Repair Retrofit wildcard Map parameters after all Supabase service overlays
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/fix-supabase-service-map-wildcards.py
+          python3 scripts/fix-supabase-service-map-wildcards.py
+
       - name: Configure Kotlin compiler mirror
         shell: bash
         run: |
