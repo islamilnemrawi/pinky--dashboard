@@ -31,7 +31,7 @@ def matching_brace(text: str, opening: int) -> int:
                 state = "code"
                 i += 1
         elif state == "string":
-            if char == "\\\\":
+            if char == "\\":
                 i += 1
             elif char == quote:
                 state = "code"
@@ -111,7 +111,11 @@ for method in required_methods:
     ):
         raise SystemExit(f"Retrofit @Body wildcard suppression did not validate: {method}")
 
-remaining = body_map.search(updated_body)
+unsuppressed_body_map = re.compile(
+    r"@Body\\s+\\w+\\s*:\\s*Map\\s*<\\s*String\\s*,\\s*"
+    r"(?!@JvmSuppressWildcards\\b)Any\\??\\s*>"
+)
+remaining = unsuppressed_body_map.search(updated_body)
 if remaining:
     raise SystemExit(
         "An unsuppressed @Body Map<String, Any/Any?> remains in SupabaseService: "
