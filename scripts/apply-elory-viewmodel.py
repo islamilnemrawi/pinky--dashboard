@@ -123,8 +123,8 @@ vm = replace(vm,
 
     fun logout() {
         viewModelScope.launch {
-            SupabaseClient.clearSession()
             appContext.getSharedPreferences("elory_push_registration", Context.MODE_PRIVATE).edit().clear().apply()
+            SupabaseClient.clearSession()
             runCatching { PinkyNotificationManager(appContext).cancelAllNotifications() }
             stopAuthenticatedBackgroundWork()
             runCatching { authRepository.logout() }
