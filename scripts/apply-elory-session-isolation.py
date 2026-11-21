@@ -20,6 +20,7 @@ checks = {
     "Login clears prior cache": "clearLocalSession()" in read(JAVA + "data/repository/RepositoriesImpl.kt").split("override suspend fun login(", 1)[1],
     "Central sync is cancellable": "centralSyncJob?.cancelAndJoin()" in read(JAVA + "ui/PinkyViewModel.kt"),
     "Central sync requires active auth": "if (!sessionActive || !SupabaseClient.isAuthenticated) return" in read(JAVA + "ui/PinkyViewModel.kt"),
+    "Logout immediately invalidates push registration": "elory_push_registration" in read(JAVA + "ui/PinkyViewModel.kt"),
     "Periodic sync can stop": "suspend fun stopPeriodicSync()" in read(JAVA + "core/sync/OrderSyncManager.kt"),
     "Notification jobs stop at logout": "notificationJob?.cancel()" in read(JAVA + "core/sync/OrderSyncManager.kt"),
     "Sync rejects logged-out work": "if (!sessionActive) false else activeSyncJobs.add(callerJob)" in read(JAVA + "core/sync/OrderSyncManager.kt"),
