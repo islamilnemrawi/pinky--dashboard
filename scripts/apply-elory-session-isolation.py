@@ -16,6 +16,7 @@ for name in (
 checks = {
     "Room cache cleaner installed": "database.clearAllTables()" in read(JAVA + "data/local/SessionCacheCleaner.kt"),
     "Auth clears local cache": "sessionCacheCleaner.clear()" in read(JAVA + "data/repository/RepositoriesImpl.kt"),
+    "Logout clears order notifications": "cancelAllNotifications()" in read(JAVA + "data/repository/RepositoriesImpl.kt") and "notificationManager.cancelAll()" in read(JAVA + "core/notification/PinkyNotificationManager.kt"),
     "Login clears prior cache": "clearLocalSession()" in read(JAVA + "data/repository/RepositoriesImpl.kt").split("override suspend fun login(", 1)[1],
     "Central sync is cancellable": "centralSyncJob?.cancelAndJoin()" in read(JAVA + "ui/PinkyViewModel.kt"),
     "Central sync requires active auth": "if (!sessionActive || !SupabaseClient.isAuthenticated) return" in read(JAVA + "ui/PinkyViewModel.kt"),
