@@ -121,9 +121,7 @@ sync = replace(sync,
         synchronized(syncLock) {
             sessionActive = false
             syncJob?.cancel()
-            syncJob = null
             notificationJob?.cancel()
-            notificationJob = null
             activeSyncJobs.forEach { it.cancel() }
         }
     }''', "Stop all sync work when manager is destroyed")
