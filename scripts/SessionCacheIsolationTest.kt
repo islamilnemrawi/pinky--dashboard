@@ -105,6 +105,7 @@ class SessionCacheIsolationTest {
 
             // The manager is application-scoped and must remain reusable after a ViewModel is cleared.
             manager.destroy()
+            manager.stopPeriodicSync()
             manager.startPeriodicSync()
             assertTrue(manager.performSync().isSuccess)
             assertEquals(2, syncCalls)
