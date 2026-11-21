@@ -26,6 +26,7 @@ checks = {
     "Sync rejects logged-out work": "if (!sessionActive) false else activeSyncJobs.add(callerJob)" in read(JAVA + "core/sync/OrderSyncManager.kt"),
     "Push notifications verify the saved staff account": "registered_user_id" in read(JAVA + "core/notification/EloryFirebaseMessagingService.kt") and "initializeAuthSession()" in read(JAVA + "core/notification/EloryFirebaseMessagingService.kt"),
     "Push handler rechecks logout marker before posting": "currentRegisteredUserId" in read(JAVA + "core/notification/EloryFirebaseMessagingService.kt"),
+    "Push handler requires the live Supabase session": "!SupabaseClient.isAuthenticated" in read(JAVA + "core/notification/EloryFirebaseMessagingService.kt"),
     "Push auth check is time-bounded": "withTimeoutOrNull(10_000L)" in read(JAVA + "core/notification/EloryFirebaseMessagingService.kt"),
     "Session initialization propagates cancellation": "catch (e: kotlinx.coroutines.CancellationException)" in read(JAVA + "data/repository/RepositoriesImpl.kt"),
     "Room regression test installed": (ROOT / "app/src/test/java/com/pinky/dashboard/SessionCacheIsolationTest.kt").is_file(),
