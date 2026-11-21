@@ -590,7 +590,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: Elory-Dashboard-Patched-Source
-          path: ${{ runner.temp }/Elory-Dashboard-Patched-Source.zip
+          path: ${{ runner.temp }}/Elory-Dashboard-Patched-Source.zip
           if-no-files-found: error
 
       - name: Configure Kotlin compiler mirror
