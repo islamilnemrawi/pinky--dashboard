@@ -364,20 +364,6 @@ jobs:
               print("PASS:", label)
           PY
 
-      - name: Export patched source archive for review
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          cd "$PROJECT_DIR"
-          zip -qr "$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip" .
-
-      - name: Upload patched source archive
-        uses: actions/upload-artifact@v6
-        with:
-          name: Elory-Dashboard-Patched-Source
-          path: ${{ runner.temp }}/Elory-Dashboard-Patched-Source.zip
-          if-no-files-found: error
-
       - name: Prepare project configuration
         shell: bash
         env:
@@ -543,12 +529,69 @@ jobs:
           python3 -m py_compile scripts/apply-staff-permission-navigation.py
           PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-staff-permission-navigation.py
 
+      - name: Isolate dashboard sessions and local account cache
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile \
+            scripts/session_isolation_common.py \
+            scripts/apply-elory-session-cache.py \
+            scripts/apply-elory-sync-manager.py \
+            scripts/apply-elory-fcm.py \
+            scripts/apply-elory-viewmodel.py \
+            scripts/apply-elory-session-isolation.py \
+            scripts/tests/test_elory_session_isolation.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-session-isolation.py
+          PROJECT_DIR="$PROJECT_DIR" python3 -m unittest scripts.tests.test_elory_session_isolation -v
+
       - name: Route privileged product reads through the secured Supabase RPC
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 -m py_compile scripts/apply-elory-secure-product-rpc.py
           PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-secure-product-rpc.py
+
+      - name: Repair Retrofit wildcard Map parameters after all Supabase service overlays
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile scripts/fix-supabase-service-map-wildcards.py
+          python3 scripts/fix-supabase-service-map-wildcards.py
+
+      - name: Export final patched source archive without secrets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          STAGING="$RUNNER_TEMP/elory-source-review"
+          SOURCE_ZIP="$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip"
+          mkdir -p "$STAGING"
+          cp -a "$PROJECT_DIR/." "$STAGING/"
+          find "$STAGING" -type f \( -name '.env' -o -name 'google-services.json' -o -name '*.keystore' -o -name '*.jks' -o -name '*.p12' -o -name '*.pem' -o -name 'local.properties' \) -delete
+          find "$STAGING" -type d \( -name build -o -name .gradle \) -prune -exec rm -rf {} +
+          cd "$STAGING"
+          zip -qr "$SOURCE_ZIP" .
+          python3 - "$SOURCE_ZIP" <<'PYSOURCE'
+          import sys
+          import zipfile
+          from pathlib import PurePosixPath
+
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              forbidden = [
+                  name for name in archive.namelist()
+                  if PurePosixPath(name).name in {".env", "google-services.json", "debug.keystore", "local.properties"}
+                  or PurePosixPath(name).suffix in {".keystore", ".jks", ".p12", ".pem"}
+              ]
+          if forbidden:
+              raise SystemExit("Refusing to publish source archive containing private configuration: " + ", ".join(forbidden))
+          print("PASS: final patched source archive contains no private configuration.")
+          PYSOURCE
+
+      - name: Upload patched source archive
+        uses: actions/upload-artifact@v6
+        with:
+          name: Elory-Dashboard-Patched-Source
+          path: ${{ runner.temp }}/Elory-Dashboard-Patched-Source.zip
+          if-no-files-found: error
 
       - name: Configure Kotlin compiler mirror
         shell: bash
