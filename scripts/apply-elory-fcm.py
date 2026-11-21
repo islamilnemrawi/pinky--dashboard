@@ -4,6 +4,7 @@ fcm_path = JAVA + "core/notification/EloryFirebaseMessagingService.kt"
 fcm = read(fcm_path)
 fcm = add_import(fcm, "import com.pinky.dashboard.data.local.AuthDataStoreManager", "import com.pinky.dashboard.data.local.PinkyDatabase\n")
 fcm = add_import(fcm, "import com.pinky.dashboard.data.repository.AuthRepositoryImpl", "import com.pinky.dashboard.data.repository.OrderRepositoryImpl\n")
+fcm = add_import(fcm, "import com.pinky.dashboard.data.remote.SupabaseClient", "import com.pinky.dashboard.data.repository.AuthRepositoryImpl\n")
 fcm = add_import(fcm, "import kotlinx.coroutines.runBlocking", "import kotlinx.coroutines.launch\n")
 fcm = add_import(fcm, "import kotlinx.coroutines.withTimeoutOrNull", "import kotlinx.coroutines.runBlocking\n")
 old_fcm = """        PinkyNotificationManager(applicationContext).showNewOrderNotification(
@@ -41,7 +42,7 @@ new_fcm = """        val registeredUserId = getSharedPreferences("elory_push_reg
         }
         val currentRegisteredUserId = getSharedPreferences("elory_push_registration", android.content.Context.MODE_PRIVATE)
             .getString("registered_user_id", null)
-        if (activeUserId.isNullOrBlank() || activeUserId != registeredUserId || activeUserId != currentRegisteredUserId) return
+        if (!SupabaseClient.isAuthenticated || activeUserId.isNullOrBlank() || activeUserId != registeredUserId || activeUserId != currentRegisteredUserId) return
 
         // Keep notification delivery synchronous with this FCM callback; the session
         // verification above is bounded so the service can finish without losing it.
