@@ -53,6 +53,7 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
         self.assertIn("centralSyncJob?.cancelAndJoin()", view_model)
         self.assertIn("syncManager.stopPeriodicSync()", view_model)
         self.assertIn("if (!sessionActive || !SupabaseClient.isAuthenticated) return", view_model)
+        self.assertIn("elory_push_registration", view_model)
 
         sync_manager = (self.project / "app/src/main/java/com/pinky/dashboard/core/sync/OrderSyncManager.kt").read_text(encoding="utf-8")
         self.assertIn("suspend fun stopPeriodicSync()", sync_manager)
