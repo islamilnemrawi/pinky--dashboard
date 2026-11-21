@@ -543,6 +543,21 @@ jobs:
           python3 -m py_compile scripts/apply-staff-permission-navigation.py
           PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-staff-permission-navigation.py
 
+      - name: Isolate dashboard sessions and local account cache
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile \
+            scripts/session_isolation_common.py \
+            scripts/apply-elory-session-cache.py \
+            scripts/apply-elory-sync-manager.py \
+            scripts/apply-elory-fcm.py \
+            scripts/apply-elory-viewmodel.py \
+            scripts/apply-elory-session-isolation.py \
+            scripts/tests/test_elory_session_isolation.py
+          PROJECT_DIR="$PROJECT_DIR" python3 scripts/apply-elory-session-isolation.py
+          PROJECT_DIR="$PROJECT_DIR" python3 -m unittest scripts.tests.test_elory_session_isolation -v
+
       - name: Route privileged product reads through the secured Supabase RPC
         shell: bash
         run: |
