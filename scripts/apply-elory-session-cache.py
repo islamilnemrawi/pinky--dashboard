@@ -88,6 +88,7 @@ repo = replace(repo,
             false
         }''',
 '''        } catch (e: kotlinx.coroutines.CancellationException) {
+            SupabaseClient.isSessionReady = true
             throw e
         } catch (e: Exception) {
             android.util.Log.e("EloryAuth", "Session initialization failed (${e.javaClass.simpleName}).")
