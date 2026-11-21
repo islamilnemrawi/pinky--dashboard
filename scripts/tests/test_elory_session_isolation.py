@@ -44,6 +44,9 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
 
         auth = (self.project / "app/src/main/java/com/pinky/dashboard/data/repository/RepositoriesImpl.kt").read_text(encoding="utf-8")
         self.assertIn("sessionCacheCleaner.clear()", auth)
+        self.assertIn("cancelAllNotifications()", auth)
+        notification_manager = (self.project / "app/src/main/java/com/pinky/dashboard/core/notification/PinkyNotificationManager.kt").read_text(encoding="utf-8")
+        self.assertIn("notificationManager.cancelAll()", notification_manager)
         self.assertIn("clearLocalSession()", auth[auth.index("override suspend fun login("):])
 
         view_model = (self.project / "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt").read_text(encoding="utf-8")
@@ -76,6 +79,7 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
             self.project / "app/src/main/java/com/pinky/dashboard/ui/PinkyViewModel.kt",
             self.project / "app/src/main/java/com/pinky/dashboard/core/sync/OrderSyncManager.kt",
             self.project / "app/src/main/java/com/pinky/dashboard/core/notification/EloryFirebaseMessagingService.kt",
+            self.project / "app/src/main/java/com/pinky/dashboard/core/notification/PinkyNotificationManager.kt",
         ]
         before = {path: path.read_bytes() for path in tracked}
         second = self.apply_patch()
