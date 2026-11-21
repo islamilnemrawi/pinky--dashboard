@@ -2,6 +2,7 @@ from session_isolation_common import *
 
 vm_path = JAVA + "ui/PinkyViewModel.kt"
 vm = read(vm_path)
+vm = add_import(vm, "import com.pinky.dashboard.core.notification.PinkyNotificationManager", "import com.pinky.dashboard.core.notification.EloryPushTokenRegistrar\\n")
 vm = add_import(vm, "import kotlinx.coroutines.Job", "import kotlinx.coroutines.Dispatchers\n")
 vm = add_import(vm, "import kotlinx.coroutines.cancelAndJoin", "import kotlinx.coroutines.Job\n")
 vm = replace(vm,
@@ -123,6 +124,8 @@ vm = replace(vm,
     fun logout() {
         viewModelScope.launch {
             SupabaseClient.clearSession()
+            appContext.getSharedPreferences("elory_push_registration", Context.MODE_PRIVATE).edit().clear().apply()
+            runCatching { PinkyNotificationManager(appContext).cancelAllNotifications() }
             stopAuthenticatedBackgroundWork()
             runCatching { authRepository.logout() }
                 .onFailure { error ->
