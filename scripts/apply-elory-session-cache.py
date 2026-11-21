@@ -34,6 +34,7 @@ else:
 repo_path = JAVA + "data/repository/RepositoriesImpl.kt"
 repo = read(repo_path)
 repo = add_import(repo, "import com.pinky.dashboard.data.local.SessionCacheCleaner", "import com.pinky.dashboard.data.local.PinkyDatabase\n")
+repo = add_import(repo, "import com.pinky.dashboard.core.notification.PinkyNotificationManager", "import com.pinky.dashboard.data.local.SessionCacheCleaner\n")
 repo = replace(repo,
 '''    private val dataStoreManager = com.pinky.dashboard.data.local.AuthDataStoreManager(context)
     private val _currentUser = MutableStateFlow<AdminUser?>(null)''',
@@ -52,6 +53,7 @@ repo = replace(repo,
         dataStoreManager.clearSession()
         prefs.edit().clear().apply()
         context.getSharedPreferences("elory_push_registration", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+        PinkyNotificationManager(context).cancelAllNotifications()
         _currentUser.value = null
         // Local Room rows only; remote products, orders and customers are untouched.
         sessionCacheCleaner.clear()
@@ -135,3 +137,12 @@ repo = replace(repo,
 
         try {''', "Clear previous account cache before login")
 write(repo_path, repo)
+
+notification_path = JAVA + "core/notification/PinkyNotificationManager.kt"
+notification = read(notification_path)
+if "fun cancelAllNotifications()" not in notification:
+    notification = replace(notification,
+        "    fun showNewOrderNotification(order: Order) {",
+        "    fun cancelAllNotifications() {\n        notificationManager.cancelAll()\n    }\n\n    fun showNewOrderNotification(order: Order) {",
+        "Add app notification cleanup")
+write(notification_path, notification)
