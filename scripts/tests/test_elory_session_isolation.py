@@ -67,7 +67,7 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
         self.assertIn("currentRegisteredUserId", fcm)
         self.assertIn("!SupabaseClient.isAuthenticated", fcm)
         self.assertIn("catch (e: kotlinx.coroutines.CancellationException)", auth)
-        self.assertIn("SupabaseClient.isSessionReady = true\\n            throw e", auth)
+        self.assertIn("SupabaseClient.isSessionReady = true\n            throw e", auth)
 
         regression = self.project / "app/src/test/java/com/pinky/dashboard/SessionCacheIsolationTest.kt"
         self.assertTrue(regression.is_file())
