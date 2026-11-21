@@ -64,6 +64,7 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
         self.assertTrue(regression.is_file())
         kotlin_test = regression.read_text(encoding="utf-8")
         self.assertIn("syncManagerRejectsReadsOutsideAnActiveSession", kotlin_test)
+        self.assertIn("must remain reusable after a ViewModel is cleared", kotlin_test)
         self.assertIn("clearRemovesEveryCachedTableAndKeepsTheRoomSchemaUsable", kotlin_test)
 
     def test_patch_is_idempotent(self):
