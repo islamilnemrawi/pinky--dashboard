@@ -53,8 +53,8 @@ repo = replace(repo,
         dataStoreManager.clearSession()
         prefs.edit().clear().apply()
         context.getSharedPreferences("elory_push_registration", android.content.Context.MODE_PRIVATE).edit().clear().apply()
-        PinkyNotificationManager(context).cancelAllNotifications()
         _currentUser.value = null
+        PinkyNotificationManager(context).cancelAllNotifications()
         // Local Room rows only; remote products, orders and customers are untouched.
         sessionCacheCleaner.clear()
     }''', "Clear cache at auth boundary")
