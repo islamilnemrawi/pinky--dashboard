@@ -64,6 +64,7 @@ class ElorySessionIsolationPatchTest(unittest.TestCase):
         self.assertIn("registered_user_id", fcm)
         self.assertIn("initializeAuthSession()", fcm)
         self.assertIn("withTimeoutOrNull(10_000L)", fcm)
+        self.assertIn("currentRegisteredUserId", fcm)
         self.assertIn("catch (e: kotlinx.coroutines.CancellationException)", auth)
 
         regression = self.project / "app/src/test/java/com/pinky/dashboard/SessionCacheIsolationTest.kt"
