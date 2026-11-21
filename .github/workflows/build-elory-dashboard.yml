@@ -563,168 +563,28 @@ jobs:
         run: |
           set -Eeuo pipefail
           STAGING="$RUNNER_TEMP/elory-source-review"
+          SOURCE_ZIP="$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip"
           mkdir -p "$STAGING"
           cp -a "$PROJECT_DIR/." "$STAGING/"
           find "$STAGING" -type f \( -name '.env' -o -name 'google-services.json' -o -name '*.keystore' -o -name '*.jks' -o -name '*.p12' -o -name '*.pem' -o -name 'local.properties' \) -delete
           find "$STAGING" -type d \( -name build -o -name .gradle \) -prune -exec rm -rf {} +
           cd "$STAGING"
-          zip -qr "$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip" .
-          if unzip -Z1 "$RUNNER_TEMP/Elory-Dashboard-Patched-Source.zip" | grep -Eq '(^|/)(\.env|google-services\.json|[^/]*\.keystore|[^/]*\.jks|local\.properties)
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          POM_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.pom"
-          JAR_PATH="org/jetbrains/kotlin/kotlin-compiler-embeddable/2.2.10/kotlin-compiler-embeddable-2.2.10.jar"
-          SELECTED_MIRROR=""
+          zip -qr "$SOURCE_ZIP" .
+          python3 - "$SOURCE_ZIP" <<'PYSOURCE'
+          import sys
+          import zipfile
+          from pathlib import PurePosixPath
 
-          # Test metadata AND the 54 MB compiler JAR. A mirror that serves only one
-          # of them is not accepted.
-          CANDIDATES=(
-            "Google Americas|https://maven-central.storage-download.googleapis.com/maven2"
-            "Google Europe|https://maven-central-eu.storage-download.googleapis.com/maven2"
-            "Google Asia Pacific|https://maven-central-asia.storage-download.googleapis.com/maven2"
-            "Aliyun Central|https://maven.aliyun.com/repository/central"
-            "WSO2 Central|https://maven.wso2.org/nexus/content/repositories/central"
-          )
-
-          for candidate in "${CANDIDATES[@]}"; do
-            LABEL="${candidate%%|*}"
-            BASE="${candidate#*|}"
-            echo "Preflighting $LABEL ($BASE)"
-            rm -f "$RUNNER_TEMP/kotlin-compiler-preflight.pom" "$RUNNER_TEMP/kotlin-compiler-preflight.jar"
-
-            if curl --fail --location --silent --show-error \
-                 --retry 1 --retry-all-errors --connect-timeout 15 --max-time 90 \
-                 "$BASE/$POM_PATH" --output "$RUNNER_TEMP/kotlin-compiler-preflight.pom" \
-               && curl --fail --location --silent --show-error \
-                 --retry 2 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 240 \
-                 "$BASE/$JAR_PATH" --output "$RUNNER_TEMP/kotlin-compiler-preflight.jar" \
-               && [[ -s "$RUNNER_TEMP/kotlin-compiler-preflight.pom" ]] \
-               && [[ "$(stat -c %s "$RUNNER_TEMP/kotlin-compiler-preflight.jar")" -gt 1000000 ]]; then
-              SELECTED_MIRROR="$BASE"
-              echo "Verified both POM and compiler JAR on $LABEL."
-              ls -lh "$RUNNER_TEMP/kotlin-compiler-preflight.pom" "$RUNNER_TEMP/kotlin-compiler-preflight.jar"
-              break
-            fi
-
-            echo "$LABEL did not pass both artifact checks; trying the next mirror."
-          done
-
-          if [[ -z "$SELECTED_MIRROR" ]]; then
-            echo "No tested Maven mirror could serve both Kotlin compiler files."
-            exit 1
-          fi
-
-          echo "KOTLIN_COMPILER_MIRROR=$SELECTED_MIRROR" >> "$GITHUB_ENV"
-          echo "Selected Kotlin compiler mirror: $SELECTED_MIRROR"
-
-          cat > "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" <<'GRADLE'
-          def mirrorBase = System.getenv("KOTLIN_COMPILER_MIRROR")
-          if (mirrorBase == null || mirrorBase.trim().isEmpty()) {
-              throw new GradleException("KOTLIN_COMPILER_MIRROR was not exported by the preflight step.")
-          }
-
-          def installKotlinCompilerMirror = { repositoryHandler, label ->
-              def existing = repositoryHandler.findByName("EloryKotlinCompilerMirror")
-              if (existing != null) {
-                  repositoryHandler.remove(existing)
-              }
-
-              def mirror = repositoryHandler.maven {
-                  name = "EloryKotlinCompilerMirror"
-                  url = uri(mirrorBase)
-                  content {
-                      includeModule("org.jetbrains.kotlin", "kotlin-compiler-embeddable")
-                  }
-              }
-
-              repositoryHandler.remove(mirror)
-              repositoryHandler.addFirst(mirror)
-              println("[Elory build] Verified Kotlin compiler mirror installed first in " + label + ": " + mirrorBase)
-          }
-
-          def preferSettingsRepositories = false
-
-          gradle.settingsEvaluated { settings ->
-              def repositoriesMode = settings.dependencyResolutionManagement.repositoriesMode.get().toString()
-              preferSettingsRepositories = repositoriesMode.endsWith("PREFER_SETTINGS") ||
-                                           repositoriesMode.endsWith("FAIL_ON_PROJECT_REPOS")
-
-              installKotlinCompilerMirror(
-                  settings.dependencyResolutionManagement.repositories,
-                  "dependencyResolutionManagement"
-              )
-              println("[Elory build] dependency repositories mode: " + repositoriesMode)
-          }
-
-          gradle.beforeProject { project ->
-              if (!preferSettingsRepositories) {
-                  installKotlinCompilerMirror(project.repositories, project.path + " project repositories")
-              }
-              installKotlinCompilerMirror(project.buildscript.repositories, project.path + " buildscript repositories")
-          }
-          GRADLE
-          echo 'Verified Kotlin compiler metadata and JAR; Gradle mirror init script prepared.'
-
-      - name: Run Android unit tests before packaging
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          gradle --no-daemon --no-configuration-cache --init-script "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" --stacktrace --max-workers=2 \
-            -p "$PROJECT_DIR" :app:testDebugUnitTest
-
-      - name: Build Debug APK
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          # Retry transient repository/network failures (for example HTTP 502/504).
-          for attempt in 1 2 3; do
-            echo "Android build attempt $attempt/3"
-            if gradle --no-daemon --no-configuration-cache --init-script "$RUNNER_TEMP/kotlin-compiler-mirror.init.gradle" --stacktrace --max-workers=2 \
-              -p "$PROJECT_DIR" :app:assembleDebug; then
-              exit 0
-            fi
-            if [[ "$attempt" -lt 3 ]]; then
-              echo "Build attempt $attempt failed; waiting before retry..."
-              sleep $((attempt * 20))
-            fi
-          done
-          echo "Android build failed after 3 attempts."
-          exit 1
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          if [[ ! -s "$APK" ]]; then
-            echo "APK was not generated: $APK"
-            exit 1
-          fi
-          mkdir -p "$RUNNER_TEMP/apk-output"
-          cp "$APK" "$RUNNER_TEMP/apk-output/Elory-Dashboard-debug.apk"
-          ls -lh "$RUNNER_TEMP/apk-output/Elory-Dashboard-debug.apk"
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: Elory-Dashboard-APK
-          path: ${{ runner.temp }}/apk-output/Elory-Dashboard-debug.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Remove temporary Firebase configuration
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          if [[ -n "${PROJECT_DIR:-}" ]]; then
-            rm -f "$PROJECT_DIR/app/google-services.json" "$PROJECT_DIR/.env" "$PROJECT_DIR/debug.keystore"
-          fi
-; then
-            echo "Refusing to publish a source archive containing private configuration."
-            exit 1
-          fi
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              forbidden = [
+                  name for name in archive.namelist()
+                  if PurePosixPath(name).name in {".env", "google-services.json", "debug.keystore", "local.properties"}
+                  or PurePosixPath(name).suffix in {".keystore", ".jks", ".p12", ".pem"}
+              ]
+          if forbidden:
+              raise SystemExit("Refusing to publish source archive containing private configuration: " + ", ".join(forbidden))
+          print("PASS: final patched source archive contains no private configuration.")
+          PYSOURCE
 
       - name: Upload patched source archive
         uses: actions/upload-artifact@v6
