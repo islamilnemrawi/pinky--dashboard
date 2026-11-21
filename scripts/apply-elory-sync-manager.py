@@ -126,6 +126,5 @@ sync = replace(sync,
             notificationJob = null
             activeSyncJobs.forEach { it.cancel() }
         }
-        scope.cancel()
     }''', "Stop all sync work when manager is destroyed")
 write(sync_path, sync)
