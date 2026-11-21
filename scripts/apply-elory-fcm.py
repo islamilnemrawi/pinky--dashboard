@@ -39,7 +39,9 @@ new_fcm = """        val registeredUserId = getSharedPreferences("elory_push_reg
             android.util.Log.w("EloryPush", "Unable to validate staff session for order notification", error)
             null
         }
-        if (activeUserId.isNullOrBlank() || activeUserId != registeredUserId) return
+        val currentRegisteredUserId = getSharedPreferences("elory_push_registration", android.content.Context.MODE_PRIVATE)
+            .getString("registered_user_id", null)
+        if (activeUserId.isNullOrBlank() || activeUserId != registeredUserId || activeUserId != currentRegisteredUserId) return
 
         // Keep notification delivery synchronous with this FCM callback; the session
         // verification above is bounded so the service can finish without losing it.
