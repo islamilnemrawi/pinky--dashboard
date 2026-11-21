@@ -87,7 +87,9 @@ repo = replace(repo,
             SupabaseClient.isAuthenticated = false
             false
         }''',
-'''        } catch (e: Exception) {
+'''        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
             android.util.Log.e("EloryAuth", "Session initialization failed (${e.javaClass.simpleName}).")
             runCatching { clearLocalSession() }
                 .onFailure { cleanupError -> android.util.Log.e("EloryAuth", "Local session cache cleanup failed.", cleanupError) }
